@@ -1,5 +1,5 @@
 """
-## CODE OWNERS: Alexander Olivero
+## CODE OWNERS: Alexander Olivero, Jason Altieri
 ### OBJECTIVE:
   Mark the root of the package
 ### DEVELOPER NOTES:
