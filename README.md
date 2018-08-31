@@ -1,4 +1,4 @@
-# EBM
+# ebm-hedis-etc
 
 A component to encapsulate the running of EBM measures (both HEDIS and non-HEDIS)
 
