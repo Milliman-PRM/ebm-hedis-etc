@@ -1,5 +1,5 @@
 """
-## CODE OWNERS: Alexander Olivero
+## CODE OWNERS: Alexander Olivero, Jason Altieri
 ### OBJECTIVE:
   Mark the root of the tests folder so py.test will discover it properly.
 ### DEVELOPER NOTES:
