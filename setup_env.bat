@@ -1,5 +1,5 @@
 @echo off
-rem ### CODE OWNERS: Alexander Olivero
+rem ### CODE OWNERS: Alexander Olivero, Jason Altieri
 rem
 rem ### OBJECTIVE:
 rem   Setup the environment for CI and Development purposes.
