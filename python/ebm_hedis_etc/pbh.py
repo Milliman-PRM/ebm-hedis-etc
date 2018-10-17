@@ -1,6 +1,8 @@
 """
-### CODE OWNERS:
+### CODE OWNERS: Alexander Olivero
+
 ### OBJECTIVE:
+    Calculate the Persistence of Beta-Blockers after Heart Attack HEDIS measure.
 
 ### DEVELOPER NOTES:
   <none>
