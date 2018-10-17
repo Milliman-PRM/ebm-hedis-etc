@@ -27,7 +27,6 @@ def _calc_measures(
         performance_yearstart=datetime.date,
 ):
     measure_start = performance_yearstart
-    measure_end = datetime.date(performance_yearstart.year, 12, 31)
 
     reference_df = dfs_input['reference']
 
@@ -63,8 +62,8 @@ def _calc_measures(
         ).alias('diag')
     ).where(
         spark_funcs.col('fromdate').between(
-            datetime.date(performance_yearstart.year-1, 7, 1),
-            datetime.date(performance_yearstart.year, 6, 30)
+            datetime.date(measure_start.year-1, 7, 1),
+            datetime.date(measure_start.year, 6, 30)
         )
     )
 
