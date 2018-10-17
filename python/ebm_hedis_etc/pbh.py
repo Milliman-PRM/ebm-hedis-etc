@@ -238,5 +238,32 @@ def _calc_measures(
         spark_funcs.col('beta_covered_days') >= 135
     )
 
+    results_df = dfs_input['member'].select(
+        'member_id'
+    ).distinct().join(
+        eligible_members_df,
+        dfs_input['member'].member_id == eligible_members_df.member_id,
+        how='left_outer'
+    ).join(
+        numer_df,
+        dfs_input['member'].member_id == numer_df.member_id,
+        how='left_outer'
+    ).select(
+        dfs_input['member'].member_id,
+        spark_funcs.when(
+            numer_df.member_id.isNotNull(),
+            spark_funcs.lit(1)
+        ).otherwise(
+            spark_funcs.lit(0)
+        ).alias('numerator'),
+        spark_funcs.when(
+            eligible_members_df.member_id.isNotNull(),
+            spark_funcs.lit(1)
+        ).otherwise(
+            spark_funcs.lit(0)
+        ).alias('denominator'),
+        spark_funcs.lit(None).alias('comments'),
+        spark_funcs.lit(None).alias('comp_quality_date_actionable')
+    )
 
-
+    return results_df
