@@ -21,12 +21,14 @@ LOGGER = logging.getLogger(__name__)
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 # =============================================================================
 
+
 def _calc_simple_cis_measure(
         reference_df: DataFrame,
+        eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         value_set_name: str,
         days_between_dob: int,
-        distinct_vaccine_count: int
+        vaccine_count: int
 ) -> DataFrame:
     reference_values = reference_df.where(
         spark_funcs.col('value_set_name') == value_set_name
@@ -47,82 +49,109 @@ def _calc_simple_cis_measure(
         'member_id'
     ).agg(
         spark_funcs.countDistinct('fromdate').alias('vaccine_count')
-    ).where(
-        spark_funcs.col('vaccine_count') >= distinct_vaccine_count
     )
 
-    return vaccines_df
+    output_df = eligible_members_df.join(
+        vaccines_df,
+        'member_id',
+        how='left_outer'
+    ).select(
+        eligible_members_df.member_id,
+        spark_funcs.when(
+            spark_funcs.col('vaccine_count') >= vaccine_count,
+            spark_funcs.lit(1)
+        ).otherwise(
+            spark_funcs.lit(0)
+        ).alias('numerator'),
+        spark_funcs.lit(1).alias('denominator'),
+        spark_funcs.lit(None).alias('comments'),
+        spark_funcs.lit(None).alias('comp_quality_date_actionable'),
+        'vaccine_count'
+    )
+
+    return output_df
 
 
 def calc_dtap(
+        eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     """Calculate DTaP Vaccine Measure"""
     return _calc_simple_cis_measure(
         reference_df,
+        eligible_members_df,
         eligible_claims_df,
         'DTaP Vaccine Administered',
         42,
         4
-    )
+    ).drop('vaccine_count')
 
 
 def calc_ipv(
+        eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     """Calculate IPV Vaccine Measure"""
     return _calc_simple_cis_measure(
         reference_df,
+        eligible_members_df,
         eligible_claims_df,
         'Inactivated Polio Vaccine (IPV) Administered',
         42,
         3
-    )
+    ).drop('vaccine_count')
 
 
 def calc_hib(
+        eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     """Calculate HiB Vaccine Measure"""
     return _calc_simple_cis_measure(
         reference_df,
+        eligible_members_df,
         eligible_claims_df,
         'Haemophilus Influenzae Type B (HiB) Vaccine Administered',
         42,
         3
-    )
+    ).drop('vaccine_count')
 
 
 def calc_pneumococcal(
+        eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     return _calc_simple_cis_measure(
         reference_df,
+        eligible_members_df,
         eligible_claims_df,
         'Pneumococcal Conjugate Vaccine Administered',
         42,
         4
-    )
+    ).drop('vaccine_count')
 
 
 def calc_influenza(
+        eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     return _calc_simple_cis_measure(
         reference_df,
+        eligible_members_df,
         eligible_claims_df,
         'Influenza Vaccine Administered',
         180,
         2
-    )
+    ).drop('vaccine_count')
 
 
 def calc_hepatitis_b(
+        eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
@@ -154,10 +183,14 @@ def calc_hepatitis_b(
 
     hep_b_vaccine_df = _calc_simple_cis_measure(
         reference_df,
+        eligible_members_df,
         eligible_claims_df,
         'Hepatitis B Vaccine Administered',
         0,
         3
+    ).select(
+        'member_id',
+        'vaccine_count'
     )
 
     procs_expolde_df = eligible_claims_df.select(
@@ -208,23 +241,47 @@ def calc_hepatitis_b(
         spark_funcs.col('vaccine_count') >= 3
     )
 
-    return combine_df.select(
-        'member_id'
-    ).union(
-        history_hepatitis_df
-    ).distinct()
+    output_df = eligible_members_df.join(
+        combine_df,
+        eligible_members_df.member_id == combine_df.member_id,
+        how='left_outer'
+    ).join(
+        history_hepatitis_df,
+        eligible_members_df.member_id == history_hepatitis_df.member_id,
+        how='left_outer'
+    ).select(
+        eligible_members_df.member_id,
+        spark_funcs.when(
+            combine_df.member_id.isNotNull() | history_hepatitis_df.member_id.isNotNull(),
+            spark_funcs.lit(1)
+        ).otherwise(
+            spark_funcs.lit(0)
+        ).alias('numerator'),
+        spark_funcs.lit(1).alias('denominator'),
+        spark_funcs.lit(None).alias('comments'),
+        spark_funcs.lit(None).alias('comp_quality_date_actionable')
+    )
+
+    return output_df
 
 
 def calc_hepatitis_a(
+        eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     hep_a_vaccine_df = _calc_simple_cis_measure(
         reference_df,
+        eligible_members_df,
         eligible_claims_df,
         'Hepatits A Vaccine Administered',
         0,
         1
+    ).where(
+        spark_funcs.col('numerator') == 1
+    ).select(
+        'member_id',
+        'vaccine_count'
     )
 
     diags_explode_df = eligible_claims_df.select(
@@ -253,23 +310,46 @@ def calc_hepatitis_a(
         'member_id'
     ).distinct()
 
-    return hep_a_vaccine_df.select(
-        'member_id'
-    ).union(
-        hep_a_history_df
+    output_df = eligible_members_df.join(
+        hep_a_vaccine_df,
+        eligible_members_df.member_id == hep_a_vaccine_df.member_id,
+        how='left_outer'
+    ).join(
+        hep_a_history_df,
+        eligible_members_df.member_id == hep_a_history_df.member_id,
+        how='left_outer'
+    ).select(
+        eligible_members_df.member_id,
+        spark_funcs.when(
+            hep_a_vaccine_df.member_id.isNotNull() | hep_a_history_df.member_id.isNotNull(),
+            spark_funcs.lit(1)
+        ).otherwise(
+            spark_funcs.lit(0)
+        ).alias('numerator'),
+        spark_funcs.lit(1).alias('denominator'),
+        spark_funcs.lit(None).alias('comments'),
+        spark_funcs.lit(None).alias('comp_quality_date_actionable')
     )
+
+    return output_df
 
 
 def calc_vzv(
+        eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     vzv_vaccine_df = _calc_simple_cis_measure(
         reference_df,
+        eligible_members_df,
         eligible_claims_df,
         'Varicella Zoster (VZV) Vaccine Administered',
         0,
         1
+    ).where(
+        spark_funcs.col('numerator') == 1
+    ).select(
+        'member_id'
     )
 
     diags_explode_df = eligible_claims_df.select(
@@ -298,31 +378,59 @@ def calc_vzv(
         'member_id'
     ).distinct()
 
-    return vzv_vaccine_df.select(
-        'member_id'
-    ).union(
-        vzv_history_df
-    ).distinct()
+    output_df = eligible_members_df.join(
+        vzv_vaccine_df,
+        eligible_members_df.member_id == vzv_vaccine_df.member_id,
+        how='left_outer'
+    ).join(
+        vzv_history_df,
+        eligible_members_df.member_id == vzv_history_df.member_id,
+        how='left_outer'
+    ).select(
+        eligible_members_df.member_id,
+        spark_funcs.when(
+            (vzv_vaccine_df.member_id.isNotNull()) | (vzv_history_df.member_id.isNotNull()),
+            spark_funcs.lit(1)
+        ).otherwise(
+            spark_funcs.lit(0)
+        ).alias('numerator'),
+        spark_funcs.lit(1).alias('denominator'),
+        spark_funcs.lit(None).alias('comments'),
+        spark_funcs.lit(None).alias('comp_quality_date_actionable')
+    )
+
+    return output_df
 
 
 def calc_rotavirus(
+        eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     two_two_dose_df = _calc_simple_cis_measure(
         reference_df,
+        eligible_members_df,
         eligible_claims_df,
         'Rotavirus Vaccine (2 Dose Schedule) Administered',
         42,
         2
+    ).where(
+        spark_funcs.col('numerator') == 1
+    ).select(
+        'member_id'
     )
 
     three_three_dose_df = _calc_simple_cis_measure(
         reference_df,
+        eligible_members_df,
         eligible_claims_df,
         'Rotavirus Vaccine (3 Dose Schedule) Administered',
         42,
         3
+    ).where(
+        spark_funcs.col('numerator') == 1
+    ).select(
+        'member_id'
     )
 
     two_reference_values = reference_df.where(
@@ -375,6 +483,31 @@ def calc_rotavirus(
         spark_funcs.countDistinct('value_set_name').alias('vaccine_type_count')
     ).where(
         spark_funcs.col('vaccine_type_count') > 1
+    )
+
+    output_df = eligible_members_df.join(
+        two_two_dose_df,
+        eligible_members_df.member_id == two_two_dose_df.member_id,
+        how='left_outer'
+    ).join(
+        three_three_dose_df,
+        eligible_members_df.member_id == three_three_dose_df.member_id,
+        how='left_outer'
+    ).join(
+        two_three_combination_df,
+        eligible_members_df.member_id == two_three_combination_df.member_id,
+        how='left_outer'
+    ).select(
+        eligible_members_df.member_id,
+        spark_funcs.when(
+            (two_two_dose_df.member_id.isNotNull()) | (three_three_dose_df.member_id.isNotNull()) | (two_three_combination_df.member_id.isNotNull()),
+            spark_funcs.lit(1)
+        ).otherwise(
+            spark_funcs.lit(0)
+        ).alias('numerator'),
+        spark_funcs.lit(1).alias('denominator'),
+        spark_funcs.lit(None).alias('comments'),
+        spark_funcs.lit(None).alias('comp_quality_date_actionable')
     )
 
     return two_two_dose_df.select(
@@ -526,6 +659,7 @@ def calc_mmr(
         measles_and_rubella_and_mumps_df
     ).distinct()
 
+
 def _calc_measures(
         dfs_input: "typing.Mapping[str, DataFrame]",
         performance_yearstart=datetime.date,
@@ -624,25 +758,65 @@ def _calc_measures(
 
     reference_df = dfs_input['reference']
 
-    dtap_df = calc_dtap(eligible_claims_df, reference_df)
+    dtap_df = calc_dtap(
+        eligible_members_df,
+        eligible_claims_df,
+        reference_df
+    )
 
-    ipv_df = calc_ipv(eligible_claims_df, reference_df)
+    ipv_df = calc_ipv(
+        eligible_members_df,
+        eligible_claims_df,
+        reference_df
+    )
 
-    mmr_df = calc_mmr(eligible_claims_df, reference_df)
+    mmr_df = calc_mmr(
+        eligible_members_df,
+        eligible_claims_df,
+        reference_df
+    )
 
-    hib_df = calc_hib(eligible_claims_df, reference_df)
+    hib_df = calc_hib(
+        eligible_members_df,
+        eligible_claims_df,
+        reference_df
+    )
 
-    hepatitis_b_df = calc_hepatitis_b(eligible_claims_df, reference_df)
+    hepatitis_b_df = calc_hepatitis_b(
+        eligible_members_df,
+        eligible_claims_df,
+        reference_df
+    )
 
-    vzv_df = calc_vzv(eligible_claims_df, reference_df)
+    vzv_df = calc_vzv(
+        eligible_members_df,
+        eligible_claims_df,
+        reference_df
+    )
 
-    pneumococcal_df = calc_pneumococcal(eligible_claims_df, reference_df)
+    pneumococcal_df = calc_pneumococcal(
+        eligible_members_df,
+        eligible_claims_df,
+        reference_df
+    )
 
-    hepatitis_a_df = calc_hepatitis_a(eligible_claims_df, reference_df)
+    hepatitis_a_df = calc_hepatitis_a(
+        eligible_members_df,
+        eligible_claims_df,
+        reference_df
+    )
 
-    rotavirus_df = calc_rotavirus(eligible_claims_df, reference_df)
+    rotavirus_df = calc_rotavirus(
+        eligible_members_df,
+        eligible_claims_df,
+        reference_df
+    )
 
-    influenza_df = calc_influenza(eligible_claims_df, reference_df)
+    influenza_df = calc_influenza(
+        eligible_members_df,
+        eligible_claims_df,
+        reference_df
+    )
 
 
 
