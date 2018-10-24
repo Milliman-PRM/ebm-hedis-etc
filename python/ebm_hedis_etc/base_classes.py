@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Alexander Olivero
+### CODE OWNERS: Alexander Olivero, Chas Busenburg
 
 ### OBJECTIVE:
   Define how a quality measure should look
