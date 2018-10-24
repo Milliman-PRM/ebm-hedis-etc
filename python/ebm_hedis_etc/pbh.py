@@ -11,7 +11,7 @@ import logging
 import datetime
 
 import pyspark.sql.functions as spark_funcs
-from pyspark.sql import DataFrame, Window
+from pyspark.sql import Window
 from prm.dates.windows import decouple_common_windows
 from emb_hedis_etc.base_classes import QualityMeasure
 
@@ -26,6 +26,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class PBH(QualityMeasure):
+    """Object to house logic to calculate persistence of beta-blockers after heart attack measure"""
     def _calc_measure(
             self,
             dfs_input: "typing.Mapping[str, DataFrame]",
@@ -51,6 +52,21 @@ class PBH(QualityMeasure):
             inpatient_disch_ref_df,
             spark_funcs.col('revcode') == spark_funcs.col('code'),
             how='inner'
+        ).withColumn(
+            'transfer_date',
+            spark_funcs.date_sub(spark_funcs.col('admitdate'), 1)
+        )
+
+        non_acute_inpat_disch_df = dfs_input['claims'].join(
+            reference_df.where(
+                spark_funcs.col('value_set_name') == 'Nonacute Inpatient Stay'
+            ),
+            spark_funcs.col('revcode') == spark_funcs.col('code'),
+            how='inner'
+        ).select(
+            'claimid',
+            'member_id',
+            spark_funcs.date_sub(spark_funcs.col('admitdate'), 1).alias('transfer_date')
         )
 
         diags_explode_df = acute_inpat_disch_df.select(
@@ -78,8 +94,8 @@ class PBH(QualityMeasure):
             ),
             [
                 diags_explode_df.icdversion == spark_funcs.regexp_extract(reference_df.code_system,
-                                                                          '\d+', 0),
-                diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, '\.', '')
+                                                                          r'\d+', 0),
+                diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
             ],
             how='inner'
         ).select(
@@ -88,16 +104,45 @@ class PBH(QualityMeasure):
             'dischdate'
         ).distinct()
 
+        direct_transfer_df = ami_diag_df.join(
+            non_acute_inpat_disch_df,
+            [
+                ami_diag_df.member_id == non_acute_inpat_disch_df.member_id,
+                ami_diag_df.dischdate == non_acute_inpat_disch_df.transfer_date
+            ],
+            how='left_outer'
+        ).join(
+            acute_inpat_disch_df.withColumnRenamed(
+                'member_id',
+                'join_member_id'
+            ).withColumnRenamed(
+                'dischdate',
+                'transfer_dischdate'
+            ),
+            [
+                ami_diag_df.member_id == spark_funcs.col('join_member_id'),
+                ami_diag_df.dischdate == acute_inpat_disch_df.transfer_date
+            ],
+            how='left_outer'
+        ).where(
+            non_acute_inpat_disch_df.transfer_date.isNull()
+        ).select(
+            ami_diag_df.claimid,
+            ami_diag_df.member_id,
+            spark_funcs.coalesce(
+                spark_funcs.col('transfer_dischdate'),
+                spark_funcs.col('dischdate')
+            ).alias('dischdate')
+        )
+
         multiple_episode_window = Window().partitionBy('member_id').orderBy('dischdate', 'claimid')
 
-        ami_reduce_df = ami_diag_df.withColumn(
+        ami_reduce_df = direct_transfer_df.withColumn(
             'row',
             spark_funcs.row_number().over(multiple_episode_window)
         ).where(
             spark_funcs.col('row') == 1
         ).drop('row')
-
-        # TODO: Direct Transfer logic
 
         elig_pop_covered = dfs_input['member_time'].where(
             spark_funcs.col('cover_medical').isin('Y')
