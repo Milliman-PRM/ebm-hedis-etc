@@ -23,12 +23,14 @@ LOGGER = logging.getLogger(__name__)
 _PATH_REL_RELEASE_NOTES = Path("docs") / "release-notes.md"
 PATH_PROMOTION = Path(r"S:\PRM\Pipeline_Components\emb_hedis_etc")
 
+# pragma: no cover
+
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 # =============================================================================
 
 
-def promote_reference_data(path_release: Path) -> None:  # pragma: no cover
+def promote_reference_data(path_release: Path) -> None:
     """Convert the reference data to convenient downstream formats"""
 
     _path_reference_output = path_release / '_compiled_reference_data'
@@ -45,7 +47,7 @@ def promote_reference_data(path_release: Path) -> None:  # pragma: no cover
     return None
 
 
-def main() -> int:  # pragma: no cover
+def main() -> int:
     """Promotion process"""
     LOGGER.info("Beginning code promotion for product component")
     github_repository = repo.GithubRepository.from_parts("PRM", "ebm-hedis-etc")
@@ -77,7 +79,7 @@ def main() -> int:  # pragma: no cover
     return 0
 
 
-if __name__ == '__main__':  # pragma: no cover
+if __name__ == '__main__':
     # pylint: disable=wrong-import-position, wrong-import-order, ungrouped-imports
     import sys
     import prm.utils.logging_ext
