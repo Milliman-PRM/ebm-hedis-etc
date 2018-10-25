@@ -7,6 +7,9 @@
 ### DEVELOPER NOTES:
   <none>
 """
+# pylint: disable=abstract-class-instantiated
+# pylint: disable=abstract-method
+
 import datetime
 import pytest
 
@@ -50,7 +53,7 @@ def test_qualitymeasure(spark_app):
             )
 
     class DummyNoMethodQM(QualityMeasure):
-        """"""
+        """Dummy quality measure to fail from lack of method"""
 
     test_qm = DummyGoodQM()
     assert test_qm.key_fields == ['member_id']
