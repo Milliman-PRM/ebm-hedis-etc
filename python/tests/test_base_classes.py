@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Alexander Olivero
+### CODE OWNERS: Alexander Olivero, Chas Busenburg
 
 ### OBJECTIVE:
   Test the methods of a QualityMeasure object
