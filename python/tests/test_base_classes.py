@@ -49,6 +49,9 @@ def test_qualitymeasure(spark_app):
                         'comp_quality_numerator': 1})]
             )
 
+    class DummyNoMethodQM(QualityMeasure):
+        """"""
+
     test_qm = DummyGoodQM()
     assert test_qm.key_fields == ['member_id']
     test_results = test_qm.calc_measure(None, None)
@@ -57,3 +60,6 @@ def test_qualitymeasure(spark_app):
     assert bad_qm.key_fields == ['member_id']
     with pytest.raises(AssertionError):
         bad_results = bad_qm.calc_measure(None, None)
+
+    with pytest.raises(TypeError):
+        no_method_qm = DummyNoMethodQM()
