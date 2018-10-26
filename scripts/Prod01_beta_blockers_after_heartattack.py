@@ -8,12 +8,17 @@
   <none>
 """
 import logging
+import os
+from pathlib import Path
+
 from prm.spark.app import SparkApp
 from prm.meta.project import parse_project_metadata
 from ebm_hedis_etc.pbh import PBH
 
 PRM_META = parse_project_metadata()
 LOGGER = logging.getLogger(__name__)
+
+PATH_REF = Path(os.environ['EBM_HEDIS_ETC_MEASURES_PATHREF'])
 
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
@@ -29,10 +34,8 @@ def main() -> int:
         'member': sparkapp.load_df(PRM_META[35, 'out'] / 'member.parquet'),
         'claims': sparkapp.load_df(PRM_META[40, 'out'] / 'outclaims.parquet'),
         'rx_claims': sparkapp.load_df(PRM_META[40, 'out'] / 'outpharmacy.parquet'),
-        'reference': sparkapp.session.read.csv(
-            r"C:\Users\Alexander.Olivero\Desktop\hedis_codes.csv", header=True, sep=','),
-        'ndc': sparkapp.session.read.csv(r"C:\Users\Alexander.Olivero\Desktop\hedis_ndc_codes.csv",
-                                         header=True, sep=',')
+        'reference': sparkapp.load_df(PATH_REF / 'hedis_codes.parquet'),
+        'ndc': sparkapp.load_df(PATH_REF / 'hedis_ndc_codes.parquet')
     }
 
     measure = PBH()
