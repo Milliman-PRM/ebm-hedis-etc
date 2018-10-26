@@ -18,7 +18,7 @@ from prm.spark.io_txt import build_structtype_from_csv
 LOGGER = logging.getLogger(__name__)
 try:
     PATH_INPUT = Path(os.environ['EBM_HEDIS_ETC_HOME']) / 'references'
-    PATH_OUTPUT = Path(os.environ['EMB_HEDIS_ETC_MEASURES_PATHREF'])
+    PATH_OUTPUT = Path(os.environ['EBM_HEDIS_ETC_MEASURES_PATHREF'])
 except KeyError:
     PATH_INPUT = Path(__file__).parents[2] / 'references'
     PATH_OUTPUT = None
