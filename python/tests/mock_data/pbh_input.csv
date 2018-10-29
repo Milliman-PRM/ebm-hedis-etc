@@ -1,0 +1,9 @@
+member_id,claimid,admitdate,dischdate,revcode,icdversion,icddiag1,icddiag2,icddiag3,cover_medical,cover_rx,date_start,date_end,ndc,medication_list,ndc_code,fromdate,dayssupply,age,expected_comp_quality_short,expected_comp_quality_numerator,expected_comp_quality_denominator,expected_comp_quality_date_last,expected_comp_quality_date_actionable,expected_comp_quality_comments
+MrNoAMI,claim_1,2018-01-01,2018-01-02,0123,10,0000,,,Y,Y,2018-01-01,2018-06-01,123456789,Not Relevant Drug,123456789,2018-01-02,30,20,PBH,0,0,,,
+MrAMIBigGap,claim_2,2018-01-01,2018-01-02,0123,10,1111,,,Y,Y,2018-02-01,2018-02-03,123456789,Not Relevant Drug,123456789,2018-01-02,30,20,PBH,0,0,,,
+MrAMIBigGap,claim_3,2018-01-01,2018-01-02,0123,10,1111,,,Y,Y,2018-04-03,2018-04-04,123456789,Not Relevant Drug,123456789,2018-01-02,30,20,PBH,0,0,,,
+MsAMITwoGaps,claim_4,2018-01-01,2018-01-02,0123,10,1111,,,Y,Y,2018-01-01,2018-01-15,123456789,Not Relevant Drug,123456789,2018-01-02,30,20,PBH,0,0,,,
+MsAMITwoGaps,claim_5,2018-01-01,2018-01-02,0123,10,1111,,,Y,Y,2018-01-17,2018-02-30,123456789,Not Relevant Drug,123456789,2018-01-02,30,20,PBH,0,0,,,
+MsAMITwoGaps,claim_6,2018-01-01,2018-01-02,0123,10,1111,,,Y,Y,2018-03-04,2018-03-30,123456789,Not Relevant Drug,123456789,2018-01-02,30,20,PBH,0,0,,,
+MissAMINumerator,claim_7,2018-01-01,2018-01-02,0123,10,1111,,,Y,Y,2018-01-01,2018-06-01,123456789,Beta-Blocker Medications,123456789,2018-02-02,135,30,PBH,1,1,,,
+MrsAMINoNumerator,claim_8,2018-01-01,2018-01-02,0123,10,1111,,,Y,Y,2018-01-01,2018-06-01,123456789,Beta-Blocker Medications,123456789,2018-02-02,125,30,PBH,0,1,,,
