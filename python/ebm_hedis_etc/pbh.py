@@ -72,7 +72,6 @@ class PBH(QualityMeasure):
         diags_explode_df = acute_inpat_disch_df.select(
             'member_id',
             'claimid',
-            'fromdate',
             'dischdate',
             'icdversion',
             spark_funcs.explode(
@@ -82,7 +81,7 @@ class PBH(QualityMeasure):
                 )
             ).alias('diag')
         ).where(
-            spark_funcs.col('fromdate').between(
+            spark_funcs.col('dischdate').between(
                 datetime.date(measure_start.year-1, 7, 1),
                 datetime.date(measure_start.year, 6, 30)
             )
@@ -175,7 +174,7 @@ class PBH(QualityMeasure):
             ['member_id', 'date_start', 'date_end'],
             'left_outer'
         ).where(
-            spark_funcs.col('assignment_indicator').isNull()
+            spark_funcs.col('cover_medical').isNull()
         ).select(
             'member_id',
             'date_start',
