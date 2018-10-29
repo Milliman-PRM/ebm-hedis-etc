@@ -1,8 +1,0 @@
-name,datatype,nullable
-member_id,string,false
-comp_quality_short,string,false
-comp_quality_numerator,double,false
-comp_quality_denominator,double,false
-comp_quality_date_last,date,true
-comp_quality_date_actionable,date,true
-comp_quality_comments,string,true

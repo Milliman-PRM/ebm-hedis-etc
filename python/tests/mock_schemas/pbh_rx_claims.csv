@@ -1,0 +1,6 @@
+name,datatype,nullable
+claimid,string,false
+member_id,string,false
+fromdate,date,false
+dayssupply,double,false
+ndc,string,false

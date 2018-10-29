@@ -1,0 +1,3 @@
+name,datatype,nullable
+member_id,string,false
+age,double,false

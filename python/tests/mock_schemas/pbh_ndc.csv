@@ -1,0 +1,3 @@
+name,datatype,nullable
+medication_list,string,false
+ndc_code,string,false
