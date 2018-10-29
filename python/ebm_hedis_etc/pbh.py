@@ -213,17 +213,20 @@ class PBH(QualityMeasure):
 
         excluded_members_df = long_gap_df.union(
             gap_count_df
-        ).distinct()
+        ).distinct().withColumnRenamed(
+            'member_id',
+            'exclude_member_id'
+        )
 
         eligible_members_df = elig_pop_covered.select(
             'member_id',
             'dischdate'
         ).distinct().join(
             excluded_members_df,
-            'member_id',
+            spark_funcs.col('member_id') == spark_funcs.col('exclude_member_id'),
             how='left_outer'
         ).where(
-            excluded_members_df.member_id.isNotNull()
+            spark_funcs.col('exclude_member_id').isNull()
         )
 
         ndc_reference_df = dfs_input['ndc']
