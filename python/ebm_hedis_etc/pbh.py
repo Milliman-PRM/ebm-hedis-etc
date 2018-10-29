@@ -185,15 +185,22 @@ class PBH(QualityMeasure):
                 spark_funcs.col('date_end'),
                 spark_funcs.col('date_start')
             )
+        ).join(
+            ami_reduce_df.select(
+                'member_id',
+                'dischdate'
+            ),
+            'member_id',
+            how='left_outer'
         )
 
         long_gap_df = gaps_df.where(
             spark_funcs.col('date_start').between(
+                spark_funcs.col('dischdate'),
                 spark_funcs.date_add(
                     spark_funcs.col('dischdate'),
                     180
-                ),
-                spark_funcs.col('dischdate')
+                )
             ) &
             (spark_funcs.col('date_diff') > 45)
         ).select('member_id')
