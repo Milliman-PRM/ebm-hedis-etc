@@ -13,7 +13,7 @@ import datetime
 import pyspark.sql.functions as spark_funcs
 from pyspark.sql import Window
 from prm.dates.windows import decouple_common_windows
-from emb_hedis_etc.base_classes import QualityMeasure
+from ebm_hedis_etc.base_classes import QualityMeasure
 
 LOGGER = logging.getLogger(__name__)
 
@@ -305,6 +305,7 @@ class PBH(QualityMeasure):
             how='left_outer'
         ).select(
             dfs_input['member'].member_id,
+            spark_funcs.lit('PBH').alias('comp_quality_short'),
             spark_funcs.when(
                 numer_df.member_id.isNotNull(),
                 spark_funcs.lit(1)
@@ -317,8 +318,9 @@ class PBH(QualityMeasure):
             ).otherwise(
                 spark_funcs.lit(0)
             ).alias('comp_quality_denominator'),
-            spark_funcs.lit(None).alias('comp_quality_comments'),
-            spark_funcs.lit(None).alias('comp_quality_date_actionable')
+            spark_funcs.lit(None).alias('comp_quality_date_last'),
+            spark_funcs.lit(None).alias('comp_quality_date_actionable'),
+            spark_funcs.lit(None).alias('comp_quality_comments')
         )
 
         return results_df
