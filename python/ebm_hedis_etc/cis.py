@@ -24,6 +24,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _calc_simple_cis_measure(
+        member_df: DataFrame,
         reference_df: DataFrame,
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
@@ -52,19 +53,30 @@ def _calc_simple_cis_measure(
         spark_funcs.countDistinct('fromdate').alias('vaccine_count')
     )
 
-    output_df = eligible_members_df.join(
-        vaccines_df,
-        'member_id',
+    output_df = member_df.select(
+        spark_funcs.col('member_id').alias('base_member_id')
+    ).join(
+        eligible_members_df,
+        spark_funcs.col('base_member_id') == spark_funcs.col('member_id'),
         how='left_outer'
+    ).join(
+       vaccines_df,
+       'member_id',
+       how='left_outer'
     ).select(
-        eligible_members_df.member_id,
+        spark_funcs.col('base_member_id').alias('member_id'),
         spark_funcs.when(
             spark_funcs.col('vaccine_count') >= vaccine_count,
             spark_funcs.lit(1)
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_numerator'),
-        spark_funcs.lit(1).alias('comp_quality_denominator'),
+        spark_funcs.when(
+            eligible_members_df.member_id.isNotNull(),
+            spark_funcs.lit(1)
+        ).otherwise(
+            spark_funcs.lit(0)
+        ).alias('comp_quality_denominator'),
         spark_funcs.lit(None).alias('comp_quality_comments'),
         spark_funcs.lit(None).alias('comp_quality_date_last'),
         spark_funcs.lit(None).alias('comp_quality_date_actionable'),
@@ -75,12 +87,14 @@ def _calc_simple_cis_measure(
 
 
 def calc_dtap(
+        member_df: DataFrame,
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     """Calculate DTaP Vaccine Measure"""
     return _calc_simple_cis_measure(
+        member_df,
         reference_df,
         eligible_members_df,
         eligible_claims_df,
@@ -96,12 +110,14 @@ def calc_dtap(
 
 
 def calc_ipv(
+        member_df: DataFrame,
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     """Calculate IPV Vaccine Measure"""
     return _calc_simple_cis_measure(
+        member_df,
         reference_df,
         eligible_members_df,
         eligible_claims_df,
@@ -117,12 +133,14 @@ def calc_ipv(
 
 
 def calc_hib(
+        member_df: DataFrame,
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     """Calculate HiB Vaccine Measure"""
     return _calc_simple_cis_measure(
+        member_df,
         reference_df,
         eligible_members_df,
         eligible_claims_df,
@@ -138,11 +156,13 @@ def calc_hib(
 
 
 def calc_pneumococcal(
+        member_df: DataFrame,
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     return _calc_simple_cis_measure(
+        member_df,
         reference_df,
         eligible_members_df,
         eligible_claims_df,
@@ -158,11 +178,13 @@ def calc_pneumococcal(
 
 
 def calc_influenza(
+        member_df: DataFrame,
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     return _calc_simple_cis_measure(
+        member_df,
         reference_df,
         eligible_members_df,
         eligible_claims_df,
@@ -178,6 +200,7 @@ def calc_influenza(
 
 
 def calc_hepatitis_b(
+        member_df: DataFrame,
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
@@ -209,6 +232,7 @@ def calc_hepatitis_b(
     ).distinct()
 
     hep_b_vaccine_df = _calc_simple_cis_measure(
+        member_df,
         reference_df,
         eligible_members_df,
         eligible_claims_df,
@@ -268,7 +292,13 @@ def calc_hepatitis_b(
         spark_funcs.col('vaccine_count') >= 3
     )
 
-    output_df = eligible_members_df.join(
+    output_df = member_df.select(
+        spark_funcs.col('member_id').alias('base_member_id')
+    ).join(
+        eligible_members_df,
+        spark_funcs.col('base_member_id') == spark_funcs.col('member_id'),
+        how='left_outer'
+    ).join(
         combine_df,
         eligible_members_df.member_id == combine_df.member_id,
         how='left_outer'
@@ -277,7 +307,7 @@ def calc_hepatitis_b(
         eligible_members_df.member_id == history_hepatitis_df.member_id,
         how='left_outer'
     ).select(
-        eligible_members_df.member_id,
+        spark_funcs.col('base_member_id').alias('member_id'),
         spark_funcs.lit('Childhood Immunization Status - Hepatitis B').alias('comp_quality_short'),
         spark_funcs.when(
             combine_df.member_id.isNotNull() | history_hepatitis_df.member_id.isNotNull(),
@@ -285,7 +315,12 @@ def calc_hepatitis_b(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_numerator'),
-        spark_funcs.lit(1).alias('comp_quality_denominator'),
+        spark_funcs.when(
+            eligible_members_df.member_id.isNotNull(),
+            spark_funcs.lit(1)
+        ).otherwise(
+            spark_funcs.lit(0)
+        ).alias('comp_quality_denominator'),
         spark_funcs.lit(None).alias('comp_quality_comments'),
         spark_funcs.lit(None).alias('comp_quality_date_last'),
         spark_funcs.lit(None).alias('comp_quality_date_actionable')
@@ -295,11 +330,13 @@ def calc_hepatitis_b(
 
 
 def calc_hepatitis_a(
+        member_df: DataFrame,
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     hep_a_vaccine_df = _calc_simple_cis_measure(
+        member_df,
         reference_df,
         eligible_members_df,
         eligible_claims_df,
@@ -339,7 +376,13 @@ def calc_hepatitis_a(
         'member_id'
     ).distinct()
 
-    output_df = eligible_members_df.join(
+    output_df = member_df.select(
+        spark_funcs.col('member_id').alias('base_member_id')
+    ).join(
+        eligible_members_df,
+        spark_funcs.col('base_member_id') == spark_funcs.col('member_id'),
+        how='left_outer'
+    ).join(
         hep_a_vaccine_df,
         eligible_members_df.member_id == hep_a_vaccine_df.member_id,
         how='left_outer'
@@ -348,7 +391,7 @@ def calc_hepatitis_a(
         eligible_members_df.member_id == hep_a_history_df.member_id,
         how='left_outer'
     ).select(
-        eligible_members_df.member_id,
+        spark_funcs.col('base_member_id').alias('member_id'),
         spark_funcs.lit('Childhood Immunization Status - Hepatitis A').alias('comp_quality_short'),
         spark_funcs.when(
             hep_a_vaccine_df.member_id.isNotNull() | hep_a_history_df.member_id.isNotNull(),
@@ -356,7 +399,12 @@ def calc_hepatitis_a(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_numerator'),
-        spark_funcs.lit(1).alias('comp_quality_denominator'),
+        spark_funcs.when(
+            eligible_members_df.member_id.isNotNull(),
+            spark_funcs.lit(1)
+        ).otherwise(
+            spark_funcs.lit(0)
+        ).alias('comp_quality_denominator'),
         spark_funcs.lit(None).alias('comp_quality_comments'),
         spark_funcs.lit(None).alias('comp_quality_date_last'),
         spark_funcs.lit(None).alias('comp_quality_date_actionable')
@@ -366,11 +414,13 @@ def calc_hepatitis_a(
 
 
 def calc_vzv(
+        member_df: DataFrame,
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     vzv_vaccine_df = _calc_simple_cis_measure(
+        member_df,
         reference_df,
         eligible_members_df,
         eligible_claims_df,
@@ -409,7 +459,13 @@ def calc_vzv(
         'member_id'
     ).distinct()
 
-    output_df = eligible_members_df.join(
+    output_df = member_df.select(
+        spark_funcs.col('member_id').alias('base_member_id')
+    ).join(
+        eligible_members_df,
+        spark_funcs.col('base_member_id') == spark_funcs.col('member_id'),
+        how='left_outer'
+    ).join(
         vzv_vaccine_df,
         eligible_members_df.member_id == vzv_vaccine_df.member_id,
         how='left_outer'
@@ -418,7 +474,7 @@ def calc_vzv(
         eligible_members_df.member_id == vzv_history_df.member_id,
         how='left_outer'
     ).select(
-        eligible_members_df.member_id,
+        spark_funcs.col('base_member_id').alias('member_id'),
         spark_funcs.lit('Childhood Immunization Status - VZV').alias('comp_quality_short'),
         spark_funcs.when(
             (vzv_vaccine_df.member_id.isNotNull()) | (vzv_history_df.member_id.isNotNull()),
@@ -426,7 +482,12 @@ def calc_vzv(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_numerator'),
-        spark_funcs.lit(1).alias('comp_quality_denominator'),
+        spark_funcs.when(
+            eligible_members_df.member_id.isNotNull(),
+            spark_funcs.lit(1)
+        ).otherwise(
+            spark_funcs.lit(0)
+        ).alias('comp_quality_denominator'),
         spark_funcs.lit(None).alias('comp_quality_comments'),
         spark_funcs.lit(None).alias('comp_quality_date_last'),
         spark_funcs.lit(None).alias('comp_quality_date_actionable')
@@ -436,11 +497,13 @@ def calc_vzv(
 
 
 def calc_rotavirus(
+        member_df: DataFrame,
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     two_two_dose_df = _calc_simple_cis_measure(
+        member_df,
         reference_df,
         eligible_members_df,
         eligible_claims_df,
@@ -454,6 +517,7 @@ def calc_rotavirus(
     )
 
     three_three_dose_df = _calc_simple_cis_measure(
+        member_df,
         reference_df,
         eligible_members_df,
         eligible_claims_df,
@@ -518,7 +582,13 @@ def calc_rotavirus(
         spark_funcs.col('vaccine_type_count') > 1
     )
 
-    output_df = eligible_members_df.join(
+    output_df = member_df.select(
+        spark_funcs.col('member_id').alias('base_member_id')
+    ).join(
+        eligible_members_df,
+        spark_funcs.col('base_member_id') == spark_funcs.col('member_id'),
+        how='left_outer'
+    ).join(
         two_two_dose_df.withColumnRenamed(
             'member_id',
             'two_two_member_id'
@@ -540,7 +610,7 @@ def calc_rotavirus(
         spark_funcs.col('member_id') == spark_funcs.col('two_three_member_id'),
         how='left_outer'
     ).select(
-        eligible_members_df.member_id,
+        spark_funcs.col('base_member_id').alias('member_id'),
         spark_funcs.lit('Childhood Immunization Status - Rotavirus').alias('comp_quality_short'),
         spark_funcs.when(
             spark_funcs.col('two_two_member_id').isNotNull()
@@ -550,7 +620,12 @@ def calc_rotavirus(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_numerator'),
-        spark_funcs.lit(1).alias('comp_quality_denominator'),
+        spark_funcs.when(
+            eligible_members_df.member_id.isNotNull(),
+            spark_funcs.lit(1)
+        ).otherwise(
+            spark_funcs.lit(0)
+        ).alias('comp_quality_denominator'),
         spark_funcs.lit(None).alias('comp_quality_comments'),
         spark_funcs.lit(None).alias('comp_quality_date_last'),
         spark_funcs.lit(None).alias('comp_quality_date_actionable')
@@ -560,11 +635,13 @@ def calc_rotavirus(
 
 
 def calc_mmr(
+        member_df: DataFrame,
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
     mmr_vaccine_df = _calc_simple_cis_measure(
+        member_df,
         reference_df,
         eligible_members_df,
         eligible_claims_df,
@@ -578,6 +655,7 @@ def calc_mmr(
     )
 
     measles_rubella_vaccine_df = _calc_simple_cis_measure(
+        member_df,
         reference_df,
         eligible_members_df,
         eligible_claims_df,
@@ -617,6 +695,7 @@ def calc_mmr(
     ).distinct()
 
     mumps_vaccine_df = _calc_simple_cis_measure(
+        member_df,
         reference_df,
         eligible_members_df,
         eligible_claims_df,
@@ -642,6 +721,7 @@ def calc_mmr(
     ).distinct()
 
     measles_vaccine_df = _calc_simple_cis_measure(
+        member_df,
         reference_df,
         eligible_members_df,
         eligible_claims_df,
@@ -675,6 +755,7 @@ def calc_mmr(
     ).distinct()
 
     rubella_vaccine_df = _calc_simple_cis_measure(
+        member_df,
         reference_df,
         eligible_members_df,
         eligible_claims_df,
@@ -713,7 +794,13 @@ def calc_mmr(
         rubella_vaccine_or_history_df
     )
 
-    output_df = eligible_members_df.join(
+    output_df = member_df.select(
+        spark_funcs.col('member_id').alias('base_member_id')
+    ).join(
+        eligible_members_df,
+        spark_funcs.col('base_member_id') == spark_funcs.col('member_id'),
+        how='left_outer'
+    ).join(
         mmr_vaccine_df.withColumnRenamed(
             'member_id',
             'mmr_vaccine_member_id'
@@ -735,7 +822,7 @@ def calc_mmr(
         spark_funcs.col('member_id') == spark_funcs.col('meas_and_rub_and_mumps_member_id'),
         how='left_outer'
     ).select(
-        spark_funcs.col('member_id'),
+        spark_funcs.col('base_member_id').alias('member_id'),
         spark_funcs.lit('Childhood Immunization Status - MMR').alias('comp_quality_short'),
         spark_funcs.when(
             spark_funcs.col('mmr_vaccine_member_id').isNotNull()
@@ -745,7 +832,12 @@ def calc_mmr(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_numerator'),
-        spark_funcs.lit(1).alias('comp_quality_denominator'),
+        spark_funcs.when(
+            eligible_members_df.member_id.isNotNull(),
+            spark_funcs.lit(1)
+        ).otherwise(
+            spark_funcs.lit(0)
+        ).alias('comp_quality_denominator'),
         spark_funcs.lit(None).alias('comp_quality_date_actionable'),
         spark_funcs.lit(None).alias('comp_quality_date_last'),
         spark_funcs.lit(None).alias('comp_quality_comments')
@@ -853,61 +945,74 @@ class CIS(QualityMeasure):
             how='inner'
         )
 
-        reference_df = dfs_input['reference']
-
         measures_dict = {
             'dtap_df': calc_dtap(
+                dfs_input['member'],
                 eligible_members_df,
                 eligible_claims_df,
-                reference_df
+                dfs_input['reference']
             ),
             'ipv_df': calc_ipv(
+                dfs_input['member'],
                 eligible_members_df,
                 eligible_claims_df,
-                reference_df
+                dfs_input['reference']
             ),
             'mmr_df': calc_mmr(
+                dfs_input['member'],
                 eligible_members_df,
                 eligible_claims_df,
-                reference_df
+                dfs_input['reference']
             ),
             'hib_df': calc_hib(
+                dfs_input['member'],
                 eligible_members_df,
                 eligible_claims_df,
-                reference_df
+                dfs_input['reference']
             ),
             'hepatitis_b_df': calc_hepatitis_b(
+                dfs_input['member'],
                 eligible_members_df,
                 eligible_claims_df,
-                reference_df
+                dfs_input['reference']
             ),
             'vzv_df': calc_vzv(
+                dfs_input['member'],
                 eligible_members_df,
                 eligible_claims_df,
-                reference_df
+                dfs_input['reference']
             ),
             'pneumococcal_df': calc_pneumococcal(
+                dfs_input['member'],
                 eligible_members_df,
                 eligible_claims_df,
-                reference_df
+                dfs_input['reference']
             ),
             'hepatitis_a_df': calc_hepatitis_a(
+                dfs_input['member'],
                 eligible_members_df,
                 eligible_claims_df,
-                reference_df
+                dfs_input['reference']
             ),
             'rotavirus_df': calc_rotavirus(
+                dfs_input['member'],
                 eligible_members_df,
                 eligible_claims_df,
-                reference_df
+                dfs_input['reference']
             ),
             'influenza_df': calc_influenza(
+                dfs_input['member'],
                 eligible_members_df,
                 eligible_claims_df,
-                reference_df
+                dfs_input['reference']
             ),
         }
 
+        results_df = None
+        for key, value in measures_dict.items():
+            if not results_df:
+                results_df = value
+            else:
+                results_df = results_df.union(value.select(results_df.columns))
 
-
-
+        return results_df
