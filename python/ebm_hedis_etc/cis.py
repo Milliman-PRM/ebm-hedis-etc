@@ -855,63 +855,59 @@ class CIS(QualityMeasure):
 
         reference_df = dfs_input['reference']
 
-        dtap_df = calc_dtap(
-            eligible_members_df,
-            eligible_claims_df,
-            reference_df
-        )
+        measures_dict = {
+            'dtap_df': calc_dtap(
+                eligible_members_df,
+                eligible_claims_df,
+                reference_df
+            ),
+            'ipv_df': calc_ipv(
+                eligible_members_df,
+                eligible_claims_df,
+                reference_df
+            ),
+            'mmr_df': calc_mmr(
+                eligible_members_df,
+                eligible_claims_df,
+                reference_df
+            ),
+            'hib_df': calc_hib(
+                eligible_members_df,
+                eligible_claims_df,
+                reference_df
+            ),
+            'hepatitis_b_df': calc_hepatitis_b(
+                eligible_members_df,
+                eligible_claims_df,
+                reference_df
+            ),
+            'vzv_df': calc_vzv(
+                eligible_members_df,
+                eligible_claims_df,
+                reference_df
+            ),
+            'pneumococcal_df': calc_pneumococcal(
+                eligible_members_df,
+                eligible_claims_df,
+                reference_df
+            ),
+            'hepatitis_a_df': calc_hepatitis_a(
+                eligible_members_df,
+                eligible_claims_df,
+                reference_df
+            ),
+            'rotavirus_df': calc_rotavirus(
+                eligible_members_df,
+                eligible_claims_df,
+                reference_df
+            ),
+            'influenza_df': calc_influenza(
+                eligible_members_df,
+                eligible_claims_df,
+                reference_df
+            ),
+        }
 
-        ipv_df = calc_ipv(
-            eligible_members_df,
-            eligible_claims_df,
-            reference_df
-        )
 
-        mmr_df = calc_mmr(
-            eligible_members_df,
-            eligible_claims_df,
-            reference_df
-        )
 
-        hib_df = calc_hib(
-            eligible_members_df,
-            eligible_claims_df,
-            reference_df
-        )
-
-        hepatitis_b_df = calc_hepatitis_b(
-            eligible_members_df,
-            eligible_claims_df,
-            reference_df
-        )
-
-        vzv_df = calc_vzv(
-            eligible_members_df,
-            eligible_claims_df,
-            reference_df
-        )
-
-        pneumococcal_df = calc_pneumococcal(
-            eligible_members_df,
-            eligible_claims_df,
-            reference_df
-        )
-
-        hepatitis_a_df = calc_hepatitis_a(
-            eligible_members_df,
-            eligible_claims_df,
-            reference_df
-        )
-
-        rotavirus_df = calc_rotavirus(
-            eligible_members_df,
-            eligible_claims_df,
-            reference_df
-        )
-
-        influenza_df = calc_influenza(
-            eligible_members_df,
-            eligible_claims_df,
-            reference_df
-        )
 
