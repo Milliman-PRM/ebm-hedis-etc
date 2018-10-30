@@ -11,6 +11,7 @@ import datetime
 import pyspark.sql.functions as spark_funcs
 from pyspark.sql.dataframe import DataFrame
 from prm.dates.windows import decouple_common_windows
+from ebm_hedis_etc.base_classes import QualityMeasure
 
 LOGGER = logging.getLogger(__name__)
 
@@ -518,22 +519,33 @@ def calc_rotavirus(
     )
 
     output_df = eligible_members_df.join(
-        two_two_dose_df,
-        eligible_members_df.member_id == two_two_dose_df.member_id,
+        two_two_dose_df.withColumnRenamed(
+            'member_id',
+            'two_two_member_id'
+        ),
+        spark_funcs.col('member_id') == spark_funcs.col('two_two_member_id'),
         how='left_outer'
     ).join(
-        three_three_dose_df,
-        eligible_members_df.member_id == three_three_dose_df.member_id,
+        three_three_dose_df.withColumnRenamed(
+            'member_id',
+            'three_three_member_id'
+        ),
+        spark_funcs.col('member_id') == spark_funcs.col('three_three_member_id'),
         how='left_outer'
     ).join(
-        two_three_combination_df,
-        eligible_members_df.member_id == two_three_combination_df.member_id,
+        two_three_combination_df.withColumnRenamed(
+            'member_id',
+            'two_three_member_id'
+        ),
+        spark_funcs.col('member_id') == spark_funcs.col('two_three_member_id'),
         how='left_outer'
     ).select(
         eligible_members_df.member_id,
         spark_funcs.lit('Childhood Immunization Status - Rotavirus').alias('comp_quality_short'),
         spark_funcs.when(
-            (two_two_dose_df.member_id.isNotNull()) | (three_three_dose_df.member_id.isNotNull()) | (two_three_combination_df.member_id.isNotNull()),
+            spark_funcs.col('two_two_member_id').isNotNull()
+            | spark_funcs.col('three_three_member_id').isNotNull()
+            | spark_funcs.col('two_three_member_id').isNotNull(),
             spark_funcs.lit(1)
         ).otherwise(
             spark_funcs.lit(0)
@@ -702,22 +714,33 @@ def calc_mmr(
     )
 
     output_df = eligible_members_df.join(
-        mmr_vaccine_df,
-        eligible_claims_df.member_id == mmr_vaccine_df.member_id,
+        mmr_vaccine_df.withColumnRenamed(
+            'member_id',
+            'mmr_vaccine_member_id'
+        ),
+        spark_funcs.col('member_id') == spark_funcs.col('mmr_vaccine_member_id'),
         how='left_outer'
     ).join(
-        measles_rubella_and_mumps_df,
-        eligible_claims_df.member_id == measles_rubella_and_mumps_df.member_id,
+        measles_rubella_and_mumps_df.withColumnRenamed(
+            'member_id',
+            'meas_rub_and_mumps_member_id'
+        ),
+        spark_funcs.col('member_id') == spark_funcs.col('meas_rub_and_mumps_member_id'),
         how='left_outer'
     ).join(
-        measles_and_rubella_and_mumps_df,
-        eligible_claims_df.member_id == measles_and_rubella_and_mumps_df.member_id,
+        measles_and_rubella_and_mumps_df.withColumnRenamed(
+            'member_id',
+            'meas_and_rub_and_mumps_member_id'
+        ),
+        spark_funcs.col('member_id') == spark_funcs.col('meas_and_rub_and_mumps_member_id'),
         how='left_outer'
     ).select(
-        eligible_claims_df.member_id,
+        spark_funcs.col('member_id'),
         spark_funcs.lit('Childhood Immunization Status - MMR').alias('comp_quality_short'),
         spark_funcs.when(
-            mmr_vaccine_df.member_id.isNotNull() | measles_rubella_and_mumps_df.member_id.isNotNull() | measles_and_rubella_and_mumps_df.member_id.isNotNull(),
+            spark_funcs.col('mmr_vaccine_member_id').isNotNull()
+            | spark_funcs.col('meas_rub_and_mumps_member_id').isNotNull()
+            | spark_funcs.col('meas_and_rub_and_mumps_member_id').isNotNull(),
             spark_funcs.lit(1)
         ).otherwise(
             spark_funcs.lit(0)
@@ -731,163 +754,164 @@ def calc_mmr(
     return output_df
 
 
-def _calc_measures(
-        dfs_input: "typing.Mapping[str, DataFrame]",
-        performance_yearstart=datetime.date,
-):
-    measure_start = performance_yearstart
-    measure_end = datetime.date(performance_yearstart.year, 12, 31)
+class CIS(QualityMeasure):
+    """Object to house logic to calculate childhood immunization status quality measure"""
+    def _calc_measures(
+            self,
+            dfs_input: "typing.Mapping[str, DataFrame]",
+            performance_yearstart=datetime.date,
+    ):
+        measure_start = performance_yearstart
+        measure_end = datetime.date(performance_yearstart.year, 12, 31)
 
-    elig_pop_covered = dfs_input['member_time'].where(
-        spark_funcs.col('cover_medical').isin('Y')
-    ).join(
-        dfs_input['member'].select(
-            'member_id',
-            'dob'
-        ),
-        'member_id',
-        'left_outer'
-    ).where(
-        spark_funcs.date_add(
-            spark_funcs.col('dob'),
-            365*2
-        ).between(
-            spark_funcs.lit(measure_start),
-            spark_funcs.lit(measure_end)
-        )
-    )
-
-    decoupled_windows = decouple_common_windows(
-        elig_pop_covered,
-        'member_id',
-        'date_start',
-        'date_end',
-        create_windows_for_gaps=True
-    )
-
-    gaps_df = decoupled_windows.join(
-        elig_pop_covered,
-        ['member_id', 'date_start', 'date_end'],
-        'left_outer'
-    ).where(
-        spark_funcs.col('assignment_indicator').isNull()
-    ).select(
-        'member_id',
-        'date_start',
-        'date_end'
-    ).withColumn(
-        'date_diff',
-        spark_funcs.datediff(
-            spark_funcs.col('date_end'),
-            spark_funcs.col('date_start')
-        )
-    ).join(
-        dfs_input['member'].select(
-            'member_id',
-            'dob'
-        ),
-        'member_id',
-        'left_outer'
-    )
-
-    long_gap_df = gaps_df.where(
-        spark_funcs.col('date_start').between(
-            spark_funcs.date_sub(
-                spark_funcs.col('dob'),
-                365
+        elig_pop_covered = dfs_input['member_time'].where(
+            spark_funcs.col('cover_medical').isin('Y')
+        ).join(
+            dfs_input['member'].select(
+                'member_id',
+                'dob'
             ),
-            spark_funcs.col('dob')
-        ) &
-        (spark_funcs.col('date_diff') > 45)
-    ).select('member_id')
+            'member_id',
+            'left_outer'
+        ).where(
+            spark_funcs.date_add(
+                spark_funcs.col('dob'),
+                365*2
+            ).between(
+                spark_funcs.lit(measure_start),
+                spark_funcs.lit(measure_end)
+            )
+        )
 
-    gap_count_df = gaps_df.groupBy('member_id').agg(
-        spark_funcs.count('*').alias('num_of_gaps')
-    ).where(
-        spark_funcs.col('num_of_gaps') > 1
-    ).select('member_id')
+        decoupled_windows = decouple_common_windows(
+            elig_pop_covered,
+            'member_id',
+            'date_start',
+            'date_end',
+            create_windows_for_gaps=True
+        )
 
-    excluded_members_df = long_gap_df.union(
-        gap_count_df
-    ).distinct()
+        gaps_df = decoupled_windows.join(
+            elig_pop_covered,
+            ['member_id', 'date_start', 'date_end'],
+            'left_outer'
+        ).where(
+            spark_funcs.col('assignment_indicator').isNull()
+        ).select(
+            'member_id',
+            'date_start',
+            'date_end'
+        ).withColumn(
+            'date_diff',
+            spark_funcs.datediff(
+                spark_funcs.col('date_end'),
+                spark_funcs.col('date_start')
+            )
+        ).join(
+            dfs_input['member'].select(
+                'member_id',
+                'dob'
+            ),
+            'member_id',
+            'left_outer'
+        )
 
-    eligible_members_df = elig_pop_covered.select(
-        'member_id'
-    ).distinct().join(
-        excluded_members_df,
-        'member_id',
-        how='left_outer'
-    ).where(
-        excluded_members_df.member_id.isNotNull()
-    )
+        long_gap_df = gaps_df.where(
+            spark_funcs.col('date_start').between(
+                spark_funcs.date_sub(
+                    spark_funcs.col('dob'),
+                    365
+                ),
+                spark_funcs.col('dob')
+            ) &
+            (spark_funcs.col('date_diff') > 45)
+        ).select('member_id')
 
-    eligible_claims_df = dfs_input['claims'].join(
-        eligible_members_df,
-        'member_id',
-        how='inner'
-    )
+        gap_count_df = gaps_df.groupBy('member_id').agg(
+            spark_funcs.count('*').alias('num_of_gaps')
+        ).where(
+            spark_funcs.col('num_of_gaps') > 1
+        ).select('member_id')
 
-    reference_df = dfs_input['reference']
+        excluded_members_df = long_gap_df.union(
+            gap_count_df
+        ).distinct()
 
-    dtap_df = calc_dtap(
-        eligible_members_df,
-        eligible_claims_df,
-        reference_df
-    )
+        eligible_members_df = elig_pop_covered.select(
+            'member_id'
+        ).distinct().join(
+            excluded_members_df,
+            'member_id',
+            how='left_outer'
+        ).where(
+            excluded_members_df.member_id.isNotNull()
+        )
 
-    ipv_df = calc_ipv(
-        eligible_members_df,
-        eligible_claims_df,
-        reference_df
-    )
+        eligible_claims_df = dfs_input['claims'].join(
+            eligible_members_df,
+            'member_id',
+            how='inner'
+        )
 
-    mmr_df = calc_mmr(
-        eligible_members_df,
-        eligible_claims_df,
-        reference_df
-    )
+        reference_df = dfs_input['reference']
 
-    hib_df = calc_hib(
-        eligible_members_df,
-        eligible_claims_df,
-        reference_df
-    )
+        dtap_df = calc_dtap(
+            eligible_members_df,
+            eligible_claims_df,
+            reference_df
+        )
 
-    hepatitis_b_df = calc_hepatitis_b(
-        eligible_members_df,
-        eligible_claims_df,
-        reference_df
-    )
+        ipv_df = calc_ipv(
+            eligible_members_df,
+            eligible_claims_df,
+            reference_df
+        )
 
-    vzv_df = calc_vzv(
-        eligible_members_df,
-        eligible_claims_df,
-        reference_df
-    )
+        mmr_df = calc_mmr(
+            eligible_members_df,
+            eligible_claims_df,
+            reference_df
+        )
 
-    pneumococcal_df = calc_pneumococcal(
-        eligible_members_df,
-        eligible_claims_df,
-        reference_df
-    )
+        hib_df = calc_hib(
+            eligible_members_df,
+            eligible_claims_df,
+            reference_df
+        )
 
-    hepatitis_a_df = calc_hepatitis_a(
-        eligible_members_df,
-        eligible_claims_df,
-        reference_df
-    )
+        hepatitis_b_df = calc_hepatitis_b(
+            eligible_members_df,
+            eligible_claims_df,
+            reference_df
+        )
 
-    rotavirus_df = calc_rotavirus(
-        eligible_members_df,
-        eligible_claims_df,
-        reference_df
-    )
+        vzv_df = calc_vzv(
+            eligible_members_df,
+            eligible_claims_df,
+            reference_df
+        )
 
-    influenza_df = calc_influenza(
-        eligible_members_df,
-        eligible_claims_df,
-        reference_df
-    )
+        pneumococcal_df = calc_pneumococcal(
+            eligible_members_df,
+            eligible_claims_df,
+            reference_df
+        )
 
+        hepatitis_a_df = calc_hepatitis_a(
+            eligible_members_df,
+            eligible_claims_df,
+            reference_df
+        )
 
+        rotavirus_df = calc_rotavirus(
+            eligible_members_df,
+            eligible_claims_df,
+            reference_df
+        )
+
+        influenza_df = calc_influenza(
+            eligible_members_df,
+            eligible_claims_df,
+            reference_df
+        )
 
