@@ -60,9 +60,9 @@ def _calc_simple_cis_measure(
         spark_funcs.col('base_member_id') == spark_funcs.col('member_id'),
         how='left_outer'
     ).join(
-       vaccines_df,
-       'member_id',
-       how='left_outer'
+        vaccines_df,
+        'member_id',
+        how='left_outer'
     ).select(
         spark_funcs.col('base_member_id').alias('member_id'),
         spark_funcs.when(
@@ -161,6 +161,7 @@ def calc_pneumococcal(
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
+    """Calculate Pneumococcal Vaccine Measure"""
     return _calc_simple_cis_measure(
         member_df,
         reference_df,
@@ -183,6 +184,7 @@ def calc_influenza(
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
+    """Calculate Influenza Vaccine Measure"""
     return _calc_simple_cis_measure(
         member_df,
         reference_df,
@@ -205,6 +207,7 @@ def calc_hepatitis_b(
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
+    """Calculate Hepatitis B Vaccine Measure"""
     diags_explode_df = eligible_claims_df.select(
         'member_id',
         'fromdate',
@@ -223,8 +226,8 @@ def calc_hepatitis_b(
         ),
         [
             diags_explode_df.icdversion == spark_funcs.regexp_extract(reference_df.code_system,
-                                                                      '\d+', 0),
-            diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, '\.', '')
+                                                                      r'\d+', 0),
+            diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
         ],
         how='inner'
     ).select(
@@ -263,8 +266,8 @@ def calc_hepatitis_b(
         ),
         [
             procs_expolde_df.icdversion == spark_funcs.regexp_extract(reference_df.code_system,
-                                                                      '\d+', 0),
-            procs_expolde_df.proc == spark_funcs.regexp_replace(reference_df.code, '\.', '')
+                                                                      r'\d+', 0),
+            procs_expolde_df.proc == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
         ],
         how='left_outer'
     ).where(
@@ -335,6 +338,7 @@ def calc_hepatitis_a(
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
+    """Calculate Hepatitis A Vaccine Measure"""
     hep_a_vaccine_df = _calc_simple_cis_measure(
         member_df,
         reference_df,
@@ -368,8 +372,8 @@ def calc_hepatitis_a(
         ),
         [
             diags_explode_df.icdversion == spark_funcs.regexp_extract(reference_df.code_system,
-                                                                      '\d+', 0),
-            diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, '\.', '')
+                                                                      r'\d+', 0),
+            diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
         ],
         how='inner'
     ).select(
@@ -419,6 +423,7 @@ def calc_vzv(
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
+    """Calculate VZV Vaccine Measure"""
     vzv_vaccine_df = _calc_simple_cis_measure(
         member_df,
         reference_df,
@@ -451,8 +456,8 @@ def calc_vzv(
         ),
         [
             diags_explode_df.icdversion == spark_funcs.regexp_extract(reference_df.code_system,
-                                                                      '\d+', 0),
-            diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, '\.', '')
+                                                                      r'\d+', 0),
+            diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
         ],
         how='inner'
     ).select(
@@ -502,6 +507,7 @@ def calc_rotavirus(
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
+    """Calculate Rotavirus Vaccine Measure"""
     two_two_dose_df = _calc_simple_cis_measure(
         member_df,
         reference_df,
@@ -569,11 +575,11 @@ def calc_rotavirus(
         spark_funcs.countDistinct('fromdate').alias('vaccine_count')
     ).where(
         (spark_funcs.col('value_set_name').isin(
-            'Rotavirus Vaccine (3 Dose Schedule) Administered') & (
-                     spark_funcs.col('vaccine_count') >= 2))
+            'Rotavirus Vaccine (3 Dose Schedule) Administered')
+         & (spark_funcs.col('vaccine_count') >= 2))
         | (spark_funcs.col('value_set_name').isin(
-            'Rotavirus Vaccine (2 Dose Schedule) Administered') & (
-                       spark_funcs.col('vaccine_count') >= 1))
+            'Rotavirus Vaccine (2 Dose Schedule) Administered')
+           & (spark_funcs.col('vaccine_count') >= 1))
     ).groupBy(
         'member_id'
     ).agg(
@@ -640,6 +646,7 @@ def calc_mmr(
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
 ) -> DataFrame:
+    """Calculate MMR Vaccine Measure"""
     mmr_vaccine_df = _calc_simple_cis_measure(
         member_df,
         reference_df,
@@ -686,8 +693,8 @@ def calc_mmr(
         ),
         [
             diags_explode_df.icdversion == spark_funcs.regexp_extract(reference_df.code_system,
-                                                                      '\d+', 0),
-            diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, '\.', '')
+                                                                      r'\d+', 0),
+            diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
         ],
         how='inner'
     ).select(
@@ -740,8 +747,8 @@ def calc_mmr(
         ),
         [
             diags_explode_df.icdversion == spark_funcs.regexp_extract(reference_df.code_system,
-                                                                      '\d+', 0),
-            diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, '\.', '')
+                                                                      r'\d+', 0),
+            diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
         ],
         how='inner'
     ).select(
@@ -774,8 +781,8 @@ def calc_mmr(
         ),
         [
             diags_explode_df.icdversion == spark_funcs.regexp_extract(reference_df.code_system,
-                                                                      '\d+', 0),
-            diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, '\.', '')
+                                                                      r'\d+', 0),
+            diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
         ],
         how='inner'
     ).select(
