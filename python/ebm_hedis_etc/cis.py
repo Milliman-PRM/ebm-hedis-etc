@@ -855,7 +855,7 @@ def calc_mmr(
 
 class CIS(QualityMeasure):
     """Object to house logic to calculate childhood immunization status quality measure"""
-    def _calc_measures(
+    def _calc_measure(
             self,
             dfs_input: "typing.Mapping[str, DataFrame]",
             performance_yearstart=datetime.date,
@@ -895,7 +895,7 @@ class CIS(QualityMeasure):
             ['member_id', 'date_start', 'date_end'],
             'left_outer'
         ).where(
-            spark_funcs.col('assignment_indicator').isNull()
+            spark_funcs.col('cover_medical').isNull()
         ).select(
             'member_id',
             'date_start',
