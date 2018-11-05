@@ -319,6 +319,213 @@ def _exclude_elig_gaps(
     ).distinct()
 
 
+def _measure_exclusions(
+        claims_df: DataFrame,
+        rx_claims_df: DataFrame,
+        reference_df: DataFrame,
+        rx_reference_df: DataFrame,
+        performance_yearstart: datetime.date
+) -> DataFrame:
+    """Find members who should be excluded from measure based on certain diagnoses/procedures"""
+    diag_explode_df = claims_df.select(
+        'member_id',
+        'gender',
+        'claimid',
+        'fromdate',
+        'icdversion',
+        spark_funcs.explode(
+            spark_funcs.array(
+                [spark_funcs.col(col) for col in claims_df.columns if
+                 col.find('icddiag') > -1]
+            )
+        ).alias('diag')
+    )
+
+    proc_explode_df = claims_df.select(
+        'member_id',
+        'gender',
+        'claimid',
+        'fromdate',
+        'icdversion',
+        spark_funcs.explode(
+            spark_funcs.array(
+                [spark_funcs.col(col) for col in claims_df.columns if
+                 col.find('icdproc') > -1]
+            )
+        ).alias('proc')
+    )
+
+    pregnancy_member_excl_df = diag_explode_df.where(
+        spark_funcs.col('gender').isin('F')
+        & spark_funcs.year(
+            'fromdate'
+        ).isin(performance_yearstart.year-1, performance_yearstart.year)
+    ).join(
+        reference_df.where(
+            spark_funcs.col('value_set_name') == 'Pregnancy'
+        ),
+        [
+            diag_explode_df.icdversion == spark_funcs.regexp_extract(
+                reference_df.code_system, r'\d+', 0),
+            diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, 'r\.', '')
+        ],
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    ivf_member_excl_df = claims_df.where(
+        spark_funcs.year(
+            'fromdate'
+        ).isin(performance_yearstart.year-1, performance_yearstart.year)
+    ).join(
+        reference_df.where(
+            spark_funcs.col('value_set_name') == 'IVF'
+        ),
+        spark_funcs.col('hcpcs') == spark_funcs.col('code'),
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    cirrhosis_member_excl_df = diag_explode_df.where(
+        spark_funcs.year(
+            'fromdate'
+        ).isin(performance_yearstart.year-1, performance_yearstart.year)
+    ).join(
+        reference_df.where(
+            spark_funcs.col('value_set_name') == 'Cirrhosis'
+        ),
+        [
+            diag_explode_df.icdversion == spark_funcs.regexp_extract(
+                reference_df.code_system, r'\d+', 0),
+            diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, 'r\.', '')
+        ],
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    muscular_pain_member_excl_df = diag_explode_df.where(
+        spark_funcs.year(
+            'fromdate'
+        ).isin(performance_yearstart.year-1, performance_yearstart.year)
+    ).join(
+        reference_df.where(
+            spark_funcs.col('value_set_name') == 'Muscular Pain and Disease'
+        ),
+        [
+            diag_explode_df.icdversion == spark_funcs.regexp_extract(
+                reference_df.code_system, r'\d+', 0),
+            diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, 'r\.', '')
+        ],
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    estrogen_agonists_member_excl_df = rx_claims_df.where(
+        spark_funcs.year('fromdate').isin(performance_yearstart.year-1, performance_yearstart.year)
+    ).join(
+        rx_reference_df.where(
+            spark_funcs.col('medication_list') == 'Estrogen Agonists Medications'
+        ),
+        spark_funcs.col('ndc') == spark_funcs.col('ndc_code'),
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    esrd_member_excl_df = claims_df.where(
+        spark_funcs.year('fromdate').isin(performance_yearstart.year-1, performance_yearstart.year)
+    ).join(
+        reference_df.where(
+            spark_funcs.col('value_set_name').isin('ESRD')
+            & spark_funcs.col('code_system').isin('CPT', 'HCPCS')
+        ),
+        spark_funcs.col('hcpcs') == spark_funcs.col('code'),
+        how='inner'
+    ).select(
+        'member_id'
+    ).union(
+        claims_df.where(
+            spark_funcs.year('fromdate').isin(performance_yearstart.year - 1,
+                                              performance_yearstart.year)
+        ).join(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('ESRD')
+                & spark_funcs.col('code_system').isin('UBREV')
+            ),
+            spark_funcs.col('revcode') == spark_funcs.col('code'),
+            how='inner'
+        ).select(
+            'member_id'
+        )
+    ).union(
+        claims_df.where(
+            spark_funcs.year('fromdate').isin(performance_yearstart.year - 1,
+                                              performance_yearstart.year)
+        ).join(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('ESRD')
+                & spark_funcs.col('code_system').isin('POS')
+            ),
+            spark_funcs.col('pos') == spark_funcs.col('code'),
+            how='inner'
+        ).select(
+            'member_id'
+        )
+    ).union(
+        diag_explode_df.where(
+            spark_funcs.year('fromdate').isin(performance_yearstart.year - 1,
+                                              performance_yearstart.year)
+        ).join(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('ESRD')
+                & spark_funcs.col('code_system').isin('ICD10CM', 'ICD9CM')
+            ),
+            [
+                diag_explode_df.icdversion == spark_funcs.regexp_extract(
+                    reference_df.code_system, r'\d+', 0),
+                diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, 'r\.', '')
+            ],
+            how='inner'
+        ).select(
+            'member_id'
+        )
+    ).union(
+        proc_explode_df.where(
+            spark_funcs.year('fromdate').isin(performance_yearstart.year - 1,
+                                              performance_yearstart.year)
+        ).join(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('ESRD')
+                & spark_funcs.col('code_system').isin('ICD10PCS', 'ICD9PCS')
+            ),
+            [
+                proc_explode_df.icdversion == spark_funcs.regexp_extract(
+                    reference_df.code_system, r'\d+', 0),
+                proc_explode_df.proc == spark_funcs.regexp_replace(reference_df.code, 'r\.', '')
+            ],
+            how='inner'
+        ).select(
+            'member_id'
+        )
+    ).distinct()
+
+    return pregnancy_member_excl_df.union(
+        ivf_member_excl_df
+    ).union(
+        esrd_member_excl_df
+    ).union(
+        cirrhosis_member_excl_df
+    ).union(
+        muscular_pain_member_excl_df
+    ).union(
+        estrogen_agonists_member_excl_df
+    ).distinct()
+
+
 class SPC(QualityMeasure):
     """Object to house logic to calculate statin therapy for patients with cardivascular disease"""
     def _calc_measure(
@@ -454,6 +661,34 @@ class SPC(QualityMeasure):
         female_event_diagnosis_df = eligible_females_events_df.union(
             eligible_females_diagnosis_df
         ).distinct()
+
+        excluded_members_df = _measure_exclusions(
+            dfs_input['claims'],
+            dfs_input['rx_claims'],
+            dfs_input['reference'],
+            dfs_input['ndc'],
+            performance_yearstart
+        )
+
+        rate_one_male_denom_df = male_event_diagnosis_df.join(
+            excluded_members_df.withColumnRenamed('member_id', 'exclude_member_id'),
+            spark_funcs.col('member_id') == spark_funcs.col('exclude_member_id'),
+            how='left_outer'
+        ).where(
+            spark_funcs.col('exclude_member_id').isNull()
+        ).select(
+            'member_id'
+        )
+
+        rate_one_female_denom_df = female_event_diagnosis_df.join(
+            excluded_members_df.withColumnRenamed('member_id', 'exclude_member_id'),
+            spark_funcs.col('member_id') == spark_funcs.col('exclude_member_id'),
+            how='left_outer'
+        ).where(
+            spark_funcs.col('exclude_member_id').isNull()
+        ).select(
+            'member_id'
+        )
 
 
 
