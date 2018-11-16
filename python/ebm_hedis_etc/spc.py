@@ -705,7 +705,7 @@ def _calc_rate_two(
     ).withColumn(
         'pdc',
         spark_funcs.round(
-            (spark_funcs.col('coverage_days') / spark_funcs.col('treatment_period')).cast('double'),
+            (spark_funcs.col('coverage_days') / spark_funcs.col('treatment_period')),
             2
         )
     )
@@ -905,10 +905,88 @@ class SPC(QualityMeasure):
             performance_yearstart
         )
 
+        rate_one_output_df = dfs_input['member'].select(
+            'member_id'
+        ).join(
+            rate_one_female_denom_df,
+            dfs_input['member'].member_id == rate_one_female_denom_df.member_id,
+            how='left_outer'
+        ).join(
+            rate_one_male_denom_df,
+            dfs_input['member'].member_id == rate_one_male_denom_df.member_id,
+            how='left_outer'
+        ).join(
+            rate_one_female_numer_df,
+            dfs_input['member'].member_id == rate_one_female_numer_df.member_id,
+            how='left_outer'
+        ).join(
+            rate_one_male_numer_df,
+            dfs_input['member'].member_id == rate_one_male_numer_df.member_id,
+            how='left_outer'
+        ).select(
+            dfs_input['member'].member_id,
+            spark_funcs.lit('SPC: Rate One').alias('comp_quality_short'),
+            spark_funcs.when(
+                rate_one_female_numer_df.member_id.isNotNull()
+                | rate_one_male_numer_df.member_id.isNotNull(),
+                spark_funcs.lit(1)
+            ).otherwise(
+                spark_funcs.lit(0)
+            ).alias('comp_quality_numerator'),
+            spark_funcs.when(
+                rate_one_female_denom_df.member_id.isNotNull()
+                | rate_one_male_denom_df.member_id.isNotNull(),
+                spark_funcs.lit(1)
+            ).otherwise(
+                spark_funcs.lit(0)
+            ).alias('comp_quality_denominator'),
+            spark_funcs.lit(None).alias('comp_quality_date_last'),
+            spark_funcs.lit(None).alias('comp_quality_date_actionable'),
+            spark_funcs.lit(None).alias('comp_quality_comments')
+        )
 
+        rate_two_output_df = dfs_input['member'].select(
+            'member_id'
+        ).join(
+            rate_one_female_numer_df,
+            dfs_input['member'].member_id == rate_one_female_numer_df.member_id,
+            how='left_outer'
+        ).join(
+            rate_one_male_numer_df,
+            dfs_input['member'].member_id == rate_one_male_numer_df.member_id,
+            how='left_outer'
+        ).join(
+            rate_two_female_numer_df,
+            dfs_input['member'].member_id == rate_two_female_numer_df.member_id,
+            how='left_outer'
+        ).join(
+            rate_two_male_numer_df,
+            dfs_input['member'].member_id == rate_two_male_numer_df.member_id,
+            how='left_outer'
+        ).select(
+            dfs_input['member'].member_id,
+            spark_funcs.lit('SPC: Rate Two').alias('comp_quality_short'),
+            spark_funcs.when(
+                (rate_two_female_numer_df.pdc >= .8)
+                | (rate_two_male_numer_df.pdc >= .8),
+                spark_funcs.lit(1)
+            ).otherwise(
+                spark_funcs.lit(0)
+            ).alias('comp_quality_numerator'),
+            spark_funcs.when(
+                rate_one_female_numer_df.member_id.isNotNull()
+                | rate_one_male_numer_df.member_id.isNotNull(),
+                spark_funcs.lit(1)
+            ).otherwise(
+                spark_funcs.lit(0)
+            ).alias('comp_quality_denominator'),
+            spark_funcs.lit(None).alias('comp_quality_date_last'),
+            spark_funcs.lit(None).alias('comp_quality_date_actionable'),
+            spark_funcs.lit(None).alias('comp_quality_comments')
+        )
 
-
-
-
-
-
+        return rate_one_output_df.union(
+            rate_two_output_df
+        ).orderBy(
+            'member_id'
+        )
