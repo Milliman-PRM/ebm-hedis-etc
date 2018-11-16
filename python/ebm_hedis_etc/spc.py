@@ -12,7 +12,7 @@ import datetime
 
 import pyspark.sql.functions as spark_funcs
 from pyspark.sql import DataFrame, Window
-from prm.dates.windows import decouple_common_windows
+from prm.dates.windows import decouple_common_windows, massage_windows
 from ebm_hedis_etc.base_classes import QualityMeasure
 
 LOGGER = logging.getLogger(__name__)
@@ -526,6 +526,193 @@ def _measure_exclusions(
     ).distinct()
 
 
+def _calc_rate_one(
+        rx_claims_df: DataFrame,
+        eligible_members_df: DataFrame,
+        rx_reference_df: DataFrame,
+        performance_yearstart: datetime
+) -> DataFrame:
+    """Find members in rx claims that qualify for rate one of the measure"""
+    return rx_claims_df.join(
+        eligible_members_df,
+        'member_id',
+        how='inner'
+    ).where(
+        spark_funcs.year('fromdate') == performance_yearstart.year
+    ).join(
+        rx_reference_df.where(
+            spark_funcs.col('medication_list') == 'High and Moderate-Intensity Statin Medications'
+        ),
+        spark_funcs.col('ndc') == spark_funcs.col('ndc_code'),
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+
+def _calc_rate_two(
+        rx_claims_df: DataFrame,
+        eligible_members_df: DataFrame,
+        rx_reference_df: DataFrame,
+        performance_yearstart
+) -> DataFrame:
+    """Find members in the rx claims that qualify for rate two of the measure"""
+    statin_claims_df = rx_claims_df.join(
+        eligible_members_df,
+        'member_id',
+        how='inner'
+    ).where(
+        spark_funcs.year('fromdate').isin(performance_yearstart.year)
+    ).join(
+        rx_reference_df.where(
+            spark_funcs.col('medication_list') == 'High and Moderate-Intensity Statin Medications'
+        ),
+        spark_funcs.col('ndc') == spark_funcs.col('ndc_code'),
+        how='inner'
+    ).select(
+        'member_id',
+        'fromdate',
+        'ndc',
+        'dayssupply',
+        spark_funcs.expr('date_add(fromdate, dayssupply)').alias('fromdate_to_dayssupply')
+    ).where(
+        spark_funcs.col('dayssupply') > 0
+    )
+
+    same_fromdate_df = statin_claims_df.groupBy(
+        'member_id',
+        'ndc',
+        'fromdate'
+    ).agg(
+        spark_funcs.sum('dayssupply').alias('dayssupply')
+    )
+
+    reduce_fromdate_window = Window.partitionBy(
+        'member_id',
+        'ndc',
+        'fromdate'
+    ).orderBy(
+        spark_funcs.col('dayssupply').desc()
+    )
+
+    reduced_fromdate_df = same_fromdate_df.withColumn(
+        'row',
+        spark_funcs.row_number().over(reduce_fromdate_window)
+    ).where(
+        spark_funcs.col('row') == 1
+    ).drop(
+        'row'
+    ).withColumn(
+        'fromdate_to_dayssupply',
+        spark_funcs.expr('date_add(fromdate, dayssupply-1)')
+    )
+
+    massaged_coverage_windows_df = massage_windows(
+        reduced_fromdate_df,
+        'member_id',
+        'fromdate',
+        'fromdate_to_dayssupply'
+    ).select(
+        spark_funcs.col('member_id').alias('join_member_id'),
+        spark_funcs.col('fromdate').alias('join_fromdate'),
+        spark_funcs.col('fromdate_to_dayssupply').alias('join_fromdate_to_dayssupply')
+    )
+
+    overlapping_coverage_windows_df = massaged_coverage_windows_df.join(
+        reduced_fromdate_df,
+        (spark_funcs.col('member_id') == spark_funcs.col('join_member_id')
+         & (spark_funcs.col('fromdate') <= spark_funcs.col('join_fromdate'))
+         & (spark_funcs.col('fromdate_to_dayssupply') == spark_funcs.col(
+                    'join_fromdate_to_dayssupply'))),
+        how='full_outer'
+    )
+
+    multiple_rx_coverage_df = overlapping_coverage_windows_df.groupBy(
+        'join_member_id',
+        'ndc',
+        'join_fromdate',
+        'join_fromdate_to_dayssupply'
+    ).agg(
+        spark_funcs.count('*').alias('multiple_rx_count')
+    )
+
+    date_coverage_window = Window.partitionBy(
+        'join_member_id',
+        'join_fromdate',
+        'join_fromdate_to_dayssupply'
+    ).orderBy(
+        spark_funcs.col('multiple_rx_count').desc()
+    )
+
+    covered_windows_df = multiple_rx_coverage_df.withColumn(
+        'row',
+        spark_funcs.row_number().over(date_coverage_window)
+    ).where(
+        spark_funcs.col('row') == 1
+    ).drop(
+        'row'
+    ).withColumn(
+        'coverage_days_pre',
+        spark_funcs.datediff(
+            spark_funcs.col('join_fromdate_to_dayssupply'),
+            spark_funcs.col('join_fromdate')
+        ) + 1 * spark_funcs.col('multiple_rx_count')
+    ).withColumn(
+        'days_to_december',
+        spark_funcs.datediff(
+            spark_funcs.lit(datetime.date(2018, 12, 31)),
+            spark_funcs.col('join_fromdate')
+        )
+    ).withColumn(
+        'coverage_days',
+        spark_funcs.least(
+            spark_funcs.col('coverage_days_pre'),
+            spark_funcs.col('days_to_december')
+        )
+    ).where(
+        spark_funcs.col('coverage_days') > 0
+    )
+
+    days_covered_df = covered_windows_df.groupBy(
+        'member_id'
+    ).agg(
+        spark_funcs.sum('coverage_days')
+    )
+
+    ipsd_df = statin_claims_df.groupBy(
+        'member_id'
+    ).agg(
+        spark_funcs.min('fromdate').alias('ipsd')
+    )
+
+    pdc_df = days_covered_df.join(
+        ipsd_df,
+        'member_id',
+        how='left_outer'
+    ).select(
+        'member_id',
+        spark_funcs.datediff(
+            spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31)),
+            spark_funcs.col('ipsd')
+        ).alias('treatment_period'),
+        'coverage_days'
+    ).withColumn(
+        'coverage_days',
+        spark_funcs.least(
+            spark_funcs.col('coverage_days'),
+            spark_funcs.col('treatment_period')
+        )
+    ).withColumn(
+        'pdc',
+        spark_funcs.round(
+            (spark_funcs.col('coverage_days') / spark_funcs.col('treatment_period')).cast('double'),
+            2
+        )
+    )
+
+    return pdc_df
+
+
 class SPC(QualityMeasure):
     """Object to house logic to calculate statin therapy for patients with cardivascular disease"""
     def _calc_measure(
@@ -689,6 +876,36 @@ class SPC(QualityMeasure):
         ).select(
             'member_id'
         )
+
+        rate_one_male_numer_df = _calc_rate_one(
+            dfs_input['rx_claims'],
+            rate_one_male_denom_df,
+            dfs_input['ndc'],
+            performance_yearstart
+        )
+
+        rate_one_female_numer_df = _calc_rate_one(
+            dfs_input['rx_claims'],
+            rate_one_female_denom_df,
+            dfs_input['ndc'],
+            performance_yearstart
+        )
+
+        rate_two_male_numer_df = _calc_rate_two(
+            dfs_input['rx_claims'],
+            rate_one_male_numer_df,
+            dfs_input['ndc'],
+            performance_yearstart
+        )
+
+        rate_two_female_numer_df = _calc_rate_two(
+            dfs_input['rx_claims'],
+            rate_one_female_numer_df,
+            dfs_input['ndc'],
+            performance_yearstart
+        )
+
+
 
 
 
