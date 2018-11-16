@@ -620,11 +620,11 @@ def _calc_rate_two(
 
     overlapping_coverage_windows_df = massaged_coverage_windows_df.join(
         reduced_fromdate_df,
-        (spark_funcs.col('member_id') == spark_funcs.col('join_member_id')
-         & (spark_funcs.col('fromdate') <= spark_funcs.col('join_fromdate'))
-         & (spark_funcs.col('fromdate_to_dayssupply') == spark_funcs.col(
-                    'join_fromdate_to_dayssupply'))),
-        how='full_outer'
+        ((spark_funcs.col('member_id') == spark_funcs.col('join_member_id'))
+         & ((spark_funcs.col('fromdate') <= spark_funcs.col('join_fromdate'))
+            & (spark_funcs.col('fromdate_to_dayssupply') >= spark_funcs.col(
+                            'join_fromdate_to_dayssupply')))),
+        'full_outer'
     )
 
     multiple_rx_coverage_df = overlapping_coverage_windows_df.groupBy(
@@ -674,9 +674,9 @@ def _calc_rate_two(
     )
 
     days_covered_df = covered_windows_df.groupBy(
-        'member_id'
+        'join_member_id'
     ).agg(
-        spark_funcs.sum('coverage_days')
+        spark_funcs.sum('coverage_days').alias('days_covered')
     )
 
     ipsd_df = statin_claims_df.groupBy(
@@ -687,7 +687,7 @@ def _calc_rate_two(
 
     pdc_df = days_covered_df.join(
         ipsd_df,
-        'member_id',
+        spark_funcs.col('member_id') == spark_funcs.col('join_member_id'),
         how='left_outer'
     ).select(
         'member_id',
@@ -695,17 +695,17 @@ def _calc_rate_two(
             spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31)),
             spark_funcs.col('ipsd')
         ).alias('treatment_period'),
-        'coverage_days'
+        'days_covered'
     ).withColumn(
-        'coverage_days',
+        'days_covered',
         spark_funcs.least(
-            spark_funcs.col('coverage_days'),
+            spark_funcs.col('days_covered'),
             spark_funcs.col('treatment_period')
         )
     ).withColumn(
         'pdc',
         spark_funcs.round(
-            (spark_funcs.col('coverage_days') / spark_funcs.col('treatment_period')),
+            (spark_funcs.col('days_covered') / spark_funcs.col('treatment_period')),
             2
         )
     )
@@ -722,7 +722,7 @@ class SPC(QualityMeasure):
             **kwargs
     ):
         eligible_males_membership_df = dfs_input['member_time'].where(
-            (spark_funcs.col('date_start') >= performance_yearstart)
+            (spark_funcs.col('date_start') >= datetime.date(performance_yearstart.year-1, 1, 1))
             & (spark_funcs.col('date_end') <= datetime.date(performance_yearstart.year, 12, 31))
         ).join(
             dfs_input['member'].select(
@@ -761,7 +761,7 @@ class SPC(QualityMeasure):
         ).distinct()
 
         eligible_females_membership_df = dfs_input['member_time'].where(
-            (spark_funcs.col('date_start') >= performance_yearstart)
+            (spark_funcs.col('date_start') >= datetime.date(performance_yearstart.year-1, 1, 1))
             & (spark_funcs.col('date_end') <= datetime.date(performance_yearstart.year, 12, 31))
         ).join(
             dfs_input['member'].select(
