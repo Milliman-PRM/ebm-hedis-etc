@@ -335,10 +335,10 @@ def _flag_calculation_steps(
             spark_funcs.lit(True),
         ).otherwise(
             spark_funcs.lit(False)
-        ).alias('exclude_planned'),
+        ).alias('planned_flag'),
     )
 
-    transfer_window = Window().partitionBy(
+    sorted_stay_window = Window().partitionBy(
         'member_id',
     ).orderBy(
         'admitdate',
@@ -348,8 +348,8 @@ def _flag_calculation_steps(
         spark_funcs.col('acute_inpatient')
     ).select(
         '*',
-        spark_funcs.lag('dischdate').over(transfer_window).alias('last_dischdate'),
-        spark_funcs.lag('claimid').over(transfer_window).alias('last_claimid'),
+        spark_funcs.lag('dischdate').over(sorted_stay_window).alias('last_dischdate'),
+        spark_funcs.lag('claimid').over(sorted_stay_window).alias('last_claimid'),
     ).withColumn(
         'is_transfer',
         spark_funcs.when(
@@ -370,12 +370,12 @@ def _flag_calculation_steps(
             spark_funcs.col('claimid')
         )
     ).withColumn(
-        'exclude_planned',
+        'planned_flag',
         spark_funcs.when(
             spark_funcs.col('is_transfer'),
             spark_funcs.lit(False),
         ).otherwise(
-            spark_funcs.col('exclude_planned')
+            spark_funcs.col('planned_flag')
         )
     )
     transfer_reagg = flag_transfers.groupby(
@@ -383,12 +383,32 @@ def _flag_calculation_steps(
         'transfer_claimid',
     ).agg(
         spark_funcs.max('exclude_base').alias('exclude_base'),
-        spark_funcs.max('exclude_planned').alias('exclude_planned'),
+        spark_funcs.max('planned_flag').alias('planned_flag'),
         spark_funcs.max('is_transfer').alias('is_transfer'),
         spark_funcs.min('admitdate').alias('admitdate'),
         spark_funcs.max('dischdate').alias('dischdate'),
     )
-    return transfer_reagg
+    planned_flag = transfer_reagg.select(
+        '*',
+        spark_funcs.lead('admitdate').over(sorted_stay_window).alias('next_admitdate'),
+        spark_funcs.lead('planned_flag').over(sorted_stay_window).alias('next_planned_flag'),
+    ).withColumn(
+        'exclude_planned',
+        spark_funcs.when(
+            (
+                spark_funcs.datediff(
+                    spark_funcs.col('next_admitdate'),
+                    spark_funcs.col('dischdate')
+                ) <= 30
+            )
+            & spark_funcs.col('next_planned_flag'),
+            spark_funcs.lit(True),
+        ).otherwise(
+            spark_funcs.lit(False)
+        )
+    )
+    return planned_flag
+
 
 def _exclude_elig_gaps(
         eligible_member_time: DataFrame,
