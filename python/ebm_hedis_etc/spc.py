@@ -2,7 +2,7 @@
 ### CODE OWNERS: Alexander Olivero
 
 ### OBJECTIVE:
-    Calculate the Persistence of Beta-Blockers after Heart Attack HEDIS measure.
+    Calculate the Statin Therapy for Patients with Cardiovascular Disease HEDIS measure.
 
 ### DEVELOPER NOTES:
   <none>
