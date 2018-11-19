@@ -471,7 +471,7 @@ class PCR(QualityMeasure):
             performance_yearstart: datetime.date,
             **kwargs
     ):
-        performance_yearend = datetime.date(
+        last_eligible_dischdate = datetime.date(
             performance_yearstart.year,
             12,
             1,
@@ -482,4 +482,44 @@ class PCR(QualityMeasure):
             performance_yearstart,
             )
         staging_calculation_steps = _flag_calculation_steps(claim_value_sets)
+        acute_ip_index_stays = staging_calculation_steps.where(
+            (spark_funcs.col('admitdate') != spark_funcs.col('dischdate'))
+            & ~spark_funcs.col('exclude_base')
+            & ~spark_funcs.col('exclude_planned')
+            & (spark_funcs.col('dischdate') >= performance_yearstart)
+            & (spark_funcs.col('dischdate') <= last_eligible_dischdate)
+            )
+        acute_ip_numerator_stays = staging_calculation_steps.where(
+            ~spark_funcs.col('exclude_base')
+        ).select(
+            'member_id',
+            spark_funcs.col('transfer_claimid').alias('readmit_claimid'),
+            spark_funcs.col('admitdate').alias('readmit_admitdate'),
+            spark_funcs.col('dischdate').alias('readmit_dischdate'),
+        )
+
+        readmissions_flagged = acute_ip_index_stays.join(
+            acute_ip_numerator_stays,
+            on=[
+                (spark_funcs.datediff(
+                    acute_ip_numerator_stays.readmit_admitdate,
+                    acute_ip_index_stays.dischdate,
+                    ) >= spark_funcs.lit(0))
+                & (spark_funcs.datediff(
+                    acute_ip_numerator_stays.readmit_admitdate,
+                    acute_ip_index_stays.dischdate,
+                    ) <= spark_funcs.lit(30)),
+                acute_ip_numerator_stays.member_id == acute_ip_index_stays.member_id,
+                acute_ip_numerator_stays.readmit_claimid != acute_ip_index_stays.transfer_claimid,
+                ],
+            how='left',
+        ).withColumn(
+            'has_readmit',
+            spark_funcs.when(
+                spark_funcs.col('readmit_claimid').isNotNull(),
+                spark_funcs.lit(True),
+                ).otherwise(
+                    spark_funcs.lit(False)
+                    ),
+        )
         return
