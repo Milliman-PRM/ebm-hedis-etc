@@ -521,5 +521,7 @@ class PCR(QualityMeasure):
                 ).otherwise(
                     spark_funcs.lit(False)
                     ),
+        ).drop(
+           acute_ip_numerator_stays.member_id
         )
         return
