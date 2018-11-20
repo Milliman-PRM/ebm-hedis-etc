@@ -666,13 +666,38 @@ class PCR(QualityMeasure):
             performance_yearstart,
             last_eligible_dischdate,
             )
-        readmissions_dedup.cache()
 
-        readmit_rate = readmissions_dedup.agg(
-            spark_funcs.mean(spark_funcs.col('has_readmit').cast('int'))
-        ).collect()[0][0]
+        results_df = readmissions_dedup.groupby(
+            'member_id',
+        ).agg(
+            spark_funcs.count('*').alias('comp_quality_denominator'),
+            spark_funcs.sum(
+                spark_funcs.col('has_readmit').cast('int')
+                ).alias('comp_quality_numerator'),
+        ).select(
+            'member_id',
+            'comp_quality_denominator',
+            'comp_quality_numerator',
+            spark_funcs.lit('PCR').alias('comp_quality_short'),
+            spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
+            spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+        )
+        results_df.cache()
+
+        readmit_results = results_df.agg(
+            spark_funcs.sum(
+                spark_funcs.col('comp_quality_denominator')
+                ).alias('comp_quality_denominator'),
+            spark_funcs.sum(
+                spark_funcs.col('comp_quality_numerator')
+                ).alias('comp_quality_numerator'),
+        ).collect()[0]
         LOGGER.info(
-            'Overall readmission rate calculated as %s', readmit_rate
+            'Identified %s index stays with %s readmissions with an overall readmission rate of %s',
+            readmit_results['comp_quality_denominator'],
+            readmit_results['comp_quality_numerator'],
+            readmit_results['comp_quality_numerator'] / readmit_results['comp_quality_denominator'],
             )
         staging_calculation_steps.unpersist()
-        return readmissions_dedup
+        return results_df
