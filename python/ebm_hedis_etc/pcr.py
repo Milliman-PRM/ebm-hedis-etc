@@ -522,6 +522,7 @@ class PCR(QualityMeasure):
             performance_yearstart,
             )
         staging_calculation_steps = _flag_calculation_steps(claim_value_sets)
+        staging_calculation_steps.cache()
 
         index_with_elig_periods = staging_calculation_steps.select(
             '*',
@@ -638,6 +639,7 @@ class PCR(QualityMeasure):
         ).agg(
             spark_funcs.max('has_readmit').alias('has_readmit')
         )
+        readmissions_dedup.cache()
 
         readmit_rate = readmissions_dedup.agg(
             spark_funcs.mean(spark_funcs.col('has_readmit').cast('int'))
@@ -645,4 +647,5 @@ class PCR(QualityMeasure):
         LOGGER.info(
             'Overall readmission rate calculated as %s', readmit_rate
             )
+        staging_calculation_steps.unpersist()
         return readmissions_dedup
