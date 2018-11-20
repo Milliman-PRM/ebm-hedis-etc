@@ -31,7 +31,6 @@ def main() -> int:
         'member_time': sparkapp.load_df(PRM_META[35, 'out'] / 'member_time.parquet'),
         'member': sparkapp.load_df(PRM_META[35, 'out'] / 'member.parquet'),
         'claims': sparkapp.load_df(PRM_META[40, 'out'] / 'outclaims.parquet'),
-        'rx_claims': sparkapp.load_df(PRM_META[40, 'out'] / 'outpharmacy.parquet'),
         'reference': sparkapp.load_df(PATH_REF / 'hedis_codes.parquet'),
     }
 
