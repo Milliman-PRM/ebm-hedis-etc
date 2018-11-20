@@ -337,15 +337,26 @@ def _flag_calculation_steps(
         ).alias('planned_flag'),
     )
 
+    date_reagg = claims_calc_flags.where(
+        spark_funcs.col('acute_inpatient')
+    ).groupby(
+        'member_id',
+        'admitdate',
+        'dischdate',
+    ).agg(
+        spark_funcs.max(spark_funcs.col('exclude_base')).alias('exclude_base'),
+        spark_funcs.max(spark_funcs.col('planned_flag')).alias('planned_flag'),
+        spark_funcs.max(spark_funcs.col('claimid')).alias('claimid'),
+        spark_funcs.max(spark_funcs.col('died_during_stay')).alias('died_during_stay'),
+    )
+
     sorted_stay_window = Window().partitionBy(
         'member_id',
     ).orderBy(
         'admitdate',
         'dischdate',
     )
-    flag_transfers = claims_calc_flags.where(
-        spark_funcs.col('acute_inpatient')
-    ).select(
+    flag_transfers = date_reagg.select(
         '*',
         spark_funcs.lag('dischdate').over(sorted_stay_window).alias('last_dischdate'),
         spark_funcs.lag('claimid').over(sorted_stay_window).alias('last_claimid'),
