@@ -613,4 +613,20 @@ class PCR(QualityMeasure):
         ).drop(
            'readmit_member_id'
         )
-        return
+
+        readmissions_dedup = readmissions_flagged.groupby(
+            'member_id',
+            'transfer_claimid',
+            'admitdate',
+            'dischdate',
+        ).agg(
+            spark_funcs.max('has_readmit').alias('has_readmit')
+        )
+
+        readmit_rate = readmissions_dedup.agg(
+            spark_funcs.mean(spark_funcs.col('has_readmit').cast('int'))
+        ).collect()[0][0]
+        LOGGER.info(
+            'Overall readmission rate calculated as %s', readmit_rate
+            )
+        return readmissions_dedup
