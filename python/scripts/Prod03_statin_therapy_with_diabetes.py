@@ -18,7 +18,7 @@ from ebm_hedis_etc.spd import SPD
 PRM_META = parse_project_metadata()
 LOGGER = logging.getLogger(__name__)
 
-PATH_REF = Path(os.environ['EBM_HEDIS_ETC_MEASURES_PATHREF'])
+PATH_REF = Path(os.environ['EBM_HEDIS_ETC_PATHREF'])
 
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
