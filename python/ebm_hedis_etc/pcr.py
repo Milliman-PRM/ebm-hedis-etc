@@ -188,7 +188,7 @@ def _identify_claim_value_sets(
     dfs_relevant_refs = _filter_relevant_value_sets(reference_df)
 
     valid_dates_df = claims_df.where(
-        spark_funcs.col('prm_todate') >= performance_yearstart
+        spark_funcs.col('dischdate') >= performance_yearstart
     )
 
     claim_diag_value_sets = _summ_claim_diag_value_sets(
@@ -503,6 +503,137 @@ def _exclude_elig_gaps(
 
     return exclude_gap_summ
 
+def _calc_elig_gap_exclusions(
+        staging_calculation_steps: DataFrame,
+        member_time: DataFrame,
+    ) -> DataFrame:
+
+    index_with_elig_periods = staging_calculation_steps.select(
+        '*',
+        spark_funcs.explode(
+            spark_funcs.array(
+                spark_funcs.struct(
+                    spark_funcs.date_sub(
+                        spark_funcs.col('dischdate'),
+                        365,
+                        ).alias('elig_date_start'),
+                    spark_funcs.col('dischdate').alias('elig_date_end'),
+                    spark_funcs.lit('prior').alias('elig_period'),
+                ),
+                spark_funcs.struct(
+                    spark_funcs.col('dischdate').alias('elig_date_start'),
+                    spark_funcs.date_add(
+                        spark_funcs.col('dischdate'),
+                        30,
+                        ).alias('elig_date_end'),
+                    spark_funcs.lit('after').alias('elig_period'),
+                ),
+            )
+        ).alias('struct_elig')
+    ).select(
+        '*',
+        spark_funcs.col('struct_elig')['elig_date_start'].alias('elig_date_start'),
+        spark_funcs.col('struct_elig')['elig_date_end'].alias('elig_date_end'),
+        spark_funcs.col('struct_elig')['elig_period'].alias('elig_period'),
+    )
+
+    index_stays_with_elig = index_with_elig_periods.join(
+        member_time.select(
+            'member_id',
+            'cover_medical',
+            'date_start',
+            'date_end',
+            ),
+        on='member_id',
+        how='left',
+    ).where(
+        (spark_funcs.col('date_end') >= spark_funcs.col('elig_date_start'))
+        & (spark_funcs.col('date_start') <= spark_funcs.col('elig_date_end'))
+    ).withColumn(
+        'date_start',
+        spark_funcs.greatest(
+            spark_funcs.col('date_start'),
+            spark_funcs.col('elig_date_start'),
+            )
+    ).withColumn(
+        'date_end',
+        spark_funcs.least(
+            spark_funcs.col('date_end'),
+            spark_funcs.col('elig_date_end'),
+            )
+    )
+    index_stay_gap_exclusion = _exclude_elig_gaps(
+        index_stays_with_elig,
+    )
+    return index_stay_gap_exclusion
+
+def _flag_readmissions(
+        staging_calculation_steps: DataFrame,
+        index_stay_gap_exclusion: DataFrame,
+        performance_yearstart: datetime.date,
+        last_eligible_dischdate: datetime.date,
+    ) -> DataFrame:
+    """Calculate final readmissions dataframe"""
+
+    acute_ip_index_stays = staging_calculation_steps.join(
+        index_stay_gap_exclusion,
+        on=['member_id', 'transfer_claimid'],
+        how='left',
+    ).where(
+        (spark_funcs.col('admitdate') != spark_funcs.col('dischdate'))
+        & ~spark_funcs.col('exclude_base')
+        & ~spark_funcs.col('exclude_planned')
+        & ~spark_funcs.col('exclude_gap')
+        & (spark_funcs.col('dischdate') >= performance_yearstart)
+        & (spark_funcs.col('dischdate') <= last_eligible_dischdate)
+    )
+
+    acute_ip_numerator_stays = staging_calculation_steps.where(
+        ~spark_funcs.col('exclude_base')
+    ).select(
+        spark_funcs.col('member_id').alias('readmit_member_id'),
+        spark_funcs.col('transfer_claimid').alias('readmit_claimid'),
+        spark_funcs.col('admitdate').alias('readmit_admitdate'),
+        spark_funcs.col('dischdate').alias('readmit_dischdate'),
+    )
+
+    readmissions_flagged = acute_ip_index_stays.join(
+        acute_ip_numerator_stays,
+        on=[
+            (spark_funcs.datediff(
+                acute_ip_numerator_stays.readmit_admitdate,
+                acute_ip_index_stays.dischdate,
+                ) >= spark_funcs.lit(0))
+            & (spark_funcs.datediff(
+                acute_ip_numerator_stays.readmit_admitdate,
+                acute_ip_index_stays.dischdate,
+                ) <= spark_funcs.lit(30)),
+            acute_ip_numerator_stays.readmit_member_id == acute_ip_index_stays.member_id,
+            acute_ip_numerator_stays.readmit_claimid != acute_ip_index_stays.transfer_claimid,
+            ],
+        how='left',
+    ).withColumn(
+        'has_readmit',
+        spark_funcs.when(
+            spark_funcs.col('readmit_claimid').isNotNull(),
+            spark_funcs.lit(True),
+            ).otherwise(
+                spark_funcs.lit(False)
+                ),
+    ).drop(
+        'readmit_member_id'
+    )
+
+    readmissions_dedup = readmissions_flagged.groupby(
+        'member_id',
+        'transfer_claimid',
+        'admitdate',
+        'dischdate',
+    ).agg(
+        spark_funcs.max('has_readmit').alias('has_readmit')
+    )
+    return readmissions_dedup
+
 class PCR(QualityMeasure):
     """Object to house logic to calculate Plan All-cause Readmissions"""
     def _calc_measure(
@@ -524,121 +655,17 @@ class PCR(QualityMeasure):
         staging_calculation_steps = _flag_calculation_steps(claim_value_sets)
         staging_calculation_steps.cache()
 
-        index_with_elig_periods = staging_calculation_steps.select(
-            '*',
-            spark_funcs.explode(
-                spark_funcs.array(
-                    spark_funcs.struct(
-                        spark_funcs.date_sub(
-                            spark_funcs.col('dischdate'),
-                            365,
-                            ).alias('elig_date_start'),
-                        spark_funcs.col('dischdate').alias('elig_date_end'),
-                        spark_funcs.lit('prior').alias('elig_period'),
-                    ),
-                    spark_funcs.struct(
-                        spark_funcs.col('dischdate').alias('elig_date_start'),
-                        spark_funcs.date_add(
-                            spark_funcs.col('dischdate'),
-                            30,
-                            ).alias('elig_date_end'),
-                        spark_funcs.lit('after').alias('elig_period'),
-                    ),
-                )
-            ).alias('struct_elig')
-        ).select(
-            '*',
-            spark_funcs.col('struct_elig')['elig_date_start'].alias('elig_date_start'),
-            spark_funcs.col('struct_elig')['elig_date_end'].alias('elig_date_end'),
-            spark_funcs.col('struct_elig')['elig_period'].alias('elig_period'),
-        )
+        index_stay_gap_exclusion = _calc_elig_gap_exclusions(
+            staging_calculation_steps,
+            dfs_input['member_time'],
+            )
 
-        index_stays_with_elig = index_with_elig_periods.join(
-            dfs_input['member_time'].select(
-                'member_id',
-                'cover_medical',
-                'date_start',
-                'date_end',
-                ),
-            on='member_id',
-            how='left',
-        ).where(
-            (spark_funcs.col('date_end') >= spark_funcs.col('elig_date_start'))
-            & (spark_funcs.col('date_start') <= spark_funcs.col('elig_date_end'))
-        ).withColumn(
-            'date_start',
-            spark_funcs.greatest(
-                spark_funcs.col('date_start'),
-                spark_funcs.col('elig_date_start'),
-                )
-        ).withColumn(
-            'date_end',
-            spark_funcs.least(
-                spark_funcs.col('date_end'),
-                spark_funcs.col('elig_date_end'),
-                )
-        )
-        index_stay_gap_exclusion = _exclude_elig_gaps(
-            index_stays_with_elig,
-        )
-
-        acute_ip_index_stays = staging_calculation_steps.join(
+        readmissions_dedup = _flag_readmissions(
+            staging_calculation_steps,
             index_stay_gap_exclusion,
-            on=['member_id', 'transfer_claimid'],
-            how='left',
-        ).where(
-            (spark_funcs.col('admitdate') != spark_funcs.col('dischdate'))
-            & ~spark_funcs.col('exclude_base')
-            & ~spark_funcs.col('exclude_planned')
-            & ~spark_funcs.col('exclude_gap')
-            & (spark_funcs.col('dischdate') >= performance_yearstart)
-            & (spark_funcs.col('dischdate') <= last_eligible_dischdate)
-        )
-
-        acute_ip_numerator_stays = staging_calculation_steps.where(
-            ~spark_funcs.col('exclude_base')
-        ).select(
-            spark_funcs.col('member_id').alias('readmit_member_id'),
-            spark_funcs.col('transfer_claimid').alias('readmit_claimid'),
-            spark_funcs.col('admitdate').alias('readmit_admitdate'),
-            spark_funcs.col('dischdate').alias('readmit_dischdate'),
-        )
-
-        readmissions_flagged = acute_ip_index_stays.join(
-            acute_ip_numerator_stays,
-            on=[
-                (spark_funcs.datediff(
-                    acute_ip_numerator_stays.readmit_admitdate,
-                    acute_ip_index_stays.dischdate,
-                    ) >= spark_funcs.lit(0))
-                & (spark_funcs.datediff(
-                    acute_ip_numerator_stays.readmit_admitdate,
-                    acute_ip_index_stays.dischdate,
-                    ) <= spark_funcs.lit(30)),
-                acute_ip_numerator_stays.readmit_member_id == acute_ip_index_stays.member_id,
-                acute_ip_numerator_stays.readmit_claimid != acute_ip_index_stays.transfer_claimid,
-                ],
-            how='left',
-        ).withColumn(
-            'has_readmit',
-            spark_funcs.when(
-                spark_funcs.col('readmit_claimid').isNotNull(),
-                spark_funcs.lit(True),
-                ).otherwise(
-                    spark_funcs.lit(False)
-                    ),
-        ).drop(
-            'readmit_member_id'
-        )
-
-        readmissions_dedup = readmissions_flagged.groupby(
-            'member_id',
-            'transfer_claimid',
-            'admitdate',
-            'dischdate',
-        ).agg(
-            spark_funcs.max('has_readmit').alias('has_readmit')
-        )
+            performance_yearstart,
+            last_eligible_dischdate,
+            )
         readmissions_dedup.cache()
 
         readmit_rate = readmissions_dedup.agg(
