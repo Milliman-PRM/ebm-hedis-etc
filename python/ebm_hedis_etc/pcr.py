@@ -411,57 +411,87 @@ def _flag_calculation_steps(
 
 
 def _exclude_elig_gaps(
-        eligible_member_time: DataFrame,
-        allowable_gaps: int=0,
-        allowable_gap_length: int=0
+        denominator_events: DataFrame,
 ) -> DataFrame:
     """Find eligibility gaps and exclude members """
     decoupled_windows = decouple_common_windows(
-        eligible_member_time,
-        'member_id',
+        denominator_events,
+        ['member_id', 'transfer_claimid', 'elig_period'],
         'date_start',
         'date_end',
         create_windows_for_gaps=True
     )
-
-    gaps_df = decoupled_windows.join(
-        eligible_member_time,
-        ['member_id', 'date_start', 'date_end'],
-        how='left_outer'
-    ).where(
-        spark_funcs.col('cover_medical').isNull()
-    ).select(
+    cover_medical_windows = denominator_events.select(
         'member_id',
+        'transfer_claimid',
+        'elig_period',
         'date_start',
         'date_end',
-        spark_funcs.datediff(
+        'cover_medical',
+        )
+
+    gaps_df = decoupled_windows.join(
+        cover_medical_windows,
+        ['member_id', 'transfer_claimid', 'elig_period', 'date_start', 'date_end'],
+        how='left_outer'
+    ).fillna({
+        'cover_medical': 'N',
+    }).select(
+        'member_id',
+        'transfer_claimid',
+        'elig_period',
+        'date_start',
+        'date_end',
+        'cover_medical',
+        (spark_funcs.datediff(
             spark_funcs.col('date_end'),
             spark_funcs.col('date_start')
-        ).alias('date_diff')
+        ) + 1).alias('date_diff')
     )
 
-    long_gaps_df = gaps_df.where(
-        spark_funcs.col('date_diff') > allowable_gap_length
-    ).select(
-        'member_id'
-    )
-
-    gap_count_df = gaps_df.groupBy(
-        'member_id'
+    summ_gaps = gaps_df.groupby(
+        'member_id',
+        'transfer_claimid',
+        'elig_period',
     ).agg(
-        spark_funcs.count('*').alias('num_of_gaps')
-    ).where(
-        spark_funcs.col('num_of_gaps') > allowable_gaps
-    ).select(
-        'member_id'
+        spark_funcs.sum(
+            spark_funcs.when(
+                spark_funcs.col('cover_medical') == 'N',
+                spark_funcs.lit(1)
+            ).otherwise(spark_funcs.lit(0))
+        ).alias('count_gaps'),
+        spark_funcs.sum(
+            spark_funcs.when(
+                spark_funcs.col('cover_medical') == 'N',
+                spark_funcs.col('date_diff')
+            ).otherwise(spark_funcs.lit(0))
+        ).alias('count_gap_days'),
     )
 
-    return long_gaps_df.union(
-        gap_count_df
-    ).select(
-        spark_funcs.col('member_id').alias('exclude_member_id')
-    ).distinct()
+    flag_gaps = summ_gaps.withColumn(
+        'exclude_gap',
+        spark_funcs.when(
+            spark_funcs.col('elig_period') == 'prior',
+            spark_funcs.when(
+                (spark_funcs.col('count_gaps') > 1)
+                | (spark_funcs.col('count_gap_days') > 45),
+                spark_funcs.lit(True)
+            ).otherwise(spark_funcs.lit(False))
+        ).otherwise(
+            spark_funcs.when(
+                spark_funcs.col('count_gaps') > 0,
+                spark_funcs.lit(True)
+            ).otherwise(spark_funcs.lit(False))
+        )
+    )
+    exclude_gap_summ = flag_gaps.groupby(
+        'member_id',
+        'transfer_claimid',
+    ).agg(
+        spark_funcs.max(spark_funcs.col('exclude_gap')).alias('exclude_gap')
+    )
 
+    return exclude_gap_summ
 
 class PCR(QualityMeasure):
     """Object to house logic to calculate Plan All-cause Readmissions"""
@@ -482,17 +512,76 @@ class PCR(QualityMeasure):
             performance_yearstart,
             )
         staging_calculation_steps = _flag_calculation_steps(claim_value_sets)
-        acute_ip_index_stays = staging_calculation_steps.where(
+
+        index_with_elig_periods = staging_calculation_steps.select(
+            '*',
+            spark_funcs.explode(
+                spark_funcs.array(
+                    spark_funcs.struct(
+                        spark_funcs.date_sub(spark_funcs.col('dischdate'), 365).alias('elig_date_start'),
+                        spark_funcs.col('dischdate').alias('elig_date_end'),
+                        spark_funcs.lit('prior').alias('elig_period'),
+                    ),
+                    spark_funcs.struct(
+                        spark_funcs.col('dischdate').alias('elig_date_start'),
+                        spark_funcs.date_add(spark_funcs.col('dischdate'), 30).alias('elig_date_end'),
+                        spark_funcs.lit('after').alias('elig_period'),
+                    ),
+                )
+            ).alias('struct_elig')
+        ).select(
+            '*',
+            spark_funcs.col('struct_elig')['elig_date_start'].alias('elig_date_start'),
+            spark_funcs.col('struct_elig')['elig_date_end'].alias('elig_date_end'),
+            spark_funcs.col('struct_elig')['elig_period'].alias('elig_period'),
+        )
+
+        index_stays_with_elig = index_with_elig_periods.join(
+            dfs_input['member_time'].select(
+                'member_id',
+                'cover_medical',
+                'date_start',
+                'date_end',
+                ),
+            on='member_id',
+            how='left',
+        ).where(
+            (spark_funcs.col('date_end') >= spark_funcs.col('elig_date_start'))
+            & (spark_funcs.col('date_start') <= spark_funcs.col('elig_date_end'))
+        ).withColumn(
+            'date_start',
+            spark_funcs.greatest(
+                spark_funcs.col('date_start'),
+                spark_funcs.col('elig_date_start'),
+                )
+        ).withColumn(
+            'date_end',
+            spark_funcs.least(
+                spark_funcs.col('date_end'),
+                spark_funcs.col('elig_date_end'),
+                )
+        )
+        index_stay_gap_exclusion = _exclude_elig_gaps(
+            index_stays_with_elig,
+        )
+
+        acute_ip_index_stays = staging_calculation_steps.join(
+            index_stay_gap_exclusion,
+            on=['member_id', 'transfer_claimid'],
+            how='left',
+        ).where(
             (spark_funcs.col('admitdate') != spark_funcs.col('dischdate'))
             & ~spark_funcs.col('exclude_base')
             & ~spark_funcs.col('exclude_planned')
+            & ~spark_funcs.col('exclude_gap')
             & (spark_funcs.col('dischdate') >= performance_yearstart)
             & (spark_funcs.col('dischdate') <= last_eligible_dischdate)
-            )
+        )
+
         acute_ip_numerator_stays = staging_calculation_steps.where(
             ~spark_funcs.col('exclude_base')
         ).select(
-            'member_id',
+            spark_funcs.col('member_id').alias('readmit_member_id'),
             spark_funcs.col('transfer_claimid').alias('readmit_claimid'),
             spark_funcs.col('admitdate').alias('readmit_admitdate'),
             spark_funcs.col('dischdate').alias('readmit_dischdate'),
@@ -509,7 +598,7 @@ class PCR(QualityMeasure):
                     acute_ip_numerator_stays.readmit_admitdate,
                     acute_ip_index_stays.dischdate,
                     ) <= spark_funcs.lit(30)),
-                acute_ip_numerator_stays.member_id == acute_ip_index_stays.member_id,
+                acute_ip_numerator_stays.readmit_member_id == acute_ip_index_stays.member_id,
                 acute_ip_numerator_stays.readmit_claimid != acute_ip_index_stays.transfer_claimid,
                 ],
             how='left',
@@ -522,6 +611,6 @@ class PCR(QualityMeasure):
                     spark_funcs.lit(False)
                     ),
         ).drop(
-           acute_ip_numerator_stays.member_id
+           'readmit_member_id'
         )
         return
