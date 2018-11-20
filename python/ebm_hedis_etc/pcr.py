@@ -9,7 +9,6 @@
 """
 import logging
 import datetime
-import typing
 import itertools
 
 import pyspark.sql.functions as spark_funcs
@@ -518,13 +517,19 @@ class PCR(QualityMeasure):
             spark_funcs.explode(
                 spark_funcs.array(
                     spark_funcs.struct(
-                        spark_funcs.date_sub(spark_funcs.col('dischdate'), 365).alias('elig_date_start'),
+                        spark_funcs.date_sub(
+                            spark_funcs.col('dischdate'),
+                            365,
+                            ).alias('elig_date_start'),
                         spark_funcs.col('dischdate').alias('elig_date_end'),
                         spark_funcs.lit('prior').alias('elig_period'),
                     ),
                     spark_funcs.struct(
                         spark_funcs.col('dischdate').alias('elig_date_start'),
-                        spark_funcs.date_add(spark_funcs.col('dischdate'), 30).alias('elig_date_end'),
+                        spark_funcs.date_add(
+                            spark_funcs.col('dischdate'),
+                            30,
+                            ).alias('elig_date_end'),
                         spark_funcs.lit('after').alias('elig_period'),
                     ),
                 )
@@ -611,7 +616,7 @@ class PCR(QualityMeasure):
                     spark_funcs.lit(False)
                     ),
         ).drop(
-           'readmit_member_id'
+            'readmit_member_id'
         )
 
         readmissions_dedup = readmissions_flagged.groupby(
