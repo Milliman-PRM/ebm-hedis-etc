@@ -321,9 +321,9 @@ class PBH(QualityMeasure):
             ).otherwise(
                 spark_funcs.lit(0)
             ).alias('comp_quality_denominator'),
-            spark_funcs.lit(None).alias('comp_quality_date_last'),
-            spark_funcs.lit(None).alias('comp_quality_date_actionable'),
-            spark_funcs.lit(None).alias('comp_quality_comments')
+            spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
+            spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
         )
 
         return results_df
