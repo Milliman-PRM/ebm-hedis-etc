@@ -912,30 +912,30 @@ class SPC(QualityMeasure):
             dfs_input['member'].member_id == rate_one_female_denom_df.member_id,
             how='left_outer'
         ).join(
-            rate_one_male_denom_df,
-            dfs_input['member'].member_id == rate_one_male_denom_df.member_id,
+            rate_one_male_denom_df.withColumnRenamed('member_id', 'mele_denom_join_member_id'),
+            dfs_input['member'].member_id == spark_funcs.col('mele_denom_join_member_id'),
             how='left_outer'
         ).join(
-            rate_one_female_numer_df,
-            dfs_input['member'].member_id == rate_one_female_numer_df.member_id,
+            rate_one_female_numer_df.withColumnRenamed('member_id', 'female_join_member_id'),
+            dfs_input['member'].member_id == spark_funcs.col('female_join_member_id'),
             how='left_outer'
         ).join(
-            rate_one_male_numer_df,
-            dfs_input['member'].member_id == rate_one_male_numer_df.member_id,
+            rate_one_male_numer_df.withColumnRenamed('member_id', 'male_join_member_id'),
+            dfs_input['member'].member_id == spark_funcs.col('male_join_member_id'),
             how='left_outer'
         ).select(
             dfs_input['member'].member_id,
             spark_funcs.lit('SPC: Rate One').alias('comp_quality_short'),
             spark_funcs.when(
-                rate_one_female_numer_df.member_id.isNotNull()
-                | rate_one_male_numer_df.member_id.isNotNull(),
+                spark_funcs.col('female_join_member_id').isNotNull()
+                | spark_funcs.col('male_join_member_id').isNotNull(),
                 spark_funcs.lit(1)
             ).otherwise(
                 spark_funcs.lit(0)
             ).alias('comp_quality_numerator'),
             spark_funcs.when(
                 rate_one_female_denom_df.member_id.isNotNull()
-                | rate_one_male_denom_df.member_id.isNotNull(),
+                | spark_funcs.col('mele_denom_join_member_id').isNotNull(),
                 spark_funcs.lit(1)
             ).otherwise(
                 spark_funcs.lit(0)
@@ -952,16 +952,16 @@ class SPC(QualityMeasure):
             dfs_input['member'].member_id == rate_one_female_numer_df.member_id,
             how='left_outer'
         ).join(
-            rate_one_male_numer_df,
-            dfs_input['member'].member_id == rate_one_male_numer_df.member_id,
+            rate_one_male_numer_df.withColumnRenamed('member_id', 'male_numer_join_member_id'),
+            dfs_input['member'].member_id == spark_funcs.col('male_numer_join_member_id'),
             how='left_outer'
         ).join(
-            rate_two_female_numer_df,
-            dfs_input['member'].member_id == rate_two_female_numer_df.member_id,
+            rate_two_female_numer_df.withColumnRenamed('member_id', 'female_join_member_id'),
+            dfs_input['member'].member_id == spark_funcs.col('female_join_member_id'),
             how='left_outer'
         ).join(
-            rate_two_male_numer_df,
-            dfs_input['member'].member_id == rate_two_male_numer_df.member_id,
+            rate_two_male_numer_df.withColumnRenamed('member_id', 'male_join_member_id'),
+            dfs_input['member'].member_id == spark_funcs.col('male_join_member_id'),
             how='left_outer'
         ).select(
             dfs_input['member'].member_id,
@@ -975,7 +975,7 @@ class SPC(QualityMeasure):
             ).alias('comp_quality_numerator'),
             spark_funcs.when(
                 rate_one_female_numer_df.member_id.isNotNull()
-                | rate_one_male_numer_df.member_id.isNotNull(),
+                | spark_funcs.col('male_numer_join_member_id').isNotNull(),
                 spark_funcs.lit(1)
             ).otherwise(
                 spark_funcs.lit(0)
