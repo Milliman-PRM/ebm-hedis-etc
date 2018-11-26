@@ -2,7 +2,7 @@
 ### CODE OWNERS: Alexander Olivero
 
 ### OBJECTIVE:
-    Calculate the Plan All-cause Readmission measure.
+    Stack all results tables and serialize quality_measures and ref_quality_measures tables.
 
 ### DEVELOPER NOTES:
   <none>
