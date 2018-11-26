@@ -1,0 +1,17 @@
+comp_quality_dual,comp_quality,comp_quality_category,comp_quality_direction,comp_quality_target_value,comp_quality_format_code,comp_quality_calculation_type
+1,SPD: Rate One,At Risk Population - Diabetes,Higher_Better,.9,"#,##0.0%",Binary
+2,SPD: Rate Two,At Risk Population - Diabetes,Higher_Better,.9,"#,##0.0%",Binary
+3,SPC: Rate One,At Risk Population - Cardiovascular,Higher_Better,.9,"#,##0.0%",Binary
+4,SPC: Rate Two,At Risk Population - Cardiovascular,Higher_Better,.9,"#,##0.0%",Binary
+5,PBH,At Risk Population - Cardiovascular,Higher_Better,.9,"#,##0.0%",Binary
+6,CIS - DTaP,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
+7,CIS - IPV,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
+8,CIS - HiB,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
+9,CIS - Pneumococcal Conjugate,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
+10,CIS - Influenza,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
+11,CIS - Hepatitis B,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
+12,CIS - Hepatitis A,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
+13,CIS - VZV,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
+14,CIS - Rotavirus,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
+15,CIS - MMR,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
+16,PCR,Care Coordination/Patient Safety,Lower_Better,.15,"#,##0.0",Rate
