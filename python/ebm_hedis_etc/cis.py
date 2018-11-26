@@ -249,7 +249,7 @@ def calc_hepatitis_b(
         'vaccine_count'
     )
 
-    procs_expolde_df = eligible_claims_df.select(
+    procs_explode_df = eligible_claims_df.select(
         'member_id',
         'dob',
         'fromdate',
@@ -262,14 +262,14 @@ def calc_hepatitis_b(
         ).alias('proc')
     )
 
-    newborn_hepatitis_df = procs_expolde_df.join(
+    newborn_hepatitis_df = procs_explode_df.join(
         reference_df.where(
             spark_funcs.col('value_set_name') == 'Newborn Hepatitis B Vaccine Administered'
         ),
         [
-            procs_expolde_df.icdversion == spark_funcs.regexp_extract(reference_df.code_system,
+            procs_explode_df.icdversion == spark_funcs.regexp_extract(reference_df.code_system,
                                                                       r'\d+', 0),
-            procs_expolde_df.proc == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
+            procs_explode_df.proc == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
         ],
         how='left_outer'
     ).where(
