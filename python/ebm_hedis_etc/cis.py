@@ -346,7 +346,7 @@ def calc_hepatitis_a(
         reference_df,
         eligible_members_df,
         eligible_claims_df,
-        'Hepatits A Vaccine Administered',
+        'Hepatitis A Vaccine Administered',
         0,
         1
     ).where(
