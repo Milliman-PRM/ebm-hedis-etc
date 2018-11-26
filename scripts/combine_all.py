@@ -13,6 +13,7 @@ from pathlib import Path
 
 from pyspark.sql import DataFrame
 from prm.spark.app import SparkApp
+from prm.spark.io_sas import write_sas_data
 from prm.meta.project import parse_project_metadata
 from indypy.file_utils import IndyPyPath
 
@@ -50,6 +51,14 @@ def main() -> int:
         sparkapp,
         PRM_META[150, 'out']
     )
+
+    ref_quality_measures_df = sparkapp.load_df(PATH_REF / 'ref_quality_measures.parquet')
+
+    sparkapp.save_df(quality_measures_df, PRM_META[150, 'out'] / 'quality_measures.parquet')
+    write_sas_data(quality_measures_df, PRM_META[150, 'out'] / 'quality_measures.sas7bdat')
+
+    sparkapp.save_df(ref_quality_measures_df, PRM_META[150, 'out'] / 'ref_quality_measures.parquet')
+    write_sas_data(ref_quality_measures_df, PRM_META[150, 'out'] / 'ref_quality_measures.sas7bdat')
 
     return 0
 
