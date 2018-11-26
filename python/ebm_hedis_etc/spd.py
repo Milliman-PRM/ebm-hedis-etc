@@ -400,7 +400,7 @@ def _identify_diagnosis(
             outpatient_diags_explode_df.icdversion == spark_funcs.regexp_extract(
                 reference_df.code_system, r'\d+', 0),
             outpatient_diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code,
-                                                                           'r\.', '')
+                                                                           r'\.', '')
         ],
         how='inner'
     ).select(
@@ -444,7 +444,7 @@ def _identify_diagnosis(
             acute_inpatient_diags_explode_df.icdversion == spark_funcs.regexp_extract(
                 reference_df.code_system, r'\d+', 0),
             acute_inpatient_diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code,
-                                                                                'r\.', '')
+                                                                                r'\.', '')
         ],
         how='inner'
     ).select(
@@ -504,7 +504,7 @@ def _measure_exclusion(
         [
             diag_explode_df.icdversion == spark_funcs.regexp_extract(
                 reference_df.code_system, r'\d+', 0),
-            diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, 'r\.', '')
+            diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
         ],
         how='inner'
     ).select(
@@ -536,7 +536,7 @@ def _measure_exclusion(
         [
             diag_explode_df.icdversion == spark_funcs.regexp_extract(
                 reference_df.code_system, r'\d+', 0),
-            diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, 'r\.', '')
+            diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
         ],
         how='inner'
     ).select(
@@ -554,7 +554,7 @@ def _measure_exclusion(
         [
             diag_explode_df.icdversion == spark_funcs.regexp_extract(
                 reference_df.code_system, r'\d+', 0),
-            diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, 'r\.', '')
+            diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
         ],
         how='inner'
     ).select(
@@ -624,7 +624,7 @@ def _measure_exclusion(
             [
                 diag_explode_df.icdversion == spark_funcs.regexp_extract(
                     reference_df.code_system, r'\d+', 0),
-                diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, 'r\.', '')
+                diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
             ],
             how='inner'
         ).select(
@@ -642,7 +642,7 @@ def _measure_exclusion(
             [
                 proc_explode_df.icdversion == spark_funcs.regexp_extract(
                     reference_df.code_system, r'\d+', 0),
-                proc_explode_df.proc == spark_funcs.regexp_replace(reference_df.code, 'r\.', '')
+                proc_explode_df.proc == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
             ],
             how='inner'
         ).select(
