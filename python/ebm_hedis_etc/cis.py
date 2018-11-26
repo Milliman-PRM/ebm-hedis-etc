@@ -107,7 +107,7 @@ def calc_dtap(
         'vaccine_count'
     ).withColumn(
         'comp_quality_short',
-        spark_funcs.lit('Childhood Immunization Status - DTaP')
+        spark_funcs.lit('CIS - DTaP')
     )
 
 
@@ -130,7 +130,7 @@ def calc_ipv(
         'vaccine_count'
     ).withColumn(
         'comp_quality_short',
-        spark_funcs.lit('Childhood Immunization Status - IPV')
+        spark_funcs.lit('CIS - IPV')
     )
 
 
@@ -153,7 +153,7 @@ def calc_hib(
         'vaccine_count'
     ).withColumn(
         'comp_quality_short',
-        spark_funcs.lit('Childhood Immunization Status - HiB')
+        spark_funcs.lit('CIS - HiB')
     )
 
 
@@ -176,7 +176,7 @@ def calc_pneumococcal(
         'vaccine_count'
     ).withColumn(
         'comp_quality_short',
-        spark_funcs.lit('Childhood Immunization Status - Pneumococcal Conjugate')
+        spark_funcs.lit('CIS - Pneumococcal Conjugate')
     )
 
 
@@ -199,7 +199,7 @@ def calc_influenza(
         'vaccine_count'
     ).withColumn(
         'comp_quality_short',
-        spark_funcs.lit('Childhood Immunization Status - Influenza')
+        spark_funcs.lit('CIS - Influenza')
     )
 
 
@@ -313,7 +313,7 @@ def calc_hepatitis_b(
         how='left_outer'
     ).select(
         spark_funcs.col('base_member_id').alias('member_id'),
-        spark_funcs.lit('Childhood Immunization Status - Hepatitis B').alias('comp_quality_short'),
+        spark_funcs.lit('CIS - Hepatitis B').alias('comp_quality_short'),
         spark_funcs.when(
             combine_df.member_id.isNotNull() | history_hepatitis_df.member_id.isNotNull(),
             spark_funcs.lit(1)
@@ -398,7 +398,7 @@ def calc_hepatitis_a(
         how='left_outer'
     ).select(
         spark_funcs.col('base_member_id').alias('member_id'),
-        spark_funcs.lit('Childhood Immunization Status - Hepatitis A').alias('comp_quality_short'),
+        spark_funcs.lit('CIS - Hepatitis A').alias('comp_quality_short'),
         spark_funcs.when(
             hep_a_vaccine_df.member_id.isNotNull() | hep_a_history_df.member_id.isNotNull(),
             spark_funcs.lit(1)
@@ -482,7 +482,7 @@ def calc_vzv(
         how='left_outer'
     ).select(
         spark_funcs.col('base_member_id').alias('member_id'),
-        spark_funcs.lit('Childhood Immunization Status - VZV').alias('comp_quality_short'),
+        spark_funcs.lit('CIS - VZV').alias('comp_quality_short'),
         spark_funcs.when(
             (vzv_vaccine_df.member_id.isNotNull()) | (vzv_history_df.member_id.isNotNull()),
             spark_funcs.lit(1)
@@ -619,7 +619,7 @@ def calc_rotavirus(
         how='left_outer'
     ).select(
         spark_funcs.col('base_member_id').alias('member_id'),
-        spark_funcs.lit('Childhood Immunization Status - Rotavirus').alias('comp_quality_short'),
+        spark_funcs.lit('CIS - Rotavirus').alias('comp_quality_short'),
         spark_funcs.when(
             spark_funcs.col('two_two_member_id').isNotNull()
             | spark_funcs.col('three_three_member_id').isNotNull()
@@ -832,7 +832,7 @@ def calc_mmr(
         how='left_outer'
     ).select(
         spark_funcs.col('base_member_id').alias('member_id'),
-        spark_funcs.lit('Childhood Immunization Status - MMR').alias('comp_quality_short'),
+        spark_funcs.lit('CIS - MMR').alias('comp_quality_short'),
         spark_funcs.when(
             spark_funcs.col('mmr_vaccine_member_id').isNotNull()
             | spark_funcs.col('meas_rub_and_mumps_member_id').isNotNull()
