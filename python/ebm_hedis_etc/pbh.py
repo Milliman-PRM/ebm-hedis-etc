@@ -149,12 +149,15 @@ class PBH(QualityMeasure):
         ).join(
             dfs_input['member'].select(
                 'member_id',
-                'age'
+                'dob'
             ),
             'member_id',
             'left_outer'
         ).where(
-            spark_funcs.col('age') >= 18
+            spark_funcs.lit(spark_funcs.datediff(
+                spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31)),
+                spark_funcs.col('dob')
+            ) / 365) >= 18
         ).join(
             ami_reduce_df,
             'member_id',
