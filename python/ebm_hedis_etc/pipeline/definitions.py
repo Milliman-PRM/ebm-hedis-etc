@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Alexander Olivero
+### CODE OWNERS: Alexander Olivero, Demerrick Moton
 
 ### OBJECTIVE:
   Define tasks for ebm-hedis quality measures
