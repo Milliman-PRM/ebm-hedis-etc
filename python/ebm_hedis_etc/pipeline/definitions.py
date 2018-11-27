@@ -56,9 +56,175 @@ class ImportReferences(PRMPythonTask):  # pragma: no cover
             program,
             path_log=build_logfile_name(
                 program,
-                PATH_REFDATA,
+                PATH_REFDATA
             )
         )
         # pylint: enable=arguments-differ
 
 
+class BetaBlockerHeartAttack(PRMPythonTask):
+    """Run beta_blockers_after_heartattack.py"""
+
+    requirements = RequirementsContainer(
+        staging_membership.DeriveParamsFromMembership,
+        staging_claims.DeriveParamsFromClaims,
+    )
+
+    def output(self):
+        names_output = {
+            'results_phb.parquet'
+        }
+        return [
+            IndyPyLocalTarget(PRM_META[150, 'out'] / name)
+            for name in names_output
+        ]
+
+    def run(self):
+        """Run the Luigi job"""
+        program = PATH_SCRIPTS / 'beta_blockers_after_heartattack.py'
+        super().run(
+            program,
+            path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
+            create_folder=True
+        )
+
+
+class AllCauseReadmissions(PRMPythonTask):
+    """Run plan_allcause_readmissions.py"""
+
+    requirements = RequirementsContainer(
+        staging_membership.DeriveParamsFromMembership,
+        staging_claims.DeriveParamsFromClaims,
+    )
+
+    def output(self):
+        names_output = {
+            'results_pcr.parquet'
+        }
+        return [
+            IndyPyLocalTarget(PRM_META[150, 'out'] / name)
+            for name in names_output
+        ]
+
+    def run(self):
+        """Run the Luigi job"""
+        program = PATH_SCRIPTS / 'plan_allcause_readmissions.py'
+        super().run(
+            program,
+            path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
+            create_folder=True
+        )
+
+
+class ChildhoodImmunization(PRMPythonTask):
+    """Run childhood_immunization_status.py"""
+
+    requirements = RequirementsContainer(
+        staging_membership.DeriveParamsFromMembership,
+        staging_claims.DeriveParamsFromClaims,
+    )
+
+    def output(self):
+        names_output = {
+            'results_pcr.parquet'
+        }
+        return [
+            IndyPyLocalTarget(PRM_META[150, 'out'] / name)
+            for name in names_output
+        ]
+
+    def run(self):
+        """Run the Luigi job"""
+        program = PATH_SCRIPTS / 'childhood_immunization_status.py'
+        super().run(
+            program,
+            path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
+            create_folder=True
+        )
+
+
+class StatinTherapyCardiovascular(PRMPythonTask):
+    """Run statin_therapy_with_cardiovascular.py"""
+
+    requirements = RequirementsContainer(
+        staging_membership.DeriveParamsFromMembership,
+        staging_claims.DeriveParamsFromClaims,
+    )
+
+    def output(self):
+        names_output = {
+            'results_spc.parquet'
+        }
+        return [
+            IndyPyLocalTarget(PRM_META[150, 'out'] / name)
+            for name in names_output
+        ]
+
+    def run(self):
+        """Run the Luigi job"""
+        program = PATH_SCRIPTS / 'statin_therapy_with_cardiovascular.py'
+        super().run(
+            program,
+            path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
+            create_folder=True
+        )
+
+
+class StatinTherapyDiabetes(PRMPythonTask):
+    """Run statin_therapy_with_diabetes.py"""
+
+    requirements = RequirementsContainer(
+        staging_membership.DeriveParamsFromMembership,
+        staging_claims.DeriveParamsFromClaims,
+    )
+
+    def output(self):
+        names_output = {
+            'results_spd.parquet'
+        }
+        return [
+            IndyPyLocalTarget(PRM_META[150, 'out'] / name)
+            for name in names_output
+        ]
+
+    def run(self):
+        """Run the Luigi job"""
+        program = PATH_SCRIPTS / 'statin_therapy_with_diabetes.py'
+        super().run(
+            program,
+            path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
+            create_folder=True
+        )
+
+
+class CombineAll(PRMPythonTask):
+    """Run combine_all.py"""
+
+    requirements = RequirementsContainer(
+        BetaBlockerHeartAttack,
+        AllCauseReadmissions,
+        ChildhoodImmunization,
+        StatinTherapyCardiovascular,
+        StatinTherapyDiabetes,
+    )
+
+    def output(self):
+        names_output = {
+            'quality_measures.parquet',
+            'quality_measures.sass7bdat',
+            'ref_quality_measures.parquet',
+            'ref_quality_measures.sas7bdat',
+        }
+        return [
+            IndyPyLocalTarget(PRM_META[150, 'out'] / name)
+            for name in names_output
+        ]
+
+    def run(self):
+        """Run the Luigi job"""
+        program = PATH_SCRIPTS / 'combine_all.py'
+        super().run(
+            program,
+            path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
+            create_folder=True
+        )
