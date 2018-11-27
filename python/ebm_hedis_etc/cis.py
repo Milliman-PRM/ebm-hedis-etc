@@ -874,11 +874,14 @@ class CIS(QualityMeasure):
             ),
             'member_id',
             'left_outer'
-        ).where(
+        ).withColumn(
+            'second_birthday',
             spark_funcs.date_add(
                 spark_funcs.col('dob'),
-                365*2
-            ).between(
+                365 * 2
+            )
+        ).where(
+            spark_funcs.col('second_birthday').between(
                 spark_funcs.lit(measure_start),
                 spark_funcs.lit(measure_end)
             )
@@ -939,7 +942,8 @@ class CIS(QualityMeasure):
         ).distinct()
 
         eligible_members_df = elig_pop_covered.select(
-            'member_id'
+            'member_id',
+            'second_birthday'
         ).distinct().join(
             excluded_members_df,
             'member_id',
@@ -952,6 +956,8 @@ class CIS(QualityMeasure):
             eligible_members_df,
             'member_id',
             how='inner'
+        ).where(
+            spark_funcs.col('fromdate') <= spark_funcs.col('second_birthday')
         )
 
         measures_dict = {
