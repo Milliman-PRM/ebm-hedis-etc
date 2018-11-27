@@ -1,5 +1,5 @@
 @echo off
-rem ### CODE OWNERS: Ben Copeland
+rem ### CODE OWNERS: Ben Copeland, Alexander Olivero
 rem 
 rem ### OBJECTIVE:
 rem   Run the promotion process to promote a new version of this component
