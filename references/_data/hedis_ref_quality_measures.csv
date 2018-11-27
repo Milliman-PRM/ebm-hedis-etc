@@ -1,17 +1,3 @@
 comp_quality_dual,comp_quality,comp_quality_category,comp_quality_direction,comp_quality_target_value,comp_quality_format_code,comp_quality_calculation_type
-1,SPD: Rate One,Effectiveness of Care - Diabetes,Higher_Better,.9,"#,##0.0%",Binary
-2,SPD: Rate Two,Effectiveness of Care - Diabetes,Higher_Better,.9,"#,##0.0%",Binary
-3,SPC: Rate One,Effectiveness of Care - Cardiovascular Conditions,Higher_Better,.9,"#,##0.0%",Binary
-4,SPC: Rate Two,Effectiveness of Care - Cardiovascular Conditions,Higher_Better,.9,"#,##0.0%",Binary
-5,PBH,Effectiveness of Care - Prevention and Screening,Higher_Better,.9,"#,##0.0%",Binary
-6,CIS - DTaP,Effectiveness of Care - Prevention and Screening,Higher_Better,.9,"#,##0.0%",Binary
-7,CIS - IPV,Effectiveness of Care - Prevention and Screening,Higher_Better,.9,"#,##0.0%",Binary
-8,CIS - HiB,Effectiveness of Care - Prevention and Screening,Higher_Better,.9,"#,##0.0%",Binary
-9,CIS - Pneumococcal Conjugate,Effectiveness of Care - Prevention and Screening,Higher_Better,.9,"#,##0.0%",Binary
-10,CIS - Influenza,Effectiveness of Care - Prevention and Screening,Higher_Better,.9,"#,##0.0%",Binary
-11,CIS - Hepatitis B,Effectiveness of Care - Prevention and Screening,Higher_Better,.9,"#,##0.0%",Binary
-12,CIS - Hepatitis A,Effectiveness of Care - Prevention and Screening,Higher_Better,.9,"#,##0.0%",Binary
-13,CIS - VZV,Effectiveness of Care - Prevention and Screening,Higher_Better,.9,"#,##0.0%",Binary
-14,CIS - Rotavirus,Effectiveness of Care - Prevention and Screening,Higher_Better,.9,"#,##0.0%",Binary
-15,CIS - MMR,Effectiveness of Care - Prevention and Screening,Higher_Better,.9,"#,##0.0%",Binary
-16,PCR,Utilization,Lower_Better,.1,"#,##0.0",Rate
+1,PBH,Effectiveness of Care - Prevention and Screening,Higher_Better,.9,"#,##0.0%",Binary
+
