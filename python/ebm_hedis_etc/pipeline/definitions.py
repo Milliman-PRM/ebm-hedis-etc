@@ -202,10 +202,6 @@ class CombineAll(PRMPythonTask):
 
     requirements = RequirementsContainer(
         BetaBlockerHeartAttack,
-        AllCauseReadmissions,
-        ChildhoodImmunization,
-        StatinTherapyCardiovascular,
-        StatinTherapyDiabetes,
     )
 
     def output(self):
