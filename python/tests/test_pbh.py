@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Alexander Olivero
+### CODE OWNERS: Alexander Olivero, Demerrick Moton
 
 ### OBJECTIVE:
     Test the persistence of beta-blockers after heart attack quality measure
