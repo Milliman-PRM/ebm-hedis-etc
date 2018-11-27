@@ -202,7 +202,7 @@ class PBH(QualityMeasure):
                     180
                 )
             ) &
-            (spark_funcs.col('date_diff') > 45)
+            (spark_funcs.col('date_diff') >= 45)
         ).select('member_id')
 
         gap_count_df = gaps_df.groupBy('member_id').agg(
