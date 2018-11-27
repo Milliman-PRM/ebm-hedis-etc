@@ -199,7 +199,7 @@ class PBH(QualityMeasure):
                 spark_funcs.col('dischdate'),
                 spark_funcs.date_add(
                     spark_funcs.col('dischdate'),
-                    180
+                    179
                 )
             ) &
             (spark_funcs.col('date_diff') >= 45)
