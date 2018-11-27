@@ -17,7 +17,7 @@ medication_list,string,false
 ndc_code,string,false
 fromdate,date,false
 dayssupply,double,false
-age,double,false
+dob,date,false
 expected_comp_quality_short,string,false
 expected_comp_quality_numerator,double,false
 expected_comp_quality_denominator,double,false
