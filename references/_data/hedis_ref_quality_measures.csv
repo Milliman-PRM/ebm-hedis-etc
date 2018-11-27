@@ -14,4 +14,4 @@ comp_quality_dual,comp_quality,comp_quality_category,comp_quality_direction,comp
 13,CIS - VZV,Effectiveness of Care - Prevention and Screening,Higher_Better,.9,"#,##0.0%",Binary
 14,CIS - Rotavirus,Effectiveness of Care - Prevention and Screening,Higher_Better,.9,"#,##0.0%",Binary
 15,CIS - MMR,Effectiveness of Care - Prevention and Screening,Higher_Better,.9,"#,##0.0%",Binary
-16,PCR,Utilization,Lower_Better,.15,"#,##0.0",Rate
+16,PCR,Utilization,Lower_Better,.1,"#,##0.0",Rate
