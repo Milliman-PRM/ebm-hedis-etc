@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Alexander Olivero
+### CODE OWNERS: Alexander Olivero, Ben Copeland
 
 ### OBJECTIVE:
   Test promotion automation module

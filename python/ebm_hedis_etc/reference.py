@@ -1,12 +1,12 @@
 """
-### CODE OWNERS: Alexander Olivero
+### CODE OWNERS: Alexander Olivero, Ben Copeland
 
 ### OBJECTIVE:
   Compile the ebm_hedis_etc reference data into convenient downstream formats
 
 ### DEVELOPER NOTES:
   This is not actually intended to be ran during a true production run.
-  The value of os.environ['EMB_HEDIS_ETC_MEASURES_PATHREF`] guides where this writes to.
+  The value of os.environ['EBM_HEDIS_ETC_PATHREF`] guides where this writes to.
 """
 import logging
 import os
@@ -18,7 +18,7 @@ from prm.spark.io_txt import build_structtype_from_csv
 LOGGER = logging.getLogger(__name__)
 try:
     PATH_INPUT = Path(os.environ['EBM_HEDIS_ETC_HOME']) / 'references'
-    PATH_OUTPUT = Path(os.environ['EBM_HEDIS_ETC_MEASURES_PATHREF'])
+    PATH_OUTPUT = Path(os.environ['EBM_HEDIS_ETC_PATHREF'])
 except KeyError:
     PATH_INPUT = Path(__file__).parents[2] / 'references'
     PATH_OUTPUT = None

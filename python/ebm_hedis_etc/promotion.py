@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Alexander Olivero
+### CODE OWNERS: Alexander Olivero, Ben Copeland
 
 ### OBJECTIVE:
   Tools to automated some of the manual steps of code promotion
@@ -21,7 +21,7 @@ import ebm_hedis_etc.reference
 LOGGER = logging.getLogger(__name__)
 
 _PATH_REL_RELEASE_NOTES = Path("docs") / "release-notes.md"
-PATH_PROMOTION = Path(r"S:\PRM\Pipeline_Components\emb_hedis_etc")
+PATH_PROMOTION = Path(r"S:\PRM\Pipeline_Components\ebm_hedis_etc")
 
 # pragma: no cover
 
@@ -37,7 +37,7 @@ def promote_reference_data(path_release: Path) -> None:  # pragma: no cover
     LOGGER.info("Compiling reference data into %s", _path_reference_output)
     _path_reference_output.mkdir(exist_ok=False)
     os.environ['EBM_HEDIS_ETC_HOME'] = str(path_release)
-    os.environ['EMB_HEDIS_ETC_MEASURES_PATHREF'] = str(_path_reference_output)
+    os.environ['EBM_HEDIS_ETC_PATHREF'] = str(_path_reference_output)
 
     _path_import_script = Path(ebm_hedis_etc.reference.__file__)
 
