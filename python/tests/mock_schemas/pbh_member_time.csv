@@ -1,0 +1,6 @@
+name,datatype,nullable
+member_id,string,false
+cover_medical,string,false
+cover_rx,string,false
+date_start,date,false
+date_end,date,false
