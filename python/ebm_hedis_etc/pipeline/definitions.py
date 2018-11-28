@@ -39,10 +39,7 @@ class ImportReferences(PRMPythonTask):  # pragma: no cover
         names_output = {
             'hedis_codes.parquet',
             'hedis_ndc_codes.parquet',
-            'hedis_codes.sas7bdat',
-            'hedis_ndc_codes.sas7bdat',
-            'ref_quality_measures.parquet',
-            'ref_quality_measures.sas7bdat'
+            'hedis_ref_quality_measures.parquet',
         }
         return [
             IndyPyLocalTarget(PATH_REFDATA / name)
@@ -66,6 +63,7 @@ class BetaBlockerHeartAttack(PRMPythonTask):
     """Run beta_blockers_after_heartattack.py"""
 
     requirements = RequirementsContainer(
+        ImportReferences,
         staging_membership.DeriveParamsFromMembership,
         hcg_grouper_validation.Validations,
     )
