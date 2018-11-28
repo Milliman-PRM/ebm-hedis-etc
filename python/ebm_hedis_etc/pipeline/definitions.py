@@ -41,8 +41,8 @@ class ImportReferences(PRMPythonTask):  # pragma: no cover
             'hedis_ndc_codes.parquet',
             'hedis_codes.sas7bdat',
             'hedis_ndc_codes.sas7bdat',
-            'hedis_ref_quality_measures.parquet',
-            'hedis_ref_quality_measures.sas7bdat'
+            'ref_quality_measures.parquet',
+            'ref_quality_measures.sas7bdat'
         }
         return [
             IndyPyLocalTarget(PATH_REFDATA / name)
