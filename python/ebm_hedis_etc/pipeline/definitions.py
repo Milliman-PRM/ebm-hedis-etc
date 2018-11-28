@@ -203,6 +203,7 @@ class CombineAll(PRMPythonTask):
     """Run combine_all.py"""
 
     requirements = RequirementsContainer(
+        StatinTherapyDiabetes,
         BetaBlockerHeartAttack,
     )
 
