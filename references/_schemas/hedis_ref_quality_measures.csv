@@ -1,5 +1,6 @@
 name,datatype,nullable
 comp_quality_dual,int,false
+comp_quality_short,string,false
 comp_quality,string,false
 comp_quality_category,string,false
 comp_quality_direction,string,false
