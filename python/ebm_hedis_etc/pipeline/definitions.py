@@ -20,7 +20,7 @@ from prm.execute.definitions import (
     hcg_grouper_validation
 )
 
-PATH_SCRIPTS = Path(os.environ['EBM_HEDIS_ETC']) / 'scripts'
+PATH_SCRIPTS = Path(os.environ['EBM_HEDIS_ETC_HOME']) / 'scripts'
 PATH_REFDATA = Path(os.environ['EBM_HEDIS_ETC_PATHREF'])
 PRM_META = prm.meta.project.parse_project_metadata()
 
@@ -72,7 +72,7 @@ class BetaBlockerHeartAttack(PRMPythonTask):
 
     def output(self):
         names_output = {
-            'results_phb.parquet'
+            'results_pbh.parquet'
         }
         return [
             IndyPyLocalTarget(PRM_META[150, 'out'] / name)
