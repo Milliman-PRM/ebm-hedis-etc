@@ -1,0 +1,14 @@
+name,datatype,nullable
+medication_list,string,false
+ndc_code,string,false
+brand_name,string,false
+generic_product_name,string,false
+route,string,false
+description,string,false
+drug_id,string,false
+drug_name,string,true
+package_size,string,true
+unit,string,true
+dose,string,true
+form,string,true
+med_conversion_factor,string,true
