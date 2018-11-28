@@ -91,6 +91,7 @@ class AllCauseReadmissions(PRMPythonTask):
     """Run plan_allcause_readmissions.py"""
 
     requirements = RequirementsContainer(
+        ImportReferences,
         staging_membership.DeriveParamsFromMembership,
         hcg_grouper_validation.Validations,
     )
@@ -118,6 +119,7 @@ class ChildhoodImmunization(PRMPythonTask):
     """Run childhood_immunization_status.py"""
 
     requirements = RequirementsContainer(
+        ImportReferences,
         staging_membership.DeriveParamsFromMembership,
         hcg_grouper_validation.Validations,
     )
@@ -145,6 +147,7 @@ class StatinTherapyCardiovascular(PRMPythonTask):
     """Run statin_therapy_with_cardiovascular.py"""
 
     requirements = RequirementsContainer(
+        ImportReferences,
         staging_membership.DeriveParamsFromMembership,
         hcg_grouper_validation.Validations,
     )
@@ -172,6 +175,7 @@ class StatinTherapyDiabetes(PRMPythonTask):
     """Run statin_therapy_with_diabetes.py"""
 
     requirements = RequirementsContainer(
+        ImportReferences,
         staging_membership.DeriveParamsFromMembership,
         hcg_grouper_validation.Validations,
     )
