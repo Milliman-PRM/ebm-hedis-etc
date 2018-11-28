@@ -17,7 +17,7 @@ from prm.ext_luigi.base_tasks import PRMPythonTask, RequirementsContainer
 
 from prm.execute.definitions import (
     staging_membership,
-    staging_claims
+    hcg_grouper_validation
 )
 
 PATH_SCRIPTS = Path(os.environ['EBM_HEDIS_ETC']) / 'scripts'
@@ -67,7 +67,7 @@ class BetaBlockerHeartAttack(PRMPythonTask):
 
     requirements = RequirementsContainer(
         staging_membership.DeriveParamsFromMembership,
-        staging_claims.DeriveParamsFromClaims,
+        hcg_grouper_validation.Validations,
     )
 
     def output(self):
@@ -94,7 +94,7 @@ class AllCauseReadmissions(PRMPythonTask):
 
     requirements = RequirementsContainer(
         staging_membership.DeriveParamsFromMembership,
-        staging_claims.DeriveParamsFromClaims,
+        hcg_grouper_validation.Validations,
     )
 
     def output(self):
@@ -121,7 +121,7 @@ class ChildhoodImmunization(PRMPythonTask):
 
     requirements = RequirementsContainer(
         staging_membership.DeriveParamsFromMembership,
-        staging_claims.DeriveParamsFromClaims,
+        hcg_grouper_validation.Validations,
     )
 
     def output(self):
@@ -148,7 +148,7 @@ class StatinTherapyCardiovascular(PRMPythonTask):
 
     requirements = RequirementsContainer(
         staging_membership.DeriveParamsFromMembership,
-        staging_claims.DeriveParamsFromClaims,
+        hcg_grouper_validation.Validations,
     )
 
     def output(self):
@@ -175,7 +175,7 @@ class StatinTherapyDiabetes(PRMPythonTask):
 
     requirements = RequirementsContainer(
         staging_membership.DeriveParamsFromMembership,
-        staging_claims.DeriveParamsFromClaims,
+        hcg_grouper_validation.Validations,
     )
 
     def output(self):
