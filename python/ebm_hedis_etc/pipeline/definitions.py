@@ -20,8 +20,8 @@ from prm.execute.definitions import (
     staging_claims
 )
 
-PATH_SCRIPTS = Path(os.environ['EBM_HEDIS_ETC_MEASURES']) / 'scripts'
-PATH_REFDATA = Path(os.environ['EMB_HEDIS_ETC_MEASURES_PATHREF'])
+PATH_SCRIPTS = Path(os.environ['EBM_HEDIS_ETC']) / 'scripts'
+PATH_REFDATA = Path(os.environ['EBM_HEDIS_ETC_PATHREF'])
 PRM_META = prm.meta.project.parse_project_metadata()
 
 
