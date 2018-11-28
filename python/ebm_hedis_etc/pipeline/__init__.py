@@ -1,5 +1,5 @@
 """
-## CODE OWNERS: Alexander Olivero
+## CODE OWNERS: Alexander Olivero, Ben Copeland
 ### OBJECTIVE:
   Mark the pipeline portion of the package to house luigi tasks
 ### DEVELOPER NOTES:
