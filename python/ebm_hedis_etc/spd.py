@@ -120,7 +120,7 @@ def _identify_med_claims(
         'claimid',
         'fromdate',
         'todate',
-        'icdversion',
+        restricted_claims_df.icdversion,
         spark_funcs.explode(
             spark_funcs.array(
                 [spark_funcs.col(col) for col in restricted_claims_df.columns if
@@ -134,9 +134,8 @@ def _identify_med_claims(
             spark_funcs.col('value_set_name') == 'Diabetes'
         ),
         [
-            diags_explode_df.icdversion == spark_funcs.regexp_extract(
-                reference_df.code_system, '\d+', 0),
-            diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, '\.', '')
+            diags_explode_df.icdversion == reference_df.icdversion,
+            diags_explode_df.diag == reference_df.code
         ],
         how='inner'
     ).groupBy(
@@ -169,7 +168,7 @@ def _identify_med_claims(
 
     acute_inpatient_diags_explode_df = acute_inpatient_encounter_df.select(
         'member_id',
-        'icdversion',
+        restricted_claims_df.icdversion,
         spark_funcs.explode(
             spark_funcs.array(
                 [spark_funcs.col(col) for col in restricted_claims_df.columns if
@@ -183,10 +182,8 @@ def _identify_med_claims(
             spark_funcs.col('value_set_name') == 'Diabetes'
         ),
         [
-            acute_inpatient_diags_explode_df.icdversion == spark_funcs.regexp_extract(
-                reference_df.code_system, '\d+', 0),
-            acute_inpatient_diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code,
-                                                                                '\.', '')
+            acute_inpatient_diags_explode_df.icdversion == reference_df.icdversion,
+            acute_inpatient_diags_explode_df.diag == reference_df.code
         ],
         how='inner'
     ).select(
@@ -256,7 +253,7 @@ def _identify_events_exclusion(
         how='inner'
     ).select(
         'member_id',
-        'icdversion',
+        restricted_claims_df.icdversion,
         spark_funcs.explode(
             spark_funcs.array(
                 [spark_funcs.col(col) for col in restricted_claims_df.columns if
@@ -270,10 +267,8 @@ def _identify_events_exclusion(
             spark_funcs.col('value_set_name') == 'MI'
         ),
         [
-            inpatient_stays_diag_explode_df.icdversion == spark_funcs.regexp_extract(
-                reference_df.code_system, '\d+', 0),
-            inpatient_stays_diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code,
-                                                                               '\.', '')
+            inpatient_stays_diag_explode_df.icdversion == reference_df.icdversion,
+            inpatient_stays_diag_explode_df.diag == reference_df.code
         ],
         how='inner'
     ).select(
@@ -295,8 +290,8 @@ def _identify_events_exclusion(
                 spark_funcs.col('value_set_name') == 'CABG'
             ),
             [
-                procs_explode_df.icdversion == spark_funcs.regexp_extract(reference_df.code_system, '\d+', 0),
-                procs_explode_df.proc == spark_funcs.regexp_replace(reference_df.code, '\.', '')
+                procs_explode_df.icdversion == reference_df.icdversion,
+                procs_explode_df.proc == reference_df.code
             ],
             how='inner'
         ).select(
@@ -319,9 +314,8 @@ def _identify_events_exclusion(
                 spark_funcs.col('value_set_name') == 'PCI'
             ),
             [
-                procs_explode_df.icdversion == spark_funcs.regexp_extract(reference_df.code_system,
-                                                                          '\d+', 0),
-                procs_explode_df.proc == spark_funcs.regexp_replace(reference_df.code, '\.', '')
+                procs_explode_df.icdversion == reference_df.icdversion,
+                procs_explode_df.proc == reference_df.code
             ],
             how='inner'
         ).select(
@@ -382,7 +376,7 @@ def _identify_diagnosis_exclusion(
 
     outpatient_diags_explode_df = outpatient_visits_df.select(
         'member_id',
-        'icdversion',
+        restricted_claims_df.icdversion,
         spark_funcs.explode(
             spark_funcs.array(
                 [spark_funcs.col(col) for col in restricted_claims_df.columns if
@@ -396,10 +390,8 @@ def _identify_diagnosis_exclusion(
             spark_funcs.col('value_set_name') == 'IVD'
         ),
         [
-            outpatient_diags_explode_df.icdversion == spark_funcs.regexp_extract(
-                reference_df.code_system, r'\d+', 0),
-            outpatient_diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code,
-                                                                           r'\.', '')
+            outpatient_diags_explode_df.icdversion == reference_df.icdversion,
+            outpatient_diags_explode_df.diag == reference_df.code
         ],
         how='inner'
     ).select(
@@ -426,7 +418,7 @@ def _identify_diagnosis_exclusion(
 
     acute_inpatient_diags_explode_df = acute_inpatient_encounter_df.select(
         'member_id',
-        'icdversion',
+        restricted_claims_df.icdversion,
         spark_funcs.explode(
             spark_funcs.array(
                 [spark_funcs.col(col) for col in restricted_claims_df.columns if
@@ -440,10 +432,8 @@ def _identify_diagnosis_exclusion(
             spark_funcs.col('value_set_name') == 'IVD'
         ),
         [
-            acute_inpatient_diags_explode_df.icdversion == spark_funcs.regexp_extract(
-                reference_df.code_system, r'\d+', 0),
-            acute_inpatient_diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code,
-                                                                                r'\.', '')
+            acute_inpatient_diags_explode_df.icdversion == reference_df.icdversion,
+            acute_inpatient_diags_explode_df.diag == reference_df.code
         ],
         how='inner'
     ).select(
@@ -501,9 +491,8 @@ def _measure_exclusion(
             spark_funcs.col('value_set_name') == 'Pregnancy'
         ),
         [
-            diag_explode_df.icdversion == spark_funcs.regexp_extract(
-                reference_df.code_system, r'\d+', 0),
-            diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
+            diag_explode_df.icdversion == reference_df.icdversion,
+            diag_explode_df.diag == reference_df.code
         ],
         how='inner'
     ).select(
@@ -533,9 +522,8 @@ def _measure_exclusion(
             spark_funcs.col('value_set_name') == 'Cirrhosis'
         ),
         [
-            diag_explode_df.icdversion == spark_funcs.regexp_extract(
-                reference_df.code_system, r'\d+', 0),
-            diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
+            diag_explode_df.icdversion == reference_df.icdversion,
+            diag_explode_df.diag == reference_df.code
         ],
         how='inner'
     ).select(
@@ -551,9 +539,8 @@ def _measure_exclusion(
             spark_funcs.col('value_set_name') == 'Muscular Pain and Disease'
         ),
         [
-            diag_explode_df.icdversion == spark_funcs.regexp_extract(
-                reference_df.code_system, r'\d+', 0),
-            diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
+            diag_explode_df.icdversion == reference_df.icdversion,
+            diag_explode_df.diag == reference_df.code
         ],
         how='inner'
     ).select(
@@ -621,9 +608,8 @@ def _measure_exclusion(
                 & spark_funcs.col('code_system').isin('ICD10CM', 'ICD9CM')
             ),
             [
-                diag_explode_df.icdversion == spark_funcs.regexp_extract(
-                    reference_df.code_system, r'\d+', 0),
-                diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
+                diag_explode_df.icdversion == reference_df.icdversion,
+                diag_explode_df.diag == reference_df.code
             ],
             how='inner'
         ).select(
@@ -639,9 +625,8 @@ def _measure_exclusion(
                 & spark_funcs.col('code_system').isin('ICD10PCS', 'ICD9PCS')
             ),
             [
-                proc_explode_df.icdversion == spark_funcs.regexp_extract(
-                    reference_df.code_system, r'\d+', 0),
-                proc_explode_df.proc == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
+                proc_explode_df.icdversion == reference_df.icdversion,
+                proc_explode_df.proc == reference_df.code
             ],
             how='inner'
         ).select(
@@ -931,7 +916,7 @@ class SPD(QualityMeasure):
         med_event_df = _identify_med_claims(
             eligible_members_no_gaps_df,
             dfs_input['claims'],
-            dfs_input['reference'],
+            reference_df,
             performance_yearstart
         )
 
@@ -949,7 +934,7 @@ class SPD(QualityMeasure):
         excluded_members_df = _measure_exclusion(
             dfs_input['claims'],
             dfs_input['rx_claims'],
-            dfs_input['reference'],
+            reference_df,
             dfs_input['ndc'],
             performance_yearstart
         )
