@@ -573,7 +573,7 @@ def _calc_rate_two(
     ).select(
         'member_id',
         'fromdate',
-        'ndc',
+        'drug_id',
         'dayssupply',
         spark_funcs.expr('date_add(fromdate, dayssupply - 1)').alias('fromdate_to_dayssupply')
     ).where(
@@ -590,7 +590,7 @@ def _calc_rate_two(
 
     collect_date_windows = statin_claims_df.groupby(
         'member_id',
-        'ndc',
+        'drug_id',
     ).agg(
         spark_funcs.collect_list(spark_funcs.col('map_coverage_window')).alias('array_coverage_windows'),
     )
