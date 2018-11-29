@@ -796,20 +796,6 @@ class SPC(QualityMeasure):
             )
         )
 
-        eligible_males_no_gaps_df = eligible_males_membership_df.join(
-            _exclude_elig_gaps(
-                eligible_males_membership_df,
-                1,
-                45
-            ),
-            spark_funcs.col('member_id') == spark_funcs.col('exclude_member_id'),
-            how='left_outer'
-        ).where(
-            spark_funcs.col('exclude_member_id').isNull()
-        ).select(
-            'member_id'
-        ).distinct()
-
         eligible_females_membership_df = dfs_input['member_time'].where(
             (spark_funcs.col('date_start') >= datetime.date(performance_yearstart.year-1, 1, 1))
             & (spark_funcs.col('date_end') <= datetime.date(performance_yearstart.year, 12, 31))
@@ -835,9 +821,13 @@ class SPC(QualityMeasure):
             )
         )
 
-        eligible_females_no_gaps_df = eligible_females_membership_df.join(
+        eligible_membership_df = eligible_males_membership_df.union(
+            eligible_females_membership_df
+        )
+
+        eligible_members_no_gaps_df = eligible_membership_df.join(
             _exclude_elig_gaps(
-                eligible_females_membership_df,
+                eligible_membership_df,
                 1,
                 45
             ),
@@ -849,54 +839,29 @@ class SPC(QualityMeasure):
             'member_id'
         ).distinct()
 
-        eligible_males_events_df = _identify_events(
-            eligible_males_no_gaps_df,
+        eligible_members_events_df = _identify_events(
+            eligible_members_no_gaps_df,
             dfs_input['claims'],
             reference_df,
             performance_yearstart
         )
 
-        eligible_females_events_df = _identify_events(
-            eligible_females_no_gaps_df,
-            dfs_input['claims'],
-            reference_df,
-            performance_yearstart
-        )
-
-        eligible_males_diagnosis_df = _identify_diagnosis(
-            eligible_males_no_gaps_df,
+        eligible_members_diagnosis_df = _identify_diagnosis(
+            eligible_members_no_gaps_df,
             dfs_input['claims'],
             reference_df,
             performance_yearstart
         ).intersect(
             _identify_diagnosis(
-                eligible_males_no_gaps_df,
+                eligible_members_no_gaps_df,
                 dfs_input['claims'],
                 reference_df,
                 datetime.date(performance_yearstart.year-1, 1, 1)
             )
         )
 
-        eligible_females_diagnosis_df = _identify_diagnosis(
-            eligible_females_no_gaps_df,
-            dfs_input['claims'],
-            reference_df,
-            performance_yearstart
-        ).intersect(
-            _identify_diagnosis(
-                eligible_females_no_gaps_df,
-                dfs_input['claims'],
-                reference_df,
-                datetime.date(performance_yearstart.year-1, 1, 1)
-            )
-        )
-
-        male_event_diagnosis_df = eligible_males_events_df.union(
-            eligible_males_diagnosis_df
-        ).distinct()
-
-        female_event_diagnosis_df = eligible_females_events_df.union(
-            eligible_females_diagnosis_df
+        event_diagnosis_df = eligible_members_events_df.union(
+            eligible_members_diagnosis_df
         ).distinct()
 
         excluded_members_df = _measure_exclusions(
@@ -907,7 +872,7 @@ class SPC(QualityMeasure):
             performance_yearstart
         )
 
-        rate_one_male_denom_df = male_event_diagnosis_df.join(
+        rate_one_denom_df = event_diagnosis_df.join(
             excluded_members_df.withColumnRenamed('member_id', 'exclude_member_id'),
             spark_funcs.col('member_id') == spark_funcs.col('exclude_member_id'),
             how='left_outer'
@@ -917,75 +882,47 @@ class SPC(QualityMeasure):
             'member_id'
         )
 
-        rate_one_female_denom_df = female_event_diagnosis_df.join(
-            excluded_members_df.withColumnRenamed('member_id', 'exclude_member_id'),
-            spark_funcs.col('member_id') == spark_funcs.col('exclude_member_id'),
-            how='left_outer'
-        ).where(
-            spark_funcs.col('exclude_member_id').isNull()
-        ).select(
-            'member_id'
-        )
-
-        rate_one_male_numer_df = _calc_rate_one(
+        rate_one_numer_df = _calc_rate_one(
             dfs_input['rx_claims'],
-            rate_one_male_denom_df,
+            rate_one_denom_df,
             dfs_input['ndc'],
             performance_yearstart
         )
 
-        rate_one_female_numer_df = _calc_rate_one(
+        rate_two_numer_df = _calc_rate_two(
             dfs_input['rx_claims'],
-            rate_one_female_denom_df,
-            dfs_input['ndc'],
-            performance_yearstart
-        )
-
-        rate_two_male_numer_df = _calc_rate_two(
-            dfs_input['rx_claims'],
-            rate_one_male_numer_df,
-            dfs_input['ndc'],
-            performance_yearstart
-        )
-
-        rate_two_female_numer_df = _calc_rate_two(
-            dfs_input['rx_claims'],
-            rate_one_female_numer_df,
+            rate_one_numer_df,
             dfs_input['ndc'],
             performance_yearstart
         )
 
         rate_one_output_df = dfs_input['member'].select(
-            'member_id'
+            'member_id',
+            'gender'
         ).join(
-            rate_one_female_denom_df,
-            dfs_input['member'].member_id == rate_one_female_denom_df.member_id,
+            rate_one_denom_df,
+            dfs_input['member'].member_id == rate_one_denom_df.member_id,
             how='left_outer'
         ).join(
-            rate_one_male_denom_df.withColumnRenamed('member_id', 'mele_denom_join_member_id'),
-            dfs_input['member'].member_id == spark_funcs.col('mele_denom_join_member_id'),
-            how='left_outer'
-        ).join(
-            rate_one_female_numer_df.withColumnRenamed('member_id', 'female_join_member_id'),
-            dfs_input['member'].member_id == spark_funcs.col('female_join_member_id'),
-            how='left_outer'
-        ).join(
-            rate_one_male_numer_df.withColumnRenamed('member_id', 'male_join_member_id'),
-            dfs_input['member'].member_id == spark_funcs.col('male_join_member_id'),
+            rate_one_numer_df,
+            dfs_input['member'].member_id == rate_one_numer_df.member_id,
             how='left_outer'
         ).select(
             dfs_input['member'].member_id,
-            spark_funcs.lit('SPC: Rate One').alias('comp_quality_short'),
             spark_funcs.when(
-                spark_funcs.col('female_join_member_id').isNotNull()
-                | spark_funcs.col('male_join_member_id').isNotNull(),
+                spark_funcs.col('gender') == 'M',
+                spark_funcs.lit('SPC: Rate One (Males 21-75)')
+            ).otherwise(
+                spark_funcs.lit('SPC: Rate One (Females 40-75')
+            ).alias('comp_quality_short'),
+            spark_funcs.when(
+                rate_one_numer_df.member_id.isNotNull(),
                 spark_funcs.lit(1)
             ).otherwise(
                 spark_funcs.lit(0)
             ).alias('comp_quality_numerator'),
             spark_funcs.when(
-                rate_one_female_denom_df.member_id.isNotNull()
-                | spark_funcs.col('mele_denom_join_member_id').isNotNull(),
+                rate_one_denom_df.member_id.isNotNull(),
                 spark_funcs.lit(1)
             ).otherwise(
                 spark_funcs.lit(0)
@@ -996,36 +933,92 @@ class SPC(QualityMeasure):
         )
 
         rate_two_output_df = dfs_input['member'].select(
-            'member_id'
+            'member_id',
+            'gender'
         ).join(
-            rate_one_female_numer_df,
-            dfs_input['member'].member_id == rate_one_female_numer_df.member_id,
+            rate_one_numer_df,
+            dfs_input['member'].member_id == rate_one_numer_df.member_id,
             how='left_outer'
         ).join(
-            rate_one_male_numer_df.withColumnRenamed('member_id', 'male_numer_join_member_id'),
-            dfs_input['member'].member_id == spark_funcs.col('male_numer_join_member_id'),
-            how='left_outer'
-        ).join(
-            rate_two_female_numer_df.withColumnRenamed('member_id', 'female_join_member_id'),
-            dfs_input['member'].member_id == spark_funcs.col('female_join_member_id'),
-            how='left_outer'
-        ).join(
-            rate_two_male_numer_df.withColumnRenamed('member_id', 'male_join_member_id'),
-            dfs_input['member'].member_id == spark_funcs.col('male_join_member_id'),
+            rate_two_numer_df,
+            dfs_input['member'].member_id == rate_two_numer_df.member_id,
             how='left_outer'
         ).select(
             dfs_input['member'].member_id,
-            spark_funcs.lit('SPC: Rate Two').alias('comp_quality_short'),
             spark_funcs.when(
-                (rate_two_female_numer_df.pdc >= .8)
-                | (rate_two_male_numer_df.pdc >= .8),
+                spark_funcs.col('gender') == 'F',
+                spark_funcs.lit('SPC: Rate Two (Females 40-75)')
+            ).otherwise(
+                spark_funcs.lit('SPC: Rate Two (Males 21-75)')
+            ).alias('comp_quality_short'),
+            spark_funcs.when(
+                rate_two_numer_df.pdc >= .8,
                 spark_funcs.lit(1)
             ).otherwise(
                 spark_funcs.lit(0)
             ).alias('comp_quality_numerator'),
             spark_funcs.when(
-                rate_one_female_numer_df.member_id.isNotNull()
-                | spark_funcs.col('male_numer_join_member_id').isNotNull(),
+                rate_one_numer_df.member_id.isNotNull(),
+                spark_funcs.lit(1)
+            ).otherwise(
+                spark_funcs.lit(0)
+            ).alias('comp_quality_denominator'),
+            spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
+            spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+        )
+
+        rate_one_no_strat_df = dfs_input['member'].select(
+            'member_id'
+        ).join(
+            rate_one_denom_df,
+            dfs_input['member'].member_id == rate_one_denom_df.member_id,
+            how='left_outer'
+        ).join(
+            rate_one_numer_df,
+            dfs_input['member'].member_id == rate_one_numer_df.member_id,
+            how='left_outer'
+        ).select(
+            dfs_input['member'].member_id,
+            spark_funcs.lit('SPC: Rate One (Total)').alias('comp_quality_short'),
+            spark_funcs.when(
+                rate_one_numer_df.member_id.isNotNull(),
+                spark_funcs.lit(1)
+            ).otherwise(
+                spark_funcs.lit(0)
+            ).alias('comp_quality_numerator'),
+            spark_funcs.when(
+                rate_one_denom_df.member_id.isNotNull(),
+                spark_funcs.lit(1)
+            ).otherwise(
+                spark_funcs.lit(0)
+            ).alias('comp_quality_denominator'),
+            spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
+            spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+        )
+
+        rate_two_no_strat_df = dfs_input['member'].select(
+            'member_id'
+        ).join(
+            rate_one_numer_df,
+            dfs_input['member'].member_id == rate_one_numer_df.member_id,
+            how='left_outer'
+        ).join(
+            rate_two_numer_df,
+            dfs_input['member'].member_id == rate_two_numer_df.member_id,
+            how='left_outer'
+        ).select(
+            dfs_input['member'].member_id,
+            spark_funcs.lit('SPC: Rate Two (Total)').alias('comp_quality_short'),
+            spark_funcs.when(
+                rate_two_numer_df.pdc >= .8,
+                spark_funcs.lit(1)
+            ).otherwise(
+                spark_funcs.lit(0)
+            ).alias('comp_quality_numerator'),
+            spark_funcs.when(
+                rate_one_numer_df.member_id.isNotNull(),
                 spark_funcs.lit(1)
             ).otherwise(
                 spark_funcs.lit(0)
@@ -1037,6 +1030,10 @@ class SPC(QualityMeasure):
 
         return rate_one_output_df.union(
             rate_two_output_df
+        ).union(
+            rate_one_no_strat_df
+        ).union(
+            rate_two_no_strat_df
         ).orderBy(
             'member_id'
         )
