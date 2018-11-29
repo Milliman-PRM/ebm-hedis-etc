@@ -10,7 +10,7 @@
 import datetime
 
 import pyspark.sql.functions as spark_funcs
-from pyspark.sql import DataFrame, Window
+from pyspark.sql import DataFrame
 from prm.dates.windows import decouple_common_windows
 from ebm_hedis_etc.base_classes import QualityMeasure
 
