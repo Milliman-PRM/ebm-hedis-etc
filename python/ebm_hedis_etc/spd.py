@@ -224,7 +224,7 @@ def _identify_rx_claims(
     ).distinct()
 
 
-def _identify_events(
+def _identify_events_exclusion(
         claims_df: DataFrame,
         reference_df: DataFrame,
         performance_yearstart: datetime.date
@@ -350,7 +350,7 @@ def _identify_events(
     ).distinct()
 
 
-def _identify_diagnosis(
+def _identify_diagnosis_exclusion(
         claims_df: DataFrame,
         reference_df: DataFrame,
         performance_yearstart: datetime.date
@@ -650,12 +650,12 @@ def _measure_exclusion(
         )
     ).distinct()
 
-    cardio_disease_excl_df = _identify_diagnosis(
+    cardio_disease_excl_df = _identify_diagnosis_exclusion(
         claims_df,
         reference_df,
         performance_yearstart
     ).union(
-        _identify_events(
+        _identify_events_exclusion(
             claims_df,
             reference_df,
             performance_yearstart
@@ -872,6 +872,20 @@ class SPD(QualityMeasure):
             performance_yearstart=datetime.date,
             **kwargs
     ):
+        reference_df = dfs_input['reference'].withColumn(
+            'code',
+            spark_funcs.regexp_replace(spark_funcs.col('code'), r'\.', '')
+        ).withColumn(
+            'icdversion',
+            spark_funcs.when(
+                spark_funcs.col('code_system').contains('ICD'),
+                spark_funcs.regexp_extract(
+                    spark_funcs.col('code_system'),
+                    r'\d+',
+                    0)
+            )
+        )
+
         eligible_membership_df = dfs_input['member_time'].where(
             (spark_funcs.col('date_start') >= datetime.date(performance_yearstart.year-1, 1, 1))
             & (spark_funcs.col('date_end') <= datetime.date(performance_yearstart.year, 12, 31))
