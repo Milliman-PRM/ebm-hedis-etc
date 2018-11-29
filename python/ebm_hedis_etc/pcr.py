@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Ben Copeland
+### CODE OWNERS: Ben Copeland, Demerrick Moton
 
 ### OBJECTIVE:
     Calculate the Plan All-Cause Readmissions HEDIS measure.
