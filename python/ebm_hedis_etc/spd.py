@@ -357,10 +357,9 @@ def _identify_diagnosis_exclusion(
 ) -> DataFrame:
     """Find claims that meet criteria for events to qualify members for denominator"""
     restricted_claims_df = claims_df.where(
-        (spark_funcs.col('fromdate') >= spark_funcs.lit(
-            datetime.date(performance_yearstart.year-1, 1, 1)))
+        (spark_funcs.col('fromdate') >= spark_funcs.lit(performance_yearstart))
         & (spark_funcs.col('todate') <= spark_funcs.lit(
-            datetime.date(performance_yearstart.year-1, 12, 31)))
+            datetime.date(performance_yearstart.year, 12, 31)))
     )
 
     outpatient_visits_df = restricted_claims_df.join(
@@ -654,6 +653,12 @@ def _measure_exclusion(
         claims_df,
         reference_df,
         performance_yearstart
+    ).intersect(
+        _identify_diagnosis_exclusion(
+            claims_df,
+            reference_df,
+            datetime.date(performance_yearstart.year-1, 1, 1)
+        )
     ).union(
         _identify_events_exclusion(
             claims_df,
