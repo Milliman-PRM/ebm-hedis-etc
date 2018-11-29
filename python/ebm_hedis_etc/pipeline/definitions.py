@@ -199,11 +199,40 @@ class StatinTherapyDiabetes(PRMPythonTask):
         )
 
 
+class MonitoringDiuretics(PRMPythonTask):
+    """Run annual_monitoring_of_diuretics.py"""
+
+    requirements = RequirementsContainer(
+        ImportReferences,
+        staging_membership.DeriveParamsFromMembership,
+        hcg_grouper_validation.Validations,
+    )
+
+    def output(self):
+        names_output = {
+            'results_mpm3.parquet'
+        }
+        return [
+            IndyPyLocalTarget(PRM_META[150, 'out'] / name)
+            for name in names_output
+        ]
+
+    def run(self):
+        """Run the Luigi job"""
+        program = PATH_SCRIPTS / 'annual_monitoring_of_diuretics.py'
+        super().run(
+            program,
+            path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
+            create_folder=True
+        )
+
+
 class CombineAll(PRMPythonTask):
     """Run combine_all.py"""
 
     requirements = RequirementsContainer(
         BetaBlockerHeartAttack,
+        MonitoringDiuretics,
     )
 
     def output(self):
