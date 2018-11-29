@@ -11,6 +11,7 @@ import logging
 import datetime
 
 import pyspark.sql.functions as spark_funcs
+import pyspark.sql.types as spark_types
 from pyspark.sql import DataFrame, Window
 from prm.dates.windows import decouple_common_windows, massage_windows
 from ebm_hedis_etc.base_classes import QualityMeasure
@@ -574,128 +575,112 @@ def _calc_rate_two(
         'fromdate',
         'ndc',
         'dayssupply',
-        spark_funcs.expr('date_add(fromdate, dayssupply)').alias('fromdate_to_dayssupply')
+        spark_funcs.expr('date_add(fromdate, dayssupply - 1)').alias('fromdate_to_dayssupply')
     ).where(
         spark_funcs.col('dayssupply') > 0
-    )
-
-    same_fromdate_df = statin_claims_df.groupBy(
-        'member_id',
-        'ndc',
-        'fromdate'
-    ).agg(
-        spark_funcs.sum('dayssupply').alias('dayssupply')
-    )
-
-    reduce_fromdate_window = Window.partitionBy(
-        'member_id',
-        'ndc',
-        'fromdate'
-    ).orderBy(
-        spark_funcs.col('dayssupply').desc()
-    )
-
-    reduced_fromdate_df = same_fromdate_df.withColumn(
-        'row',
-        spark_funcs.row_number().over(reduce_fromdate_window)
-    ).where(
-        spark_funcs.col('row') == 1
-    ).drop(
-        'row'
-    ).withColumn(
-        'fromdate_to_dayssupply',
-        spark_funcs.expr('date_add(fromdate, dayssupply-1)')
-    )
-
-    massaged_coverage_windows_df = massage_windows(
-        reduced_fromdate_df,
-        'member_id',
-        'fromdate',
-        'fromdate_to_dayssupply'
     ).select(
-        spark_funcs.col('member_id').alias('join_member_id'),
-        spark_funcs.col('fromdate').alias('join_fromdate'),
-        spark_funcs.col('fromdate_to_dayssupply').alias('join_fromdate_to_dayssupply')
+        '*',
+        spark_funcs.create_map(
+            spark_funcs.lit('date_start'),
+            spark_funcs.col('fromdate'),
+            spark_funcs.lit('date_end'),
+            spark_funcs.col('fromdate_to_dayssupply'),
+            ).alias('map_coverage_window')
     )
 
-    overlapping_coverage_windows_df = massaged_coverage_windows_df.join(
-        reduced_fromdate_df,
-        ((spark_funcs.col('member_id') == spark_funcs.col('join_member_id'))
-         & ((spark_funcs.col('fromdate') <= spark_funcs.col('join_fromdate'))
-            & (spark_funcs.col('fromdate_to_dayssupply') >= spark_funcs.col(
-                            'join_fromdate_to_dayssupply')))),
-        'full_outer'
-    )
-
-    multiple_rx_coverage_df = overlapping_coverage_windows_df.groupBy(
-        'join_member_id',
+    collect_date_windows = statin_claims_df.groupby(
+        'member_id',
         'ndc',
-        'join_fromdate',
-        'join_fromdate_to_dayssupply'
     ).agg(
-        spark_funcs.count('*').alias('multiple_rx_count')
+        spark_funcs.collect_list(spark_funcs.col('map_coverage_window')).alias('array_coverage_windows'),
     )
 
-    date_coverage_window = Window.partitionBy(
-        'join_member_id',
-        'join_fromdate',
-        'join_fromdate_to_dayssupply'
-    ).orderBy(
-        spark_funcs.col('multiple_rx_count').desc()
-    )
+    def adjust_date_windows(
+            array_coverage_windows: "typing.Iterable[typing.Mapping[str, datetime.date]]",
+        ) -> "typing.Iterable[typing.Mapping[str, datetime.date]]":
+        """Combine and extend overlapping windows"""
 
-    covered_windows_df = multiple_rx_coverage_df.withColumn(
-        'row',
-        spark_funcs.row_number().over(date_coverage_window)
-    ).where(
-        spark_funcs.col('row') == 1
-    ).drop(
-        'row'
-    ).withColumn(
-        'coverage_days_pre',
-        spark_funcs.datediff(
-            spark_funcs.col('join_fromdate_to_dayssupply'),
-            spark_funcs.col('join_fromdate')
-        ) + 1 * spark_funcs.col('multiple_rx_count')
-    ).withColumn(
-        'days_to_december',
-        spark_funcs.datediff(
-            spark_funcs.lit(datetime.date(2018, 12, 31)),
-            spark_funcs.col('join_fromdate')
+        sorted_array = sorted(
+            array_coverage_windows,
+            key=lambda x: (x['date_start'], x['date_end']),
+            )
+        output_array = []
+        last_date_end = None
+        for window_coverage in sorted_array:
+            date_start = window_coverage['date_start']
+            date_end = window_coverage['date_end']
+            if last_date_end and last_date_end >= date_start:
+                bump_factor = (last_date_end - date_start).days + 1
+                adj_date_start = date_start + datetime.timedelta(days=bump_factor)
+                adj_date_end = date_end + datetime.timedelta(days=bump_factor)
+                last_date_end = adj_date_end
+            else:
+                last_date_end = date_end
+                adj_date_start = date_start
+                adj_date_end = date_end
+
+            output_array.append({
+                'date_start': adj_date_start,
+                'date_end': adj_date_end,
+                })
+        return output_array
+
+    udf_adjust_date_windows = spark_funcs.udf(
+        adjust_date_windows,
+        spark_types.ArrayType(
+            spark_types.MapType(
+                spark_types.StringType(),
+                spark_types.DateType(),
+            )
         )
-    ).withColumn(
-        'coverage_days',
+    )
+
+    adjusted_date_windows = collect_date_windows.select(
+        '*',
+        spark_funcs.explode(
+            udf_adjust_date_windows(
+                spark_funcs.col('array_coverage_windows')
+            )
+        ).alias('map_adj_coverage_windows'),
+    ).select(
+        '*',
+        spark_funcs.col('map_adj_coverage_windows')['date_start'].alias('date_start'),
+        spark_funcs.col('map_adj_coverage_windows')['date_end'].alias('date_end'),
+    )
+
+    decouple_overlapping_coverage = decouple_common_windows(
+        adjusted_date_windows,
+        'member_id',
+        'date_start',
+        'date_end',
+    ).select(
+        'member_id',
+        'date_start',
         spark_funcs.least(
-            spark_funcs.col('coverage_days_pre'),
-            spark_funcs.col('days_to_december')
-        )
-    ).where(
-        spark_funcs.col('coverage_days') > 0
+            spark_funcs.col('date_end'),
+            spark_funcs.lit(
+                datetime.date(performance_yearstart.year, 12, 31)
+            )
+        ).alias('date_end'),
+    ).withColumn(
+        'days_covered',
+        spark_funcs.datediff(
+            spark_funcs.col('date_end'),
+            spark_funcs.col('date_start'),
+            ) + 1,
     )
 
-    days_covered_df = covered_windows_df.groupBy(
-        'join_member_id'
-    ).agg(
-        spark_funcs.sum('coverage_days').alias('days_covered')
-    )
-
-    ipsd_df = statin_claims_df.groupBy(
-        'member_id'
-    ).agg(
-        spark_funcs.min('fromdate').alias('ipsd')
-    )
-
-    pdc_df = days_covered_df.join(
-        ipsd_df,
-        spark_funcs.col('member_id') == spark_funcs.col('join_member_id'),
-        how='left_outer'
-    ).select(
+    member_coverage_summ = decouple_overlapping_coverage.groupby(
         'member_id',
+    ).agg(
+        spark_funcs.min('date_start').alias('ipsd'),
+        spark_funcs.sum('days_covered').alias('days_covered'),
+    ).select(
+        '*',
         spark_funcs.datediff(
             spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31)),
             spark_funcs.col('ipsd')
         ).alias('treatment_period'),
-        'days_covered'
     ).withColumn(
         'days_covered',
         spark_funcs.least(
@@ -710,7 +695,7 @@ def _calc_rate_two(
         )
     )
 
-    return pdc_df
+    return member_coverage_summ
 
 
 class SPC(QualityMeasure):
