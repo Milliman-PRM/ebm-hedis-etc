@@ -55,14 +55,16 @@ def _identify_events(
     )
 
     inpatient_stays_diag_explode_df = restricted_claims_df.join(
-        reference_df.where(
-            spark_funcs.col('value_set_name') == 'Inpatient Stay'
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name') == 'Inpatient Stay'
+            )
         ),
         spark_funcs.col('revcode') == spark_funcs.col('code'),
         how='inner'
     ).select(
         'member_id',
-        'icdversion',
+        restricted_claims_df.icdversion,
         spark_funcs.explode(
             spark_funcs.array(
                 [spark_funcs.col(col) for col in restricted_claims_df.columns if
@@ -72,14 +74,14 @@ def _identify_events(
     )
 
     mi_event_member_df = inpatient_stays_diag_explode_df.join(
-        reference_df.where(
-            spark_funcs.col('value_set_name') == 'MI'
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name') == 'MI'
+            )
         ),
         [
-            inpatient_stays_diag_explode_df.icdversion == spark_funcs.regexp_extract(
-                reference_df.code_system, r'\d+', 0),
-            inpatient_stays_diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code,
-                                                                               r'\.', '')
+            inpatient_stays_diag_explode_df.icdversion == reference_df.icdversion,
+            inpatient_stays_diag_explode_df.diag == reference_df.code
         ],
         how='inner'
     ).select(
@@ -87,9 +89,11 @@ def _identify_events(
     ).distinct()
 
     cabg_event_member_df = restricted_claims_df.join(
-        reference_df.where(
-            spark_funcs.col('value_set_name').isin('CABG')
-            & spark_funcs.col('code_system').isin('CPT', 'HCPCS')
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('CABG')
+                & spark_funcs.col('code_system').isin('CPT', 'HCPCS')
+            )
         ),
         spark_funcs.col('hcpcs') == spark_funcs.col('code'),
         how='inner'
@@ -101,8 +105,8 @@ def _identify_events(
                 spark_funcs.col('value_set_name') == 'CABG'
             ),
             [
-                procs_explode_df.icdversion == spark_funcs.regexp_extract(reference_df.code_system, r'\d+', 0),
-                procs_explode_df.proc == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
+                procs_explode_df.icdversion == reference_df.icdversion,
+                procs_explode_df.proc == reference_df.code
             ],
             how='inner'
         ).select(
@@ -111,9 +115,11 @@ def _identify_events(
     ).distinct()
 
     pci_event_member_df = restricted_claims_df.join(
-        reference_df.where(
-            spark_funcs.col('value_set_name').isin('PCI')
-            & spark_funcs.col('code_system').isin('CPT', 'HCPCS')
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('PCI')
+                & spark_funcs.col('code_system').isin('CPT', 'HCPCS')
+            )
         ),
         spark_funcs.col('hcpcs') == spark_funcs.col('code'),
         how='inner'
@@ -121,13 +127,14 @@ def _identify_events(
         'member_id'
     ).union(
         procs_explode_df.join(
-            reference_df.where(
-                spark_funcs.col('value_set_name') == 'PCI'
+            spark_funcs.broadcast(
+                reference_df.where(
+                    spark_funcs.col('value_set_name') == 'PCI'
+                )
             ),
             [
-                procs_explode_df.icdversion == spark_funcs.regexp_extract(reference_df.code_system,
-                                                                          r'\d+', 0),
-                procs_explode_df.proc == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
+                procs_explode_df.icdversion == reference_df.icdversion,
+                procs_explode_df.proc == reference_df.code
             ],
             how='inner'
         ).select(
@@ -136,8 +143,10 @@ def _identify_events(
     ).distinct()
 
     other_revascularization_event_member_df = restricted_claims_df.join(
-        reference_df.where(
-            spark_funcs.col('value_set_name') == 'Other Revascularization'
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name') == 'Other Revascularization'
+            )
         ),
         spark_funcs.col('hcpcs') == spark_funcs.col('code'),
         how='inner'
@@ -174,17 +183,21 @@ def _identify_diagnosis(
     )
 
     outpatient_visits_df = restricted_claims_df.join(
-        reference_df.where(
-            spark_funcs.col('value_set_name').isin('Outpatient')
-            & spark_funcs.col('code_system').isin('CPT', 'HCPCS')
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('Outpatient')
+                & spark_funcs.col('code_system').isin('CPT', 'HCPCS')
+            )
         ),
         spark_funcs.col('hcpcs') == spark_funcs.col('code'),
         how='inner'
     ).union(
         restricted_claims_df.join(
-            reference_df.where(
-                spark_funcs.col('value_set_name').isin('Outpatient')
-                & spark_funcs.col('code_system').isin('UBREV')
+            spark_funcs.broadcast(
+                reference_df.where(
+                    spark_funcs.col('value_set_name').isin('Outpatient')
+                    & spark_funcs.col('code_system').isin('UBREV')
+                )
             ),
             spark_funcs.col('revcode') == spark_funcs.col('code'),
             how='inner'
@@ -193,7 +206,7 @@ def _identify_diagnosis(
 
     outpatient_diags_explode_df = outpatient_visits_df.select(
         'member_id',
-        'icdversion',
+        restricted_claims_df.icdversion,
         spark_funcs.explode(
             spark_funcs.array(
                 [spark_funcs.col(col) for col in restricted_claims_df.columns if
@@ -203,14 +216,14 @@ def _identify_diagnosis(
     )
 
     outpatient_ivd_diag_member_df = outpatient_diags_explode_df.join(
-        reference_df.where(
-            spark_funcs.col('value_set_name') == 'IVD'
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name') == 'IVD'
+            )
         ),
         [
-            outpatient_diags_explode_df.icdversion == spark_funcs.regexp_extract(
-                reference_df.code_system, r'\d+', 0),
-            outpatient_diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code,
-                                                                           r'\.', '')
+            outpatient_diags_explode_df.icdversion == reference_df.icdversion,
+            outpatient_diags_explode_df.diag == reference_df.code
         ],
         how='inner'
     ).select(
@@ -218,17 +231,21 @@ def _identify_diagnosis(
     ).distinct()
 
     acute_inpatient_encounter_df = restricted_claims_df.join(
-        reference_df.where(
-            spark_funcs.col('value_set_name').isin('Acute Inpatient')
-            & spark_funcs.col('code_system').isin('CPT')
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('Acute Inpatient')
+                & spark_funcs.col('code_system').isin('CPT')
+            )
         ),
         spark_funcs.col('hcpcs') == spark_funcs.col('code'),
         how='left_outer'
     ).union(
         restricted_claims_df.join(
-            reference_df.where(
-                spark_funcs.col('value_set_name').isin('Acute Inpatient')
-                & spark_funcs.col('code_system').isin('UBREV')
+            spark_funcs.broadcast(
+                reference_df.where(
+                    spark_funcs.col('value_set_name').isin('Acute Inpatient')
+                    & spark_funcs.col('code_system').isin('UBREV')
+                )
             ),
             spark_funcs.col('revcode') == spark_funcs.col('code'),
             how='left_outer'
@@ -237,7 +254,7 @@ def _identify_diagnosis(
 
     acute_inpatient_diags_explode_df = acute_inpatient_encounter_df.select(
         'member_id',
-        'icdversion',
+        restricted_claims_df.icdversion,
         spark_funcs.explode(
             spark_funcs.array(
                 [spark_funcs.col(col) for col in restricted_claims_df.columns if
@@ -247,14 +264,14 @@ def _identify_diagnosis(
     )
 
     acute_inpatient_ivd_diag_member_df = acute_inpatient_diags_explode_df.join(
-        reference_df.where(
-            spark_funcs.col('value_set_name') == 'IVD'
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name') == 'IVD'
+            )
         ),
         [
-            acute_inpatient_diags_explode_df.icdversion == spark_funcs.regexp_extract(
-                reference_df.code_system, r'\d+', 0),
-            acute_inpatient_diags_explode_df.diag == spark_funcs.regexp_replace(reference_df.code,
-                                                                                r'\.', '')
+            acute_inpatient_diags_explode_df.icdversion == reference_df.icdversion,
+            acute_inpatient_diags_explode_df.diag == reference_df.code
         ],
         how='inner'
     ).select(
@@ -361,13 +378,14 @@ def _measure_exclusions(
             'fromdate'
         ).isin(performance_yearstart.year-1, performance_yearstart.year)
     ).join(
-        reference_df.where(
-            spark_funcs.col('value_set_name') == 'Pregnancy'
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name') == 'Pregnancy'
+            )
         ),
         [
-            diag_explode_df.icdversion == spark_funcs.regexp_extract(
-                reference_df.code_system, r'\d+', 0),
-            diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
+            diag_explode_df.icdversion == reference_df.icdversion,
+            diag_explode_df.diag == reference_df.code
         ],
         how='inner'
     ).select(
@@ -379,8 +397,10 @@ def _measure_exclusions(
             'fromdate'
         ).isin(performance_yearstart.year-1, performance_yearstart.year)
     ).join(
-        reference_df.where(
-            spark_funcs.col('value_set_name') == 'IVF'
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name') == 'IVF'
+            )
         ),
         spark_funcs.col('hcpcs') == spark_funcs.col('code'),
         how='inner'
@@ -393,13 +413,14 @@ def _measure_exclusions(
             'fromdate'
         ).isin(performance_yearstart.year-1, performance_yearstart.year)
     ).join(
-        reference_df.where(
-            spark_funcs.col('value_set_name') == 'Cirrhosis'
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name') == 'Cirrhosis'
+            )
         ),
         [
-            diag_explode_df.icdversion == spark_funcs.regexp_extract(
-                reference_df.code_system, r'\d+', 0),
-            diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
+            diag_explode_df.icdversion == reference_df.icdversion,
+            diag_explode_df.diag == reference_df.code
         ],
         how='inner'
     ).select(
@@ -411,13 +432,14 @@ def _measure_exclusions(
             'fromdate'
         ).isin(performance_yearstart.year-1, performance_yearstart.year)
     ).join(
-        reference_df.where(
-            spark_funcs.col('value_set_name') == 'Muscular Pain and Disease'
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name') == 'Muscular Pain and Disease'
+            )
         ),
         [
-            diag_explode_df.icdversion == spark_funcs.regexp_extract(
-                reference_df.code_system, r'\d+', 0),
-            diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
+            diag_explode_df.icdversion == reference_df.icdversion,
+            diag_explode_df.diag == reference_df.code
         ],
         how='inner'
     ).select(
@@ -427,8 +449,10 @@ def _measure_exclusions(
     estrogen_agonists_member_excl_df = rx_claims_df.where(
         spark_funcs.year('fromdate').isin(performance_yearstart.year-1, performance_yearstart.year)
     ).join(
-        rx_reference_df.where(
-            spark_funcs.col('medication_list') == 'Estrogen Agonists Medications'
+        spark_funcs.broadcast(
+            rx_reference_df.where(
+                spark_funcs.col('medication_list') == 'Estrogen Agonists Medications'
+            )
         ),
         spark_funcs.col('ndc') == spark_funcs.col('ndc_code'),
         how='inner'
@@ -439,9 +463,11 @@ def _measure_exclusions(
     esrd_member_excl_df = claims_df.where(
         spark_funcs.year('fromdate').isin(performance_yearstart.year-1, performance_yearstart.year)
     ).join(
-        reference_df.where(
-            spark_funcs.col('value_set_name').isin('ESRD')
-            & spark_funcs.col('code_system').isin('CPT', 'HCPCS')
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('ESRD')
+                & spark_funcs.col('code_system').isin('CPT', 'HCPCS')
+            )
         ),
         spark_funcs.col('hcpcs') == spark_funcs.col('code'),
         how='inner'
@@ -452,9 +478,11 @@ def _measure_exclusions(
             spark_funcs.year('fromdate').isin(performance_yearstart.year - 1,
                                               performance_yearstart.year)
         ).join(
-            reference_df.where(
-                spark_funcs.col('value_set_name').isin('ESRD')
-                & spark_funcs.col('code_system').isin('UBREV')
+            spark_funcs.broadcast(
+                reference_df.where(
+                    spark_funcs.col('value_set_name').isin('ESRD')
+                    & spark_funcs.col('code_system').isin('UBREV')
+                )
             ),
             spark_funcs.col('revcode') == spark_funcs.col('code'),
             how='inner'
@@ -466,9 +494,11 @@ def _measure_exclusions(
             spark_funcs.year('fromdate').isin(performance_yearstart.year - 1,
                                               performance_yearstart.year)
         ).join(
-            reference_df.where(
-                spark_funcs.col('value_set_name').isin('ESRD')
-                & spark_funcs.col('code_system').isin('POS')
+            spark_funcs.broadcast(
+                reference_df.where(
+                    spark_funcs.col('value_set_name').isin('ESRD')
+                    & spark_funcs.col('code_system').isin('POS')
+                )
             ),
             spark_funcs.col('pos') == spark_funcs.col('code'),
             how='inner'
@@ -480,14 +510,15 @@ def _measure_exclusions(
             spark_funcs.year('fromdate').isin(performance_yearstart.year - 1,
                                               performance_yearstart.year)
         ).join(
-            reference_df.where(
-                spark_funcs.col('value_set_name').isin('ESRD')
-                & spark_funcs.col('code_system').isin('ICD10CM', 'ICD9CM')
+            spark_funcs.broadcast(
+                reference_df.where(
+                    spark_funcs.col('value_set_name').isin('ESRD')
+                    & spark_funcs.col('code_system').isin('ICD10CM', 'ICD9CM')
+                )
             ),
             [
-                diag_explode_df.icdversion == spark_funcs.regexp_extract(
-                    reference_df.code_system, r'\d+', 0),
-                diag_explode_df.diag == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
+                diag_explode_df.icdversion == reference_df.icdversion,
+                diag_explode_df.diag == reference_df.code
             ],
             how='inner'
         ).select(
@@ -498,14 +529,15 @@ def _measure_exclusions(
             spark_funcs.year('fromdate').isin(performance_yearstart.year - 1,
                                               performance_yearstart.year)
         ).join(
-            reference_df.where(
-                spark_funcs.col('value_set_name').isin('ESRD')
-                & spark_funcs.col('code_system').isin('ICD10PCS', 'ICD9PCS')
+            spark_funcs.broadcast(
+                reference_df.where(
+                    spark_funcs.col('value_set_name').isin('ESRD')
+                    & spark_funcs.col('code_system').isin('ICD10PCS', 'ICD9PCS')
+                )
             ),
             [
-                proc_explode_df.icdversion == spark_funcs.regexp_extract(
-                    reference_df.code_system, r'\d+', 0),
-                proc_explode_df.proc == spark_funcs.regexp_replace(reference_df.code, r'\.', '')
+                proc_explode_df.icdversion == reference_df.icdversion,
+                proc_explode_df.proc == reference_df.code
             ],
             how='inner'
         ).select(
@@ -540,8 +572,10 @@ def _calc_rate_one(
     ).where(
         spark_funcs.year('fromdate') == performance_yearstart.year
     ).join(
-        rx_reference_df.where(
-            spark_funcs.col('medication_list') == 'High and Moderate-Intensity Statin Medications'
+        spark_funcs.broadcast(
+            rx_reference_df.where(
+                spark_funcs.col('medication_list') == 'High and Moderate-Intensity Statin Medications'
+            )
         ),
         spark_funcs.col('ndc') == spark_funcs.col('ndc_code'),
         how='inner'
@@ -564,8 +598,10 @@ def _calc_rate_two(
     ).where(
         spark_funcs.year('fromdate').isin(performance_yearstart.year)
     ).join(
-        rx_reference_df.where(
-            spark_funcs.col('medication_list') == 'High and Moderate-Intensity Statin Medications'
+        spark_funcs.broadcast(
+            rx_reference_df.where(
+                spark_funcs.col('medication_list') == 'High and Moderate-Intensity Statin Medications'
+            )
         ),
         spark_funcs.col('ndc') == spark_funcs.col('ndc_code'),
         how='inner'
@@ -721,6 +757,20 @@ class SPC(QualityMeasure):
             performance_yearstart=datetime.date,
             **kwargs
     ):
+        reference_df = dfs_input['reference'].withColumn(
+            'code',
+            spark_funcs.regexp_replace(spark_funcs.col('code'), r'\.', '')
+        ).withColumn(
+            'icdversion',
+            spark_funcs.when(
+                spark_funcs.col('code_system').contains('ICD'),
+                spark_funcs.regexp_extract(
+                    spark_funcs.col('code_system'),
+                    r'\d+',
+                    0)
+            )
+        )
+
         eligible_males_membership_df = dfs_input['member_time'].where(
             (spark_funcs.col('date_start') >= datetime.date(performance_yearstart.year-1, 1, 1))
             & (spark_funcs.col('date_end') <= datetime.date(performance_yearstart.year, 12, 31))
@@ -802,27 +852,27 @@ class SPC(QualityMeasure):
         eligible_males_events_df = _identify_events(
             eligible_males_no_gaps_df,
             dfs_input['claims'],
-            dfs_input['reference'],
+            reference_df,
             performance_yearstart
         )
 
         eligible_females_events_df = _identify_events(
             eligible_females_no_gaps_df,
             dfs_input['claims'],
-            dfs_input['reference'],
+            reference_df,
             performance_yearstart
         )
 
         eligible_males_diagnosis_df = _identify_diagnosis(
             eligible_males_no_gaps_df,
             dfs_input['claims'],
-            dfs_input['reference'],
+            reference_df,
             performance_yearstart
         ).intersect(
             _identify_diagnosis(
                 eligible_males_no_gaps_df,
                 dfs_input['claims'],
-                dfs_input['reference'],
+                reference_df,
                 datetime.date(performance_yearstart.year-1, 1, 1)
             )
         )
@@ -830,13 +880,13 @@ class SPC(QualityMeasure):
         eligible_females_diagnosis_df = _identify_diagnosis(
             eligible_females_no_gaps_df,
             dfs_input['claims'],
-            dfs_input['reference'],
+            reference_df,
             performance_yearstart
         ).intersect(
             _identify_diagnosis(
                 eligible_females_no_gaps_df,
                 dfs_input['claims'],
-                dfs_input['reference'],
+                reference_df,
                 datetime.date(performance_yearstart.year-1, 1, 1)
             )
         )
@@ -852,7 +902,7 @@ class SPC(QualityMeasure):
         excluded_members_df = _measure_exclusions(
             dfs_input['claims'],
             dfs_input['rx_claims'],
-            dfs_input['reference'],
+            reference_df,
             dfs_input['ndc'],
             performance_yearstart
         )
