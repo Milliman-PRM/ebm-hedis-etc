@@ -50,6 +50,9 @@ def create_quality_measures_output(
     ).withColumn(
         'comp_quality_date_actionable',
         spark_funcs.col('comp_quality_date_actionable').cast('date')
+    ).withColumn(
+        'comp_quality_date_last',
+        spark_funcs.col('comp_quality_date_last').cast('date')
     )
 
 
