@@ -953,64 +953,14 @@ class SPC(QualityMeasure):
             spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
         )
 
-        rate_one_no_strat_df = dfs_input['member'].select(
-            'member_id'
-        ).join(
-            rate_one_denom_df,
-            dfs_input['member'].member_id == rate_one_denom_df.member_id,
-            how='left_outer'
-        ).join(
-            rate_one_numer_df,
-            dfs_input['member'].member_id == rate_one_numer_df.member_id,
-            how='left_outer'
-        ).select(
-            dfs_input['member'].member_id,
-            spark_funcs.lit('SPC: Rate One (Total)').alias('comp_quality_short'),
-            spark_funcs.when(
-                rate_one_numer_df.member_id.isNotNull(),
-                spark_funcs.lit(1)
-            ).otherwise(
-                spark_funcs.lit(0)
-            ).alias('comp_quality_numerator'),
-            spark_funcs.when(
-                rate_one_denom_df.member_id.isNotNull(),
-                spark_funcs.lit(1)
-            ).otherwise(
-                spark_funcs.lit(0)
-            ).alias('comp_quality_denominator'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+        rate_one_no_strat_df = rate_one_output_df.withColumn(
+            'comp_quality_short',
+            spark_funcs.lit('SPC: Rate One (Total)')
         )
 
-        rate_two_no_strat_df = dfs_input['member'].select(
-            'member_id'
-        ).join(
-            rate_one_numer_df,
-            dfs_input['member'].member_id == rate_one_numer_df.member_id,
-            how='left_outer'
-        ).join(
-            rate_two_numer_df,
-            dfs_input['member'].member_id == rate_two_numer_df.member_id,
-            how='left_outer'
-        ).select(
-            dfs_input['member'].member_id,
-            spark_funcs.lit('SPC: Rate Two (Total)').alias('comp_quality_short'),
-            spark_funcs.when(
-                rate_two_numer_df.pdc >= .8,
-                spark_funcs.lit(1)
-            ).otherwise(
-                spark_funcs.lit(0)
-            ).alias('comp_quality_numerator'),
-            spark_funcs.when(
-                rate_one_numer_df.member_id.isNotNull(),
-                spark_funcs.lit(1)
-            ).otherwise(
-                spark_funcs.lit(0)
-            ).alias('comp_quality_denominator'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+        rate_two_no_strat_df = rate_two_output_df.withColumn(
+            'comp_quality_short',
+            spark_funcs.lit('SPC: Rate Two (Total')
         )
 
         return rate_one_output_df.union(
