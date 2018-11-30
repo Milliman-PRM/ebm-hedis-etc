@@ -76,7 +76,7 @@ def _exclude_elig_gaps(
 
 
 class MPM3(QualityMeasure):
-    """Object to house logic to calculate persistence of beta-blockers after heart attack measure"""
+    """Object to house logic to calculate annual monitoring of diuretics measure"""
     def _calc_measure(
             self,
             dfs_input: "typing.Mapping[str, DataFrame]",
