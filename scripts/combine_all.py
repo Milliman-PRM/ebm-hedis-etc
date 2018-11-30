@@ -42,7 +42,7 @@ def create_quality_measures_output(
             quality_measures_df = quality_measures_df.union(measure_df)
 
     return quality_measures_df.where(
-        spark_funcs.col('comp_quality_denominator') == 1
+        spark_funcs.col('comp_quality_denominator') != 0
     ).withColumn(
         'comp_quality_date_actionable',
         spark_funcs.col('comp_quality_date_actionable').cast('date')
