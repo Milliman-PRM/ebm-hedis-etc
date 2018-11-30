@@ -39,7 +39,11 @@ def create_quality_measures_output(
         if not quality_measures_df:
             quality_measures_df = measure_df
         else:
-            quality_measures_df = quality_measures_df.union(measure_df)
+            quality_measures_df = quality_measures_df.union(
+                measure_df.select(
+                    quality_measures_df.columns
+                )
+            )
 
     return quality_measures_df.where(
         spark_funcs.col('comp_quality_denominator') != 0
