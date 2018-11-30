@@ -898,7 +898,7 @@ class SPC(QualityMeasure):
                 spark_funcs.col('gender') == 'M',
                 spark_funcs.lit('SPC: Rate One (Males 21-75)')
             ).otherwise(
-                spark_funcs.lit('SPC: Rate One (Females 40-75')
+                spark_funcs.lit('SPC: Rate One (Females 40-75)')
             ).alias('comp_quality_short'),
             spark_funcs.when(
                 rate_one_numer_df.member_id.isNotNull(),
@@ -966,7 +966,7 @@ class SPC(QualityMeasure):
 
         rate_two_no_strat_df = rate_two_output_df.withColumn(
             'comp_quality_short',
-            spark_funcs.lit('SPC: Rate Two (Total')
+            spark_funcs.lit('SPC: Rate Two (Total)')
         )
 
         return rate_one_output_df.union(

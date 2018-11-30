@@ -11,6 +11,7 @@ import logging
 import os
 from pathlib import Path
 
+import pyspark.sql.functions as spark_funcs
 from pyspark.sql import DataFrame
 from prm.spark.app import SparkApp
 from prm.spark.io_sas import write_sas_data
@@ -38,9 +39,21 @@ def create_quality_measures_output(
         if not quality_measures_df:
             quality_measures_df = measure_df
         else:
-            quality_measures_df = quality_measures_df.union(measure_df)
+            quality_measures_df = quality_measures_df.union(
+                measure_df.select(
+                    quality_measures_df.columns
+                )
+            )
 
-    return quality_measures_df
+    return quality_measures_df.where(
+        spark_funcs.col('comp_quality_denominator') != 0
+    ).withColumn(
+        'comp_quality_date_actionable',
+        spark_funcs.col('comp_quality_date_actionable').cast('date')
+    ).withColumn(
+        'comp_quality_date_last',
+        spark_funcs.col('comp_quality_date_last').cast('date')
+    )
 
 
 def main() -> int:
@@ -52,7 +65,12 @@ def main() -> int:
         PRM_META[150, 'out']
     )
 
-    ref_quality_measures_df = sparkapp.load_df(PATH_REF / 'hedis_ref_quality_measures.parquet')
+    ref_quality_measures_df = sparkapp.load_df(
+        PATH_REF / 'hedis_ref_quality_measures.parquet'
+    ).withColumn(
+        'comp_quality_target_value',
+        spark_funcs.col('comp_quality_target_value').cast('double').alias('comp_quality_target_value', metadata={'label': 'Target'})
+    )
 
     sparkapp.save_df(quality_measures_df, PRM_META[150, 'out'] / 'quality_measures.parquet')
     write_sas_data(quality_measures_df, PRM_META[150, 'out'] / 'quality_measures.sas7bdat')

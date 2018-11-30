@@ -1017,6 +1017,8 @@ class SPD(QualityMeasure):
             spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
         )
 
+        rate_one_numer_df.unpersist()
+
         return rate_one_output_df.union(
             rate_two_output_df
         ).orderBy(
