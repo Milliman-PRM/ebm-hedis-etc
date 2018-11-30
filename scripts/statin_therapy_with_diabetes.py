@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Alexander Olivero
+### CODE OWNERS: Alexander Olivero, Ben Copeland
 
 ### OBJECTIVE:
     Calculate the Statin Therapy for Patients with Diabetes (SPD-2) HEDIS measure.
