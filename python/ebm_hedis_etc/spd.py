@@ -683,7 +683,10 @@ def _calc_rate_one(
         spark_funcs.year('fromdate') == performance_yearstart.year
     ).join(
         rx_reference_df.where(
-            spark_funcs.col('medication_list') == 'High and Moderate-Intensity Statin Medications'
+            spark_funcs.col('medication_list').isin(
+                'High and Moderate-Intensity Statin Medications',
+                'Low-Intensity Statin Medications'
+            ),
         ),
         spark_funcs.col('ndc') == spark_funcs.col('ndc_code'),
         how='inner'
@@ -708,7 +711,10 @@ def _calc_rate_two(
     ).join(
         spark_funcs.broadcast(
             rx_reference_df.where(
-                spark_funcs.col('medication_list') == 'High and Moderate-Intensity Statin Medications'
+                spark_funcs.col('medication_list').isin(
+                    'High and Moderate-Intensity Statin Medications',
+                    'Low-Intensity Statin Medications'
+                ),
             )
         ),
         spark_funcs.col('ndc') == spark_funcs.col('ndc_code'),
