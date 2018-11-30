@@ -667,7 +667,22 @@ class PCR(QualityMeasure):
             last_eligible_dischdate,
             )
 
-        results_df = readmissions_dedup.groupby(
+        member_eligible_age = dfs_input['member'].withColumn(
+            'age',
+            spark_funcs.datediff(
+                 spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31)),
+                 spark_funcs.col('dob')
+             ) / 365,
+        ).where(
+            (spark_funcs.col('age') >= 18)
+            & (spark_funcs.col('age') <= 64)
+        )
+
+        results_df = readmissions_dedup.join(
+            member_eligible_age.select('member_id'),
+            on='member_id',
+            how='inner',
+        ).groupby(
             'member_id',
         ).agg(
             spark_funcs.count('*').alias('comp_quality_denominator'),
