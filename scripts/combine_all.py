@@ -65,7 +65,12 @@ def main() -> int:
         PRM_META[150, 'out']
     )
 
-    ref_quality_measures_df = sparkapp.load_df(PATH_REF / 'hedis_ref_quality_measures.parquet')
+    ref_quality_measures_df = sparkapp.load_df(
+        PATH_REF / 'hedis_ref_quality_measures.parquet'
+    ).withColumn(
+        'comp_quality_target_value',
+        spark_funcs.col('comp_quality_target_value').cast('double')
+    )
 
     sparkapp.save_df(quality_measures_df, PRM_META[150, 'out'] / 'quality_measures.parquet')
     write_sas_data(quality_measures_df, PRM_META[150, 'out'] / 'quality_measures.sas7bdat')
