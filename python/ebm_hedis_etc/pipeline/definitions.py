@@ -126,7 +126,7 @@ class ChildhoodImmunization(PRMPythonTask):
 
     def output(self):
         names_output = {
-            'results_pcr.parquet'
+            'results_cis.parquet'
         }
         return [
             IndyPyLocalTarget(PRM_META[150, 'out'] / name)
