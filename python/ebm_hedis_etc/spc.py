@@ -921,12 +921,18 @@ class SPC(QualityMeasure):
             'member_id',
             'gender'
         ).join(
-            rate_one_numer_df,
-            dfs_input['member'].member_id == rate_one_numer_df.member_id,
+            rate_one_numer_df.withColumnRenamed(
+                'member_id',
+                'denom_member_id'
+            ),
+            dfs_input['member'].member_id == spark_funcs.col('denom_member_id'),
             how='left_outer'
         ).join(
-            rate_two_numer_df,
-            dfs_input['member'].member_id == rate_two_numer_df.member_id,
+            rate_two_numer_df.withColumnRenamed(
+                'member_id',
+                'numer_member_id'
+            ),
+            dfs_input['member'].member_id == spark_funcs.col('numer_member_id'),
             how='left_outer'
         ).select(
             dfs_input['member'].member_id,
@@ -943,7 +949,7 @@ class SPC(QualityMeasure):
                 spark_funcs.lit(0)
             ).alias('comp_quality_numerator'),
             spark_funcs.when(
-                rate_one_numer_df.member_id.isNotNull(),
+                spark_funcs.col('denom_member_id').isNotNull(),
                 spark_funcs.lit(1)
             ).otherwise(
                 spark_funcs.lit(0)
