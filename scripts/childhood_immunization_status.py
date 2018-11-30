@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Alexander Olivero
+### CODE OWNERS: Alexander Olivero, Demerrick Moton
 
 ### OBJECTIVE:
     Calculate the Childhood Immunization Status HEDIS measure.
