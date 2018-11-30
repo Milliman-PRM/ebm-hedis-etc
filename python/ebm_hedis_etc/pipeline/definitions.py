@@ -236,6 +236,7 @@ class CombineAll(PRMPythonTask):
         BetaBlockerHeartAttack,
         MonitoringDiuretics,
         ChildhoodImmunization,
+        AllCauseReadmissions,
     )
 
     def output(self):
