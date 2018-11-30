@@ -69,7 +69,7 @@ def main() -> int:
         PATH_REF / 'hedis_ref_quality_measures.parquet'
     ).withColumn(
         'comp_quality_target_value',
-        spark_funcs.col('comp_quality_target_value').cast('double')
+        spark_funcs.col('comp_quality_target_value').cast('double').alias('comp_quality_target_value', metadata={'label': 'Target'})
     )
 
     sparkapp.save_df(quality_measures_df, PRM_META[150, 'out'] / 'quality_measures.parquet')
