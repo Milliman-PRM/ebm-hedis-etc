@@ -11,6 +11,7 @@ import logging
 import os
 from pathlib import Path
 
+import pyspark.sql.functions as spark_funcs
 from pyspark.sql import DataFrame
 from prm.spark.app import SparkApp
 from prm.spark.io_sas import write_sas_data
@@ -40,7 +41,9 @@ def create_quality_measures_output(
         else:
             quality_measures_df = quality_measures_df.union(measure_df)
 
-    return quality_measures_df
+    return quality_measures_df.where(
+        spark_funcs.col('comp_quality_denominator') == 1
+    )
 
 
 def main() -> int:
