@@ -1,0 +1,4 @@
+name,datatype,nullable
+value_set_name,string,false
+code,string,false
+code_system,string,false

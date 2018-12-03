@@ -41,9 +41,6 @@ class QualityMeasure(metaclass=abc.ABCMeta):
             **kwargs
     ) -> DataFrame:
         """Should capture business logic to make a measure"""
-        raise NotImplementedError(
-            "Measure business logic should be defined here"
-            )
 
     def _validate_schema(
             self,
@@ -77,5 +74,5 @@ class QualityMeasure(metaclass=abc.ABCMeta):
         return measure_results
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     pass
