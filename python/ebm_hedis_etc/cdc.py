@@ -262,6 +262,32 @@ class CDC(QualityMeasure):
             eligible_event_diag_members_df,
             'member_id',
             how='inner'
+        ).where(
+            (spark_funcs.col('date_start') >= performance_yearstart)
+            & (spark_funcs.col('date_end') <= datetime.date(performance_yearstart.year, 12, 31))
+        ).join(
+            dfs_input['member'].select(
+                'member_id',
+                'dob'
+            ),
+            'member_id',
+            how='left_outer'
+        ).where(
+            spark_funcs.col('cover_medical').isin('Y')
+        ).where(
+            spark_funcs.lit(spark_funcs.datediff(
+                spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31)),
+                spark_funcs.col('dob')
+            ) / 365).between(
+                18,
+                75
+            )
+        )
+
+        eligible_members_no_gaps_df = _exclude_elig_gaps(
+            eligible_members_df,
+            1,
+            45
         )
 
         return results_df
