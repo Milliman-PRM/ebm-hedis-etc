@@ -136,7 +136,8 @@ def _identify_med_event(
 
     acute_diags_explode_df = acute_inpatient_df.select(
         'member_id',
-        acute_inpatient_df.icdversion,
+        'fromdate',
+        restricted_med_claims.icdversion,
         spark_funcs.explode(
             spark_funcs.array(
                 [spark_funcs.col(col) for col in acute_inpatient_df.columns if
@@ -159,6 +160,65 @@ def _identify_med_event(
         'member_id'
     ).distinct()
 
+    non_acute_encounters_df = restricted_med_claims.join(
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('code_system').isin('UBREV')
+                & spark_funcs.col('value_set_name').isin('Outpatient', 'ED', 'Nonacute Inpatient')
+            ),
+        ),
+        spark_funcs.col('revcode') == spark_funcs.col('code'),
+        how='inner'
+    ).union(
+        restricted_med_claims.join(
+            spark_funcs.broadcast(
+                reference_df.where(
+                    spark_funcs.col('code_system').isin('CPT', 'HCPCS')
+                    & spark_funcs.col('value_set_name').isin('Outpatient', 'ED',
+                                                             'Nonacute Inpatient')
+                )
+            ),
+            spark_funcs.col('hcpcs') == spark_funcs.col('code'),
+            how='inner'
+        )
+    ).distinct()
+
+    non_acute_diags_explode_df = non_acute_encounters_df.select(
+        'member_id',
+        'fromdate',
+        restricted_med_claims.icdversion,
+        spark_funcs.explode(
+            spark_funcs.array(
+                [spark_funcs.col(col) for col in non_acute_encounters_df.columns if
+                 col.find('icddiag') > -1]
+            )
+        ).alias('diag')
+    )
+
+    non_acute_diabetes_encounter_members = non_acute_diags_explode_df.join(
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('Diabetes')
+            )
+        ),
+        [
+            non_acute_diags_explode_df.icdversion == reference_df.icdversion,
+            spark_funcs.col('diag') == spark_funcs.col('code')
+        ]
+    ).groupBy(
+        'member_id'
+    ).agg(
+        spark_funcs.countDistinct('fromdate').alias('distinct_fromdate_count')
+    ).where(
+        spark_funcs.col('distinct_fromdate_count') >= 2
+    ).select(
+        'member_id'
+    ).distinct()
+
+    return acute_diabetes_encounter_members.union(
+        non_acute_diabetes_encounter_members
+    ).distinct()
+
 
 class CDC(QualityMeasure):
     """Object to house logic to calculate comprehensive diabetes care measures"""
@@ -177,7 +237,8 @@ class CDC(QualityMeasure):
                 spark_funcs.regexp_extract(
                     spark_funcs.col('code_system'),
                     r'\d+',
-                    0)
+                    0
+                )
             )
         )
 
@@ -189,8 +250,18 @@ class CDC(QualityMeasure):
 
         medical_eligible_members_df = _identify_med_event(
             dfs_input['claims'],
-            dfs_input['reference'],
+            reference_df,
             performance_yearstart
+        )
+
+        eligible_event_diag_members_df = pharmacy_eligible_members_df.union(
+            medical_eligible_members_df
+        ).distinct()
+
+        eligible_members_df = dfs_input['member_time'].join(
+            eligible_event_diag_members_df,
+            'member_id',
+            how='inner'
         )
 
         return results_df
