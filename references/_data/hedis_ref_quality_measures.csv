@@ -18,5 +18,5 @@ comp_quality_dual,comp_quality_short,comp_quality,comp_quality_category,comp_qua
 17,CIS - VZV,Childhood Immunization Status: VZV,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
 18,CIS - Rotavirus,Childhood Immunization Status: Rotavirus,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
 19,CIS - MMR,Childhood Immunization Status: MMR,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
-20,PCR,All-Cause Readmissions,Care Coordination/Patient Safety,Lower_Better,.1,"#,##0.0%",Rate
+20,PCR,All-Cause Readmissions,Care Coordination/Patient Safety,Lower_Better,.1,"#,##0.0",Rate
 21,MPM3,Annual Monitoring for Patients on Persistent Medications: Diuretics,Medication Management and Care Coordination,Higher_Better,.9,"#,##0.0%",Binary
