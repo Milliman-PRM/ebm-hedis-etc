@@ -284,10 +284,18 @@ class CDC(QualityMeasure):
             )
         )
 
-        eligible_members_no_gaps_df = _exclude_elig_gaps(
-            eligible_members_df,
-            1,
-            45
-        )
+        eligible_members_no_gaps_df = eligible_members_df.join(
+            _exclude_elig_gaps(
+                eligible_members_df,
+                1,
+                45
+            ).withColumnRenamed('member_id', 'exclude_member_id'),
+            spark_funcs.col('member_id') == spark_funcs.col('exclude_member_id'),
+            how='left_outer'
+        ).where(
+            spark_funcs.col('exclude_member_id').isNull()
+        ).select(
+            'member_id'
+        ).distinct()
 
         return results_df
