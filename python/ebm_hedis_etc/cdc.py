@@ -105,14 +105,59 @@ def _identify_med_event(
 ) -> DataFrame:
     """Identify members who had diabetes diagnoses with either two outpatient visits or
     one inpatient encounter"""
-    acute_inpatient_df = med_claims.join(
+    restricted_med_claims = med_claims.where(
+        spark_funcs.col('fromdate').between(
+            spark_funcs.lit(datetime.date(performance_yearstart.year - 1, 1, 1)),
+            spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31))
+        )
+    )
+
+    acute_inpatient_df = restricted_med_claims.join(
         spark_funcs.broadcast(
             reference_df.where(
                 spark_funcs.col('value_set_name').isin('Acute Inpatient')
+                & spark_funcs.col('code_system').isin('UBREV')
+            )
+        ),
+        spark_funcs.col('revcode') == spark_funcs.col('code'),
+        how='inner'
+    ).union(
+        restricted_med_claims.join(
+            spark_funcs.broadcast(
+                reference_df.where(
+                    spark_funcs.col('value_set_name').isin('Acute Inpatient')
+                    & spark_funcs.col('code_system').isin('CPT')
+                )
             ),
-            spark_funcs
+            spark_funcs.col('hcpcs') == spark_funcs.col('code'),
+            how='inner'
         )
     )
+
+    acute_diags_explode_df = acute_inpatient_df.select(
+        'member_id',
+        acute_inpatient_df.icdversion,
+        spark_funcs.explode(
+            spark_funcs.array(
+                [spark_funcs.col(col) for col in acute_inpatient_df.columns if
+                 col.find('icddiag') > -1]
+            )
+        ).alias('diag')
+    )
+
+    acute_diabetes_encounter_members = acute_diags_explode_df.join(
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('Diabetes')
+            )
+        ),
+        [
+            acute_diags_explode_df.icdversion == reference_df.icdversion,
+            spark_funcs.col('diag') == spark_funcs.col('code')
+        ]
+    ).select(
+        'member_id'
+    ).distinct()
 
 
 class CDC(QualityMeasure):
