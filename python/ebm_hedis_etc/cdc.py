@@ -98,6 +98,23 @@ def _rx_dispensed_event(
     ).distinct()
 
 
+def _identify_med_event(
+        med_claims: DataFrame,
+        reference_df: DataFrame,
+        performance_yearstart: datetime.date
+) -> DataFrame:
+    """Identify members who had diabetes diagnoses with either two outpatient visits or
+    one inpatient encounter"""
+    acute_inpatient_df = med_claims.join(
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('Acute Inpatient')
+            ),
+            spark_funcs
+        )
+    )
+
+
 class CDC(QualityMeasure):
     """Object to house logic to calculate comprehensive diabetes care measures"""
     def _calc_measure(
@@ -108,6 +125,12 @@ class CDC(QualityMeasure):
         pharmacy_eligible_members_df = _rx_dispensed_event(
             dfs_input['rx_claims'],
             dfs_input['ndc'],
+            performance_yearstart
+        )
+
+        medical_eligible_members_df = _identify_med_event(
+            dfs_input['claims'],
+            dfs_input['reference'],
             performance_yearstart
         )
 
