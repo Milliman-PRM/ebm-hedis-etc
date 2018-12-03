@@ -122,6 +122,20 @@ class CDC(QualityMeasure):
             dfs_input: "typing.Mapping[str, DataFrame]",
             performance_yearstart=datetime.date,
     ):
+        reference_df = dfs_input['reference'].withColumn(
+            'code',
+            spark_funcs.regexp_replace(spark_funcs.col('code'), r'\.', '')
+        ).withColumn(
+            'icdversion',
+            spark_funcs.when(
+                spark_funcs.col('code_system').contains('ICD'),
+                spark_funcs.regexp_extract(
+                    spark_funcs.col('code_system'),
+                    r'\d+',
+                    0)
+            )
+        )
+
         pharmacy_eligible_members_df = _rx_dispensed_event(
             dfs_input['rx_claims'],
             dfs_input['ndc'],
