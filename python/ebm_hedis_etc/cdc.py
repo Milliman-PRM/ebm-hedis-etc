@@ -406,6 +406,158 @@ def identify_nephropathy(
     ).distinct()
 
 
+def identify_eye_exam(
+        eligible_members: DataFrame,
+        claims_df: DataFrame,
+        reference_df: DataFrame,
+        performance_yearstart: datetime.date
+) -> DataFrame:
+    """Identify screening/monitoring for diabetic retinal disease during measurement year"""
+    restricted_claims_df = claims_df.join(
+        eligible_members,
+        'member_id',
+        how='inner'
+    ).where(
+        spark_funcs.col('fromdate').between(
+            spark_funcs.lit(performance_yearstart),
+            spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31))
+        )
+    )
+
+    restricted_claims_prior_df = claims_df.join(
+        eligible_members,
+        'member_id',
+        how='inner'
+    ).where(
+        spark_funcs.col('fromdate').between(
+            spark_funcs.lit(datetime.date(performance_yearstart.year-1, 1, 1)),
+            spark_funcs.lit(datetime.date(performance_yearstart.year-1, 12, 31))
+        )
+    )
+
+    screening_df = restricted_claims_df.join(
+        spark_funcs.broadcast(
+            reference_df.where(spark_funcs.col('value_set_name').isin('Diabetic Retinal Screening'))
+        ),
+        spark_funcs.col('hcpcs') == spark_funcs.col('code'),
+        how='inner'
+    ).where(
+        spark_funcs.col('specialty').isin('18', '41')
+    ).select(
+        'member_id'
+    ).distinct()
+
+    screening_diag_prior_df = restricted_claims_prior_df.join(
+        spark_funcs.broadcast(
+            reference_df.where(spark_funcs.col('value_set_name').isin('Diabetic Retinal Screening'))
+        ),
+        spark_funcs.col('hcpcs') == spark_funcs.col('code'),
+        how='inner'
+    ).where(
+        spark_funcs.col('specialty').isin('18', '41')
+    ).select(
+        'member_id',
+        restricted_claims_prior_df.icdversion,
+        spark_funcs.explode(
+            spark_funcs.array(
+                [spark_funcs.col(col) for col in restricted_claims_prior_df.columns if
+                 col.find('icddiag') > -1]
+            )
+        ).alias('diag')
+    ).join(
+        reference_df.where(
+            spark_funcs.col('value_set_name').isin('Diabetes Mellitus Without Complications')
+        ),
+        [
+            restricted_claims_prior_df.icdversion == reference_df.icdversion,
+            spark_funcs.col('diag') == spark_funcs.col('code')
+        ],
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    screening_prof_df = restricted_claims_df.join(
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin(
+                    'Diabetic Retinal Screening With Eye Care Professional'
+                )
+            )
+        ),
+        spark_funcs.col('hcpcs') == spark_funcs.col('code'),
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    negative_result_df = restricted_claims_df.join(
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('Diabetic Retinal Screening Negative')
+            )
+        ),
+        spark_funcs.col('hcpcs') == spark_funcs.col('code'),
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    bilateral_df = restricted_claims_df.join(
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('Unilateral Eye Enucleation')
+            )
+        ),
+        spark_funcs.col('hcpcs') == spark_funcs.col('code'),
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    left_and_right_df = restricted_claims_df.select(
+        'member_id',
+        restricted_claims_df.icdversion,
+        spark_funcs.explode(
+            spark_funcs.array(
+                [spark_funcs.col(col) for col in restricted_claims_df.columns if
+                 col.find('icdproc') > -1]
+            )
+        ).alias('proc')
+    ).join(
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('Unilateral Eye Enucleation Left',
+                                                       'Unilateral Eye Enucleation Right')
+            )
+        ),
+        [
+            restricted_claims_df.icdversion == reference_df.icdversion,
+            spark_funcs.col('proc') == spark_funcs.col('code')
+        ],
+        how='inner'
+    ).groupBy(
+        'member_id'
+    ).agg(
+        spark_funcs.countDistinct('value_set_name').alias('left_or_right_count')
+    ).where(
+        spark_funcs.col('left_or_right_count') >= 2
+    ).select(
+        'member_id'
+    ).distinct()
+
+    return screening_df.union(
+        screening_diag_prior_df
+    ).union(
+        screening_prof_df
+    ).union(
+        negative_result_df
+    ).union(
+        bilateral_df
+    ).union(
+        left_and_right_df
+    ).distinct()
+
 class CDC(QualityMeasure):
     """Object to house logic to calculate comprehensive diabetes care measures"""
     def _calc_measure(
@@ -497,6 +649,13 @@ class CDC(QualityMeasure):
             dfs_input['rx_claims'],
             reference_df,
             dfs_input['ndc'],
+            performance_yearstart
+        )
+
+        eye_exam_df = identify_eye_exam(
+            eligible_members_no_gaps_df,
+            dfs_input['claims'],
+            reference_df,
             performance_yearstart
         )
 
