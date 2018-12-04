@@ -248,6 +248,164 @@ def identify_a1c_tests(
     ).distinct()
 
 
+def identify_nephropathy(
+        eligible_members: DataFrame,
+        claims_df: DataFrame,
+        rx_claims_df: DataFrame,
+        reference_df: DataFrame,
+        rx_reference_df: DataFrame,
+        performance_yearstart: datetime.date
+) -> DataFrame:
+    """Identify members with screening for or evidence of nephropathy during measurement year"""
+    restricted_claims_df = claims_df.join(
+        eligible_members,
+        'member_id',
+        how='inner'
+    ).where(
+        spark_funcs.col('fromdate').between(
+            spark_funcs.lit(performance_yearstart),
+            spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31))
+        )
+    )
+
+    proc_explode_df = restricted_claims_df.select(
+        'member_id',
+        restricted_claims_df.icdversion,
+        spark_funcs.explode(
+            spark_funcs.array(
+                [spark_funcs.col(col) for col in restricted_claims_df.columns if
+                 col.find('icddiag') > -1]
+            )
+        ).alias('diag')
+    )
+
+    diag_explode_df = restricted_claims_df.select(
+        'member_id',
+        restricted_claims_df.icdversion,
+        spark_funcs.explode(
+            spark_funcs.array(
+                [spark_funcs.col(col) for col in restricted_claims_df.columns if
+                 col.find('icdproc') > -1]
+            )
+        ).alias('diag')
+    )
+
+    cpt_df = restricted_claims_df.join(
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('Urine Protein Tests',
+                                                       'Nephropathy Treatment', 'ESRD',
+                                                       'Kidney Transplant')
+                & spark_funcs.col('code_system').isin('CPT', 'CPT-CAT-II', 'HCPCS')
+            )
+        ),
+        spark_funcs.col('hcpcs') == spark_funcs.col('code'),
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    rev_df = restricted_claims_df.join(
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('ESRD', 'Kidney Transplant')
+                & spark_funcs.col('code_system').isin('UBREV', 'UBTOB')
+            )
+        ),
+        spark_funcs.col('revcode') == spark_funcs.col('code'),
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    pos_df = restricted_claims_df.join(
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('ESRD')
+                & spark_funcs.col('code_system').isin('POS')
+            )
+        ),
+        spark_funcs.col('pos') == spark_funcs.col('code'),
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    diag_df = diag_explode_df.join(
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('Nephropathy Treatment', 'CKD Stage 4',
+                                                       'ESRD', 'Kidney Transplant')
+                & spark_funcs.col('code_system').isin('ICD10CM', 'ICD9CM')
+            )
+        ),
+        [
+            restricted_claims_df.icdversion == reference_df.icdversion,
+            spark_funcs.col('diag') == spark_funcs.col('code')
+        ],
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    proc_df = proc_explode_df.join(
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('ESRD', 'Kidney Transplant')
+                & spark_funcs.col('code_system').isin('ICD10PCS', 'ICD9PCS')
+            )
+        ),
+        [
+            restricted_claims_df.icdversion == reference_df.icdversion,
+            spark_funcs.col('diag') == spark_funcs.col('code')
+        ],
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    ace_inhibitor_df = rx_claims_df.join(
+        eligible_members,
+        'member_id',
+        how='inner'
+    ).where(
+        spark_funcs.col('fromdate').between(
+            spark_funcs.lit(performance_yearstart),
+            spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31))
+        )
+    ).join(
+        spark_funcs.broadcast(
+            rx_reference_df.where(
+                spark_funcs.col('medication_list').isin('ACE Inhibitor/ARB Medications')
+            )
+        ),
+        spark_funcs.col('ndc') == spark_funcs.col('ndc_code'),
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    nephrologist_df = restricted_claims_df.where(
+        spark_funcs.col('specialty') == '39'
+    ).select(
+        'member_id'
+    ).distinct()
+
+    return cpt_df.union(
+        pos_df
+    ).union(
+        rev_df
+    ).union(
+        diag_df
+    ).union(
+        proc_df
+    ).union(
+        ace_inhibitor_df
+    ).union(
+        nephrologist_df
+    ).distinct()
+
+
 class CDC(QualityMeasure):
     """Object to house logic to calculate comprehensive diabetes care measures"""
     def _calc_measure(
@@ -330,6 +488,15 @@ class CDC(QualityMeasure):
             eligible_members_no_gaps_df,
             dfs_input['claims'],
             reference_df,
+            performance_yearstart
+        )
+
+        nephropathy_df = identify_nephropathy(
+            eligible_members_no_gaps_df,
+            dfs_input['claims'],
+            dfs_input['rx_claims'],
+            reference_df,
+            dfs_input['ndc'],
             performance_yearstart
         )
 
