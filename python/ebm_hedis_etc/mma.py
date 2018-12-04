@@ -7,8 +7,10 @@
 """
 import logging
 import datetime
+import dateutil.relativedelta
 
 import pyspark.sql.functions as F
+from pyspark.sql.window import Window
 from pyspark.sql.dataframe import DataFrame
 from prm.dates.windows import decouple_common_windows
 from ebm_hedis_etc.base_classes import QualityMeasure
@@ -22,6 +24,8 @@ LOGGER = logging.getLogger(__name__)
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 # =============================================================================
 
+
+
 class MMA(QualityMeasure):
     """Class for MMA implementation"""
     def _calc_measure(
@@ -29,13 +33,100 @@ class MMA(QualityMeasure):
             dfs_input: "typing.Mapping[str, DataFrame]",
             performance_yearstart=datetime.date,
         ):
+        # set timeline variables
+        measurement_date_start = performance_yearstart.date()
+        measurement_date_end = datetime.date(
+            measurement_date_start.year,
+            12,
+            31
+        )
+
+        # filter to relevant value sets and diagnoses
+        value_set_df = dfs_input['reference'].where(
+            F.col('value_set_name').rlike(r'\bED\b') |
+            F.col('value_set_name').rlike(r'Acute Inpatient') |
+            F.col('value_set_name').rlike(r'Outpatient') |
+            F.col('value_set_name').rlike(r'Observation')
+            ).groupBy('code').count().join(
+                dfs_input['reference'],
+                'code',
+                'inner'
+            )
+
+        claims_value_set = value_set_df.join(
+            dfs_input['claims'],
+            dfs_input['claims'].revcode == value_set_df.code,
+            'inner'
+        ).withColumn(
+            'value_set_icddiag',
+            F.explode(
+                F.array(
+                    [F.col(col_name) for col_name in
+                     dfs_input['claims'].columns if 'icddiag' in col_name]
+                )
+            )
+        ).withColumn(
+            'value_set_icdproc',
+            F.explode(
+                F.array(
+                    [F.col(col_name) for col_name in
+                     dfs_input['claims'].columns if 'icdproc' in col_name]
+                )
+            )
+        )
+
+        claims_value_set.withColumn(
+            'is_elig',
+            F.where(
+
+            )
+        )
 
         # find eligible population
-            # exclude hospice
-            # commercial, medicaid
-            # ages 5-64 - stratfiy by 5-11, 12-18, 19-50, 51-64
-            # use current measurement year
-            # no more than one gap (<=45 days) in enrollment
+        population_df = dfs_input['member'].where(
+            # select members aged 5 - 64
+            F.abs(
+                F.year(F.col('dob')) - F.year(F.lit(measurement_date_end))
+            ).between(5,64)
+        ).join(
+            dfs_input['member_time'],
+            ['member_id'],
+            'left_outer'
+        )
+
+        # exclude hospice
+        no_hospice = reference_dfs['claims'].where(F.col('value_set_name') != 'Hospice')
+
+        member_time_window = Window.partitionBy('member_id').orderBy(
+            ['member_id', 'date_start']
+            )
+
+        lag_df = dfs_input['member_time'].withColumn(
+            'is_laggy',
+            F.when(
+                (F.datediff(
+                    F.col('date_start'),
+                    F.lag(F.col('date_end')).over(member_time_window)
+                    ) - F.lit(1)) >= 45,
+                F.lit(1)
+                ).otherwise(
+                    F.lit(0)
+                )
+            )
+
+        member_no_gaps_df = lag_df.groupBy('member_id').agg(
+            F.sum(F.col('is_laggy')).alias('too_laggy')
+            ).where(
+                F.col('too_laggy') <= 1
+            )
+
+        member_no_gaps_df.join(
+            dfs_input['member_time'],
+            ['member_id'],
+            'inner'
+            ).view()
+
+        # no more than one gap (<=45 days) in enrollment
 
         pass
 
@@ -58,8 +149,14 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------
     from pathlib import Path
     from pyspark.sql import SQLContext
+
+    performance_yearstart = datetime.datetime(2018, 1, 1)
+
+    ref_claims_path = r"C:\Users\Demerrick.Moton\repos\ebm-hedis-etc\references\_data\hedis_codes.csv"
+    ref_rx_path = r"C:\Users\Demerrick.Moton\repos\ebm-hedis-etc\references\_data\hedis_ndc_codes.csv"
+
     sqlContext = SQLContext(sparkapp.session.sparkContext)
-    input_dfs = {
+    dfs_input = {
         "claims": sparkapp.load_df(
             PRM_META[(40, "out")] / "outclaims.parquet"
             ),
@@ -68,16 +165,13 @@ if __name__ == '__main__':
             ),
         "member": sparkapp.load_df(
             PRM_META[(35, "out")] / "member.parquet"
-            )
+            ),
+        "reference": sqlContext.read.csv(ref_claims_path, header=True),
+        "ndc": sqlContext.read.csv(ref_rx_path, header=True)
         }
 
-    ref_claims_path = r"C:\Users\Demerrick.Moton\repos\ebm-hedis-etc\references\_data\hedis_codes.csv"
-    ref_rx_path = r"C:\Users\Demerrick.Moton\repos\ebm-hedis-etc\references\_data\hedis_ndc_codes.csv"
-
-    reference_dfs = {
-        'claims': sqlContext.read.csv(ref_claims_path, header=True),
-        'rx': sqlContext.read.csv(ref_rx_path, header=True)
-        }
+    reference_dfs['claims'].groupBy('value_set_name').count().where(F.col('value_set_name').isin('Hospice')).view()
+    dfs_input['member'].view()
     # ------------------------------------------------------------------
     mma_decorator = MMA()
     result = mma_decorator.calc_decorator(DFS_INPUT_MED)
