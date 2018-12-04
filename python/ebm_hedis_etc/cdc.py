@@ -220,6 +220,34 @@ def _identify_med_event(
     ).distinct()
 
 
+def identify_a1c_tests(
+        eligible_members: DataFrame,
+        claims_df: DataFrame,
+        reference_df: DataFrame,
+        performance_yearstart: datetime.date
+) -> DataFrame:
+    """Identify members with HbA1c testing during the performance year"""
+    claims_df.join(
+        eligible_members,
+        'member_id',
+        how='inner'
+    ).where(
+        spark_funcs.col('fromdate').between(
+            spark_funcs.lit(performance_yearstart),
+            spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31))
+        )
+    ).join(
+        reference_df.where(
+            spark_funcs.col('value_set_name').isin('HbA1c Tests')
+            & spark_funcs.col('code_system').contains('CPT')
+        ),
+        spark_funcs.col('hcpcs') == spark_funcs.col('code'),
+        how='inner'
+    ).select(
+        'member_id'
+    ).distinct()
+
+
 class CDC(QualityMeasure):
     """Object to house logic to calculate comprehensive diabetes care measures"""
     def _calc_measure(
@@ -297,5 +325,12 @@ class CDC(QualityMeasure):
         ).select(
             'member_id'
         ).distinct()
+
+        hba1c_testing_df = identify_a1c_tests(
+            eligible_members_no_gaps_df,
+            dfs_input['claims'],
+            reference_df,
+            performance_yearstart
+        )
 
         return results_df
