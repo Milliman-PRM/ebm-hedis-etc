@@ -227,7 +227,7 @@ def identify_a1c_tests(
         performance_yearstart: datetime.date
 ) -> DataFrame:
     """Identify members with HbA1c testing during the performance year"""
-    claims_df.join(
+    return claims_df.join(
         eligible_members,
         'member_id',
         how='inner'
