@@ -605,6 +605,37 @@ def identify_eye_exam(
     ).distinct()
 
 
+def create_output_table(
+        members: DataFrame,
+        denominator: DataFrame,
+        numerator: DataFrame,
+        measure_name: str
+) -> DataFrame:
+    """Prep numerator and denominator information for appropriate output format"""
+    return members.join(
+        denominator,
+        'member_id',
+        how='inner'
+    ).join(
+        numerator,
+        members.member_id == numerator.member_id,
+        how='left_outer'
+    ).select(
+        members.member_id,
+        spark_funcs.lit(measure_name).alias('comp_quality_short'),
+        spark_funcs.when(
+            numerator.member_id.isNotNull(),
+            spark_funcs.lit(1)
+        ).otherwise(
+            spark_funcs.lit(0)
+        ).alias('comp_quality_numerator'),
+        spark_funcs.lit(1).alias('comp_quality_denominator'),
+        spark_funcs.lit(None).cast('date').alias('comp_quality_date_last'),
+        spark_funcs.lit(None).cast('date').alias('comp_quality_date_actionable'),
+        spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+    )
+
+
 class CDC(QualityMeasure):
     """Object to house logic to calculate comprehensive diabetes care measures"""
     def _calc_measure(
@@ -706,4 +737,31 @@ class CDC(QualityMeasure):
             performance_yearstart
         )
 
-        return results_df
+        hba1c_output_df = create_output_table(
+            dfs_input['member'],
+            eligible_members_no_gaps_df,
+            hba1c_testing_df,
+            'CDC: HBA1C'
+        )
+
+        eye_exam_output_df = create_output_table(
+            dfs_input['member'],
+            eligible_members_no_gaps_df,
+            eye_exam_df,
+            'CDC: EYE'
+        )
+
+        nephropathy_output_df = create_output_table(
+            dfs_input['member'],
+            eligible_members_no_gaps_df,
+            nephropathy_df,
+            'CDC: NEP'
+        )
+
+        return hba1c_output_df.union(
+            eye_exam_output_df
+        ).union(
+            nephropathy_output_df
+        ).orderBy(
+            'member_id'
+        )
