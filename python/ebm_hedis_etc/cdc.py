@@ -511,6 +511,50 @@ def identify_eye_exam(
         ),
         spark_funcs.col('hcpcs') == spark_funcs.col('code'),
         how='inner'
+    ).where(
+        spark_funcs.col('modifier').isin('50')| spark_funcs.col('modifier2').isin('50')
+    ).select(
+        'member_id'
+    ).distinct()
+
+    two_unilateral_pre_df = restricted_claims_df.select(
+        'member_id',
+        'fromdate',
+        restricted_claims_df.icdversion,
+        spark_funcs.explode(
+            spark_funcs.array(
+                [spark_funcs.col(col) for col in restricted_claims_df.columns if
+                 col.find('icdproc') > -1]
+            )
+        ).alias('proc')
+    ).join(
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('Unilateral Eye Enucleation Left')
+            )
+        ),
+        [
+            restricted_claims_df.icdversion == reference_df.icdversion,
+            spark_funcs.col('proc') == spark_funcs.col('code')
+        ],
+        how='inner'
+    )
+
+    two_unilateral_df = two_unilateral_pre_df.join(
+        two_unilateral_pre_df.select(
+            spark_funcs.col('member_id').alias('join_member_id'),
+            spark_funcs.col('fromdate').alias('join_fromdate'),
+            spark_funcs.col('value_set_name').alias('join_value_set_name')
+        ),
+        [
+            spark_funcs.col('member_id') == spark_funcs.col('join_member_id'),
+            spark_funcs.col('value_set_name') == spark_funcs.col('join_value_set_name'),
+            spark_funcs.datediff(
+                spark_funcs.col('join_fromdate'),
+                spark_funcs.col('fromdate')
+            ) >= 14
+        ],
+        how='inner'
     ).select(
         'member_id'
     ).distinct()
@@ -555,8 +599,11 @@ def identify_eye_exam(
     ).union(
         bilateral_df
     ).union(
+        two_unilateral_df
+    ).union(
         left_and_right_df
     ).distinct()
+
 
 class CDC(QualityMeasure):
     """Object to house logic to calculate comprehensive diabetes care measures"""
