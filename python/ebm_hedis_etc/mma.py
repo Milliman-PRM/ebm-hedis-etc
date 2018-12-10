@@ -34,53 +34,69 @@ class MMA(QualityMeasure):
             performance_yearstart=datetime.date,
         ):
         # set timeline variables
-        measurement_date_start = performance_yearstart.date()
         measurement_date_end = datetime.date(
-            measurement_date_start.year,
+            performance_yearstart.year,
             12,
             31
         )
 
         # filter to relevant value sets and diagnoses
-        value_set_df = dfs_input['reference'].where(
+
+        visit_valueset_df = dfs_input['reference'].where(
             F.col('value_set_name').rlike(r'\bED\b') |
             F.col('value_set_name').rlike(r'Acute Inpatient') |
             F.col('value_set_name').rlike(r'Outpatient') |
             F.col('value_set_name').rlike(r'Observation')
-            ).groupBy('code').count().join(
-                dfs_input['reference'],
-                'code',
-                'inner'
+            ).select(
+                F.col('value_set_name').alias('visit_valueset_name'),
+                F.col('code_system').alias('visit_codesystem'),
+                F.col('code').alias('visit_code')
             )
 
-        claims_value_set = value_set_df.join(
-            dfs_input['claims'],
-            dfs_input['claims'].revcode == value_set_df.code,
+        diagnosis_valueset_df = dfs_input['reference'].where(
+            F.col('value_set_name').rlike('Asthma')
+        ).select(
+            F.col('value_set_name').alias('diagnosis_valueset_name'),
+            F.col('code_system').alias('diagnosis_codesystem'),
+            F.col('code').alias('diagnosis_code')
+        )
+
+        filtered_claims_df = dfs_input['claims'].join(
+            diagnosis_valueset_df,
+            [
+                dfs_input['claims'].icdversion == F.regexp_extract(
+                    diagnosis_valueset_df.diagnosis_codesystem,
+                    '\d+',
+                    0
+                    ),
+                dfs_input['claims'].icddiag1 == F.regexp_replace(
+                    diagnosis_valueset_df.diagnosis_code,
+                    '\.',
+                    ''
+                )
+            ],
             'inner'
-        ).withColumn(
-            'value_set_icddiag',
-            F.explode(
-                F.array(
-                    [F.col(col_name) for col_name in
-                     dfs_input['claims'].columns if 'icddiag' in col_name]
-                )
-            )
-        ).withColumn(
-            'value_set_icdproc',
-            F.explode(
-                F.array(
-                    [F.col(col_name) for col_name in
-                     dfs_input['claims'].columns if 'icdproc' in col_name]
-                )
-            )
+        ).join(
+            visit_valueset_df.where(
+                F.col('code_system') == 'UBREV'
+            ),
+            F.col('revcode') == visit_valueset_df.visit_code,
+            'inner'
         )
 
-        claims_value_set.withColumn(
-            'is_elig',
-            F.where(
+        asthma_controller_meds = [
+            'Antiasthmatic combinations',
+            'Antibody inhibitor',
+            'Inhaled steroid combinations',
+            'Inhaled corticosteroids',
+            'Leukotriene modifiers',
+            'Mast cell stabilizers',
+            'Methylxanthines'
+        ]
 
-            )
-        )
+        asthma_reliever_meds = [
+            'Short-acting inhaled beta-2 agonists'
+        ]
 
         # find eligible population
         population_df = dfs_input['member'].where(
@@ -94,8 +110,7 @@ class MMA(QualityMeasure):
             'left_outer'
         )
 
-        # exclude hospice
-        no_hospice = reference_dfs['claims'].where(F.col('value_set_name') != 'Hospice')
+
 
         member_time_window = Window.partitionBy('member_id').orderBy(
             ['member_id', 'date_start']
@@ -125,6 +140,9 @@ class MMA(QualityMeasure):
             ['member_id'],
             'inner'
             ).view()
+
+        # exclusions
+        no_hospice = reference_dfs['claims'].where(F.col('value_set_name') != 'Hospice')
 
         # no more than one gap (<=45 days) in enrollment
 
