@@ -33,6 +33,7 @@ class MMA(QualityMeasure):
             dfs_input: "typing.Mapping[str, DataFrame]",
             performance_yearstart=datetime.date,
         ):
+
         # set timeline variables
         measurement_date_end = datetime.date(
             performance_yearstart.year,
@@ -40,8 +41,17 @@ class MMA(QualityMeasure):
             31
         )
 
-        # filter to relevant value sets and diagnoses
+        # value set exclusion
+        exclusion_valueset_df = dfs_input['reference'].where(
+            F.col('value_set_name').rlike(r'Emphysema') |
+            F.col('value_set_name').rlike(r'COPD') |
+            F.col('value_set_name').rlike(r'Obstructive Chronic Bronchitis') |
+            F.col('value_set_name').rlike(r'Chronic Respiratory Conditions') |
+            F.col('value_set_name').rlike(r'Cystic Fibrosis') |
+            F.col('value_set_name').rlike(r'Acute Respiratory Failure')
+        )
 
+        # filter to relevant value sets and diagnoses
         visit_valueset_df = dfs_input['reference'].where(
             F.col('value_set_name').rlike(r'\bED\b') |
             F.col('value_set_name').rlike(r'Acute Inpatient') |
@@ -54,33 +64,84 @@ class MMA(QualityMeasure):
             )
 
         diagnosis_valueset_df = dfs_input['reference'].where(
-            F.col('value_set_name').rlike('Asthma')
-        ).select(
-            F.col('value_set_name').alias('diagnosis_valueset_name'),
-            F.col('code_system').alias('diagnosis_codesystem'),
-            F.col('code').alias('diagnosis_code')
+                F.col('value_set_name').rlike('Asthma')
+            ).select(
+                F.col('value_set_name').alias('diagnosis_valueset_name'),
+                F.col('code_system').alias('diagnosis_codesystem'),
+                F.col('code').alias('diagnosis_code')
+            )
+
+        filtered_med_claims_df = dfs_input['claims'].join(
+                diagnosis_valueset_df,
+                [
+                    dfs_input['claims'].icdversion == F.regexp_extract(
+                        diagnosis_valueset_df.diagnosis_codesystem,
+                        '\d+',
+                        0
+                        ),
+                    dfs_input['claims'].icddiag1 == F.regexp_replace(
+                        diagnosis_valueset_df.diagnosis_code,
+                        '\.',
+                        ''
+                    )
+                ],
+                'inner'
+            ).join(
+                visit_valueset_df.where(
+                    F.col('code_system') == 'UBREV'
+                ),
+                F.col('revcode') == visit_valueset_df.visit_code,
+                'inner'
+            )
+
+        # age exclusion
+        population_df = dfs_input['member'].where(
+            F.abs(
+                F.year(F.col('dob')) - F.year(F.lit(measurement_date_end))
+            ).between(5,64)
+        ).join(
+            dfs_input['member_time'].where(
+                F.col('cover_medical') == 'Y'
+                ),
+            ['member_id'],
+            'left_outer'
         )
 
-        filtered_claims_df = dfs_input['claims'].join(
-            diagnosis_valueset_df,
-            [
-                dfs_input['claims'].icdversion == F.regexp_extract(
-                    diagnosis_valueset_df.diagnosis_codesystem,
-                    '\d+',
-                    0
-                    ),
-                dfs_input['claims'].icddiag1 == F.regexp_replace(
-                    diagnosis_valueset_df.diagnosis_code,
-                    '\.',
-                    ''
+        # gap exclusions
+        member_time_window = Window.partitionBy('member_id').orderBy(
+            ['member_id', 'date_start']
+            )
+
+        gaps_df = population_df.withColumn(
+            'gap_exists',
+            F.when(
+                (F.datediff(
+                    F.col('date_start'),
+                    F.lag(F.col('date_end')).over(member_time_window)
+                    ) - F.lit(1)) >= 45,
+                True
+                ).otherwise(
+                    False
                 )
-            ],
-            'inner'
-        ).join(
-            visit_valueset_df.where(
-                F.col('code_system') == 'UBREV'
-            ),
-            F.col('revcode') == visit_valueset_df.visit_code,
+            )
+
+        gap_exclusions_df = gaps_df.groupBy(['gap_exists', 'member_id']).count().where(
+            F.col('gap_exists') & (F.col('count') > 1)
+            ).join(
+                gaps_df,
+                ['gap_exists', 'member_id'],
+                'left_outer'
+            )
+
+        filtered_members_df = population_df.join(
+            gap_exclusions_df,
+            'member_id',
+            'left_anti'
+            )
+
+        filtered_df = filtered_members_df.join(
+            filtered_med_claims_df,
+            'member_id',
             'inner'
         )
 
@@ -98,55 +159,114 @@ class MMA(QualityMeasure):
             'Short-acting inhaled beta-2 agonists'
         ]
 
-        # find eligible population
-        population_df = dfs_input['member'].where(
-            # select members aged 5 - 64
-            F.abs(
-                F.year(F.col('dob')) - F.year(F.lit(measurement_date_end))
-            ).between(5,64)
-        ).join(
-            dfs_input['member_time'],
-            ['member_id'],
-            'left_outer'
+        controller_meds_df = dfs_input['ndc'].where(
+            F.col('description').isin(asthma_controller_meds)
+        ).withColumn(
+            'medication_type',
+            F.lit('controller')
         )
 
+        reliever_meds_df = dfs_input['ndc'].where(
+            F.col('description').isin(asthma_reliever_meds)
+        ).withColumn(
+            'medication_type',
+            F.lit('reliever')
+        )
 
-
-        member_time_window = Window.partitionBy('member_id').orderBy(
-            ['member_id', 'date_start']
-            )
-
-        lag_df = dfs_input['member_time'].withColumn(
-            'is_laggy',
-            F.when(
-                (F.datediff(
-                    F.col('date_start'),
-                    F.lag(F.col('date_end')).over(member_time_window)
-                    ) - F.lit(1)) >= 45,
-                F.lit(1)
-                ).otherwise(
-                    F.lit(0)
-                )
-            )
-
-        member_no_gaps_df = lag_df.groupBy('member_id').agg(
-            F.sum(F.col('is_laggy')).alias('too_laggy')
-            ).where(
-                F.col('too_laggy') <= 1
-            )
-
-        member_no_gaps_df.join(
-            dfs_input['member_time'],
-            ['member_id'],
+        filtered_rx_claims_df = dfs_input['rx_claims'].join(
+            controller_meds_df,
+            F.col('ndc') == controller_meds_df.ndc_code,
             'inner'
-            ).view()
+        ).union(
+            dfs_input['rx_claims'].join(
+                reliever_meds_df,
+                F.col('ndc') == controller_meds_df.ndc_code,
+                'inner'
+            )
+        )
 
-        # exclusions
-        no_hospice = reference_dfs['claims'].where(F.col('value_set_name') != 'Hospice')
+        filtered_rx_df = filtered_members_df.join(
+            filtered_rx_claims_df,
+            'member_id',
+            'inner'
+        )
 
-        # no more than one gap (<=45 days) in enrollment
+        # filter claims data by event
+        event_df = filtered_df.groupBy(
+            ['member_id', 'visit_valueset_name',
+             'diagnosis_valueset_name', 'fromdate']
+        ).count()
 
-        pass
+        event_rx_df = filtered_rx_df.groupBy(
+            ['member_id', 'ndc', 'fromdate', 'medication_type']
+        ).count()
+
+        ed_event_df = event_df.withColumn(
+            'is_elig',
+            F.when(
+                F.col('visit_valueset_name').rlike(r'\bED\b') &
+                F.col('diagnosis_valueset_name').rlike(r'Asthma') &
+                (F.col('count') >= 1),
+                True
+            ).otherwise(False)
+        )
+
+        acute_inp_event_df = event_df.withColumn(
+            'is_elig',
+            F.when(
+                F.col('visit_valueset_name').rlike(r'Acute Inpatient') &
+                F.col('diagnosis_valueset_name').rlike(r'Asthma') &
+                (F.col('count') >= 1),
+                True
+            ).otherwise(False)
+        )
+
+        out_obs_event_df_1 = event_df.where(
+            (F.col('visit_valueset_name').rlike(r'Outpatient') |
+            F.col('visit_valueset_name').rlike(r'Observation')) &
+            F.col('diagnosis_valueset_name').rlike(r'Asthma')
+        ).groupBy('member_id').agg(
+            F.count('*').alias('unique_service_dates')
+        ).join(
+            event_df,
+            'member_id',
+            'left_outer'
+        ).withColumn(
+            'is_elig',
+            F.when(
+                F.col('unique_service_dates') >= 4,
+                True
+            ).otherwise(False)
+        )
+
+        out_obs_event_df_2 = event_rx_df.groupBy('member_id').agg(
+            F.count('*').alias('unique_disp_event')
+        ).join(
+            filtered_rx_df,
+            'member_id',
+            'left_outer'
+        ).withColumn(
+            'is_elig',
+            F.when(
+                F.col('unique_disp_event') >= 2,
+                True
+            ).otherwise(False)
+        )
+
+        asthma_disp_event_df = event_rx_df.groupBy('member_id').agg(
+            F.count('*').alias('unique_disp_event')
+        ).join(
+            filtered_rx_df,
+            'member_id',
+            'left_outer'
+        ).withColumn(
+            'is_elig',
+            F.when(
+                F.col('unique_disp_event') >= 4,
+                True
+            ).otherwise(False)
+        )
+
 
 
 if __name__ == '__main__':
@@ -180,6 +300,9 @@ if __name__ == '__main__':
             ),
         "member_time": sparkapp.load_df(
             PRM_META[(35, "out")] / "member_time.parquet"
+            ),
+        'rx_claims': sparkapp.load_df(
+            PRM_META[40, 'out'] / 'outpharmacy.parquet'
             ),
         "member": sparkapp.load_df(
             PRM_META[(35, "out")] / "member.parquet"
