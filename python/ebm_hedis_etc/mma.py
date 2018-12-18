@@ -26,41 +26,18 @@ LOGGER = logging.getLogger(__name__)
 
 
 
-class MMA(QualityMeasure):
-    """Class for MMA implementation"""
-    def _calc_measure(
-            self,
-            dfs_input: "typing.Mapping[str, DataFrame]",
-            performance_yearstart=datetime.date,
-        ):
 
-        # set timeline variables
-        measurement_date_end = datetime.date(
-            performance_yearstart.year,
-            12,
-            31
-        )
-
-        # value set exclusion
-        exclusion_valueset_df = dfs_input['reference'].where(
-            F.col('value_set_name').rlike(r'Emphysema') |
-            F.col('value_set_name').rlike(r'COPD') |
-            F.col('value_set_name').rlike(r'Obstructive Chronic Bronchitis') |
-            F.col('value_set_name').rlike(r'Chronic Respiratory Conditions') |
-            F.col('value_set_name').rlike(r'Cystic Fibrosis') |
-            F.col('value_set_name').rlike(r'Acute Respiratory Failure')
-        )
-
-        # filter to relevant value sets and diagnoses
+def _initial_filtering(dfs_input, measurement_date_end):
+        # filter down to relevant value sets and diagnoses
         visit_valueset_df = dfs_input['reference'].where(
             F.col('value_set_name').rlike(r'\bED\b') |
             F.col('value_set_name').rlike(r'Acute Inpatient') |
             F.col('value_set_name').rlike(r'Outpatient') |
             F.col('value_set_name').rlike(r'Observation')
         ).select(
-                F.col('value_set_name').alias('visit_valueset_name'),
-                F.col('code_system').alias('visit_codesystem'),
-                F.col('code').alias('visit_code')
+            F.col('value_set_name').alias('visit_valueset_name'),
+            F.col('code_system').alias('visit_codesystem'),
+            F.col('code').alias('visit_code')
         )
 
         diagnosis_valueset_df = dfs_input['reference'].where(
@@ -71,7 +48,7 @@ class MMA(QualityMeasure):
             F.col('code').alias('diagnosis_code')
         )
 
-        filtered_med_claims_df = dfs_input['claims'].join(
+        med_df = dfs_input['claims'].join(
             diagnosis_valueset_df,
             [
                 dfs_input['claims'].icdversion == F.regexp_extract(
@@ -91,57 +68,6 @@ class MMA(QualityMeasure):
                 F.col('code_system') == 'UBREV'
             ),
             F.col('revcode') == visit_valueset_df.visit_code,
-            'inner'
-        )
-
-        # age exclusion
-        population_df = dfs_input['member'].where(
-            F.abs(
-                F.year(F.col('dob')) - F.year(F.lit(measurement_date_end))
-            ).between(5,64)
-        ).join(
-            dfs_input['member_time'].where(
-                F.col('cover_medical') == 'Y'
-                ),
-            ['member_id'],
-            'left_outer'
-        )
-
-        # gap exclusions
-        member_time_window = Window.partitionBy('member_id').orderBy(
-            ['member_id', 'date_start']
-        )
-
-        gaps_df = population_df.withColumn(
-            'gap_exists',
-            F.when(
-                (F.datediff(
-                    F.col('date_start'),
-                    F.lag(F.col('date_end')).over(member_time_window)
-                    ) - F.lit(1)) >= 45,
-                True
-                ).otherwise(
-                    False
-                )
-        )
-
-        gap_exclusions_df = gaps_df.groupBy(['gap_exists', 'member_id']).count().where(
-            F.col('gap_exists') & (F.col('count') > 1)
-        ).join(
-            gaps_df,
-            ['gap_exists', 'member_id'],
-            'left_outer'
-        )
-
-        filtered_members_df = population_df.join(
-            gap_exclusions_df,
-            'member_id',
-            'left_anti'
-        )
-
-        filtered_claims_df = filtered_members_df.join(
-            filtered_med_claims_df,
-            'member_id',
             'inner'
         )
 
@@ -173,7 +99,7 @@ class MMA(QualityMeasure):
             F.lit('reliever')
         )
 
-        filtered_rx_claims_df = dfs_input['rx_claims'].join(
+        rx_df = dfs_input['rx_claims'].join(
             controller_meds_df,
             F.col('ndc') == controller_meds_df.ndc_code,
             'inner'
@@ -185,179 +111,376 @@ class MMA(QualityMeasure):
             )
         )
 
-        filtered_rx_df = filtered_members_df.join(
-            filtered_rx_claims_df,
-            'member_id',
+        members_df = dfs_input['member'].where(
+            F.abs(
+                F.year(F.col('dob')) - F.year(F.lit(measurement_date_end))
+            ).between(5,64)
+        ).join(
+            dfs_input['member_time'].where(
+                F.col('cover_medical') == 'Y'
+                ),
+            ['member_id'],
+            'left_outer'
+        )
+
+        return {
+            'med': med_df,
+            'rx': rx_df,
+            'members': members_df
+        }
+
+
+def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end):
+        # find members with at least more than 1 45 day gap in
+        # eligibility during meas. year
+        member_time_window = Window.partitionBy('member_id').orderBy(
+            ['member_id', 'date_start']
+        )
+
+        gap_exclusions_df = filtered_data_dict['members'].withColumn(
+            'gap_exists',
+            F.when(
+                (F.datediff(
+                    F.col('date_start'),
+                    F.lag(F.col('date_end')).over(member_time_window)
+                    ) - F.lit(1)) >= 45,
+                True
+                ).otherwise(
+                    False
+                )
+        ).groupBy(['gap_exists', 'member_id']).count().where(
+            F.col('gap_exists') & (F.col('count') > 1)
+        ).select('member_id')
+
+        # find members with any presense of certain diagnoses
+        excluded_diags_df = dfs_input['reference'].where(
+            F.col('value_set_name').rlike(r'Emphysema') |
+            F.col('value_set_name').rlike(r'COPD') |
+            F.col('value_set_name').rlike(r'Obstructive Chronic Bronchitis') |
+            F.col('value_set_name').rlike(r'Chronic Respiratory Conditions') |
+            F.col('value_set_name').rlike(r'Cystic Fibrosis') |
+            F.col('value_set_name').rlike(r'Acute Respiratory Failure')
+        )
+
+        valueset_exclusions_df = dfs_input['claims'].join(
+            excluded_diags_df,
+            [
+                dfs_input['claims'].icdversion == F.regexp_extract(
+                    excluded_diags_df.code_system,
+                    '\d+',
+                    0
+                ),
+                dfs_input['claims'].icddiag1 == F.regexp_replace(
+                    excluded_diags_df.code,
+                    '\.',
+                    ''
+                )
+            ],
             'inner'
-        )
+        ).where(
+            F.datediff(
+                F.col('fromdate'),
+                F.lit(measurement_date_end)
+            ) <= 0
+        ).select('member_id')
 
-        # filter claims data by event
-        event_med_df = filtered_claims_df.groupBy(
-            ['member_id', 'visit_valueset_name',
-             'diagnosis_valueset_name', 'fromdate']
-        ).count()
+        # find members who had no asthma controller medications dispensed
+        # during the measurement year.
+        controller_exclusions_df = filtered_rx_df.groupBy(
+            ['member_id', 'fromdate']
+        ).agg(
+            F.collect_set('medication_type').alias('med_types')
+        ).where(
+            ~F.array_contains(F.col('med_types'), 'controller') &
+            F.col('fromdate').between(
+                F.lit(
+                    datetime.date(
+                        measurement_date_end.year - 1,
+                        12,
+                        31
+                    )
+                ),
+                F.lit(measurement_date_end)
+            )
+        ).select('member_id')
 
-        event_rx_df = filtered_rx_df.groupBy(
-            ['member_id', 'ndc', 'fromdate', 'medication_type']
-        ).count()
-
-        ed_event_df = event_med_df.withColumn(
-            'is_elig',
-            F.when(
-                F.col('visit_valueset_name').rlike(r'\bED\b') &
-                F.col('diagnosis_valueset_name').rlike(r'Asthma') &
-                (F.col('count') >= 1),
-                True
-            ).otherwise(False)
-        ).select(
-            F.col('member_id'),
-            F.col('is_elig')
-        )
-
-        acute_inp_event_df = event_med_df.withColumn(
-            'is_elig',
-            F.when(
-                F.col('visit_valueset_name').rlike(r'Acute Inpatient') &
-                F.col('diagnosis_valueset_name').rlike(r'Asthma') &
-                (F.col('count') >= 1),
-                True
-            ).otherwise(False)
-        ).select(
-            F.col('member_id'),
-            F.col('is_elig')
-        )
-
-        out_obs_event_med_df = event_med_df.where(
-            (F.col('visit_valueset_name').rlike(r'Outpatient') |
-            F.col('visit_valueset_name').rlike(r'Observation')) &
-            F.col('diagnosis_valueset_name').rlike(r'Asthma')
-        ).groupBy('member_id').agg(
-            F.count('*').alias('unique_service_dates')
-        ).join(
-            event_med_df,
-            'member_id',
-            'left_outer'
-        ).withColumn(
-            'is_elig',
-            F.when(
-                F.col('unique_service_dates') >= 4,
-                True
-            ).otherwise(False)
-        ).select(
-            F.col('member_id'),
-            F.col('is_elig')
-        )
-
-        out_obs_event_rx_df = event_rx_df.groupBy('member_id').agg(
-            F.count('*').alias('unique_disp_event')
-        ).join(
-            event_rx_df,
-            'member_id',
-            'left_outer'
-        ).withColumn(
-            'is_elig',
-            F.when(
-                F.col('unique_disp_event') >= 2,
-                True
-            ).otherwise(False)
-        ).select(
-            F.col('member_id'),
-            F.col('is_elig')
-        )
-
-        asthma_disp_event_df = event_rx_df.groupBy('member_id').agg(
-            F.count('*').alias('unique_disp_event')
-        ).join(
-            event_rx_df,
-            'member_id',
-            'left_outer'
-        ).withColumn(
-            'is_elig',
-            F.when(
-                F.col('unique_disp_event') >= 4,
-                True
-            ).otherwise(False)
-        ).select(
-            F.col('member_id'),
-            F.col('is_elig')
-        )
-
-        elig_members_df = ed_event_df.union(
-            acute_inp_event_df
+        exclusions_df = gap_exclusions_df.union(
+            valueset_exclusions_df
         ).union(
-            out_obs_event_med_df
-        ).union(
-            out_obs_event_rx_df
-        ).union(
-            asthma_disp_event_df
+            controller_exclusions_df
         ).distinct()
 
-        included_year1_df = filtered_rx_df.withColumn(
-            'year',
-            F.year(F.col('fromdate'))
-        ).where(
-            F.col('year') == performance_yearstart.year
-        ).groupBy('member_id').agg(
-            F.collect_set(F.col('description')).alias('rx_types')
-        ).withColumn(
-            'is_included',
-            F.when(
-                (F.array_contains(F.col('rx_types'), 'Leukotriene modifiers') &
-                F.array_contains(F.col('rx_types'), 'Antibody inhibitor')) &
-                (F.size(F.col('rx_types')) == F.lit(2)),
-                True
-            ).otherwise(False)
-        ).where(
-            F.col('is_included') == True
-        ).join(
-            filtered_rx_df,
-            'member_id'
-        ).groupBy('member_id').count().where(
-            F.col('count') >= 4
-        ).select(
-            F.col('member_id')
+        members_df = filtered_data_dict['members'].join(
+            exclusions_df,
+            'member_id',
+            'left_anti'
         )
 
-        included_year2_df = filtered_rx_df.withColumn(
-            'year',
-            F.year(F.col('fromdate'))
-        ).where(
-            F.col('year') == performance_yearstart.year
-        ).groupBy('member_id').agg(
-            F.collect_set(F.col('description')).alias('rx_types')
-        ).withColumn(
-            'is_included',
-            F.when(
-                (F.array_contains(F.col('rx_types'), 'Leukotriene modifiers') &
-                F.array_contains(F.col('rx_types'), 'Antibody inhibitor')) &
-                (F.size(F.col('rx_types')) == F.lit(2)),
-                True
-            ).otherwise(False)
-        ).where(
-            F.col('is_included') == True
-        ).join(
-            filtered_rx_df,
-            'member_id'
-        ).groupBy('member_id').count().where(
-            F.col('count') >= 4
-        ).select(
-            F.col('member_id')
-        )
-
-        included_df = included_year1_df.union(
-            included_year2_df
-        )
-
-        included_diag_df = included_df.join(
-            filtered_claims_df.select(
-                F.col('member_id'),
-                F.col('diagnosis_valueset_name')
-            ),
+        med_df = members_df.join(
+            filtered_data_dict['med'],
             'member_id',
             'inner'
-        ).where(
-             F.col('diagnosis_valueset_name').rlike('Asthma')
         )
+
+        rx_df = members_df.join(
+            filtered_data_dict['rx'],
+            'member_id',
+            'inner'
+        )
+
+        return {
+            'med': med_df,
+            'rx': rx_df,
+            'members': members_df
+        }
+
+
+def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
+    # filter claims data by event
+    med_event_df = exc_filtered_data_dict['med'].groupBy(
+        ['member_id', 'visit_valueset_name',
+         'diagnosis_valueset_name', 'fromdate']
+    ).count()
+
+    rx_event_df = exc_filtered_data_dict['rx'].groupBy(
+        ['member_id', 'ndc', 'fromdate', 'medication_type']
+    ).count()
+
+    ed_event_df = med_event_df.withColumn(
+        'is_elig',
+        F.when(
+            F.col('visit_valueset_name').rlike(r'\bED\b') &
+            F.col('diagnosis_valueset_name').rlike(r'Asthma') &
+            (F.col('count') >= 1),
+            True
+        ).otherwise(False)
+    ).select(
+        F.col('member_id'),
+        F.col('is_elig')
+    )
+
+    acute_inp_event_df = med_event_df.withColumn(
+        'is_elig',
+        F.when(
+            F.col('visit_valueset_name').rlike(r'Acute Inpatient') &
+            F.col('diagnosis_valueset_name').rlike(r'Asthma') &
+            (F.col('count') >= 1),
+            True
+        ).otherwise(False)
+    ).select(
+        F.col('member_id'),
+        F.col('is_elig')
+    )
+
+    out_obs_event_med_df = med_event_df.where(
+        (F.col('visit_valueset_name').rlike(r'Outpatient') |
+        F.col('visit_valueset_name').rlike(r'Observation')) &
+        F.col('diagnosis_valueset_name').rlike(r'Asthma')
+    ).groupBy('member_id').agg(
+        F.count('*').alias('unique_service_dates')
+    ).join(
+        med_event_df,
+        'member_id',
+        'left_outer'
+    ).withColumn(
+        'is_elig',
+        F.when(
+            F.col('unique_service_dates') >= 4,
+            True
+        ).otherwise(False)
+    ).select(
+        F.col('member_id'),
+        F.col('is_elig')
+    )
+
+    out_obs_event_rx_df = rx_event_df.groupBy('member_id').agg(
+        F.count('*').alias('unique_disp_event')
+    ).join(
+        rx_event_df,
+        'member_id',
+        'left_outer'
+    ).withColumn(
+        'is_elig',
+        F.when(
+            F.col('unique_disp_event') >= 2,
+            True
+        ).otherwise(False)
+    ).select(
+        F.col('member_id'),
+        F.col('is_elig')
+    )
+
+    asthma_disp_event_df = rx_event_df.groupBy('member_id').agg(
+        F.count('*').alias('unique_disp_event')
+    ).join(
+        rx_event_df,
+        'member_id',
+        'left_outer'
+    ).withColumn(
+        'is_elig',
+        F.when(
+            F.col('unique_disp_event') >= 4,
+            True
+        ).otherwise(False)
+    ).select(
+        F.col('member_id'),
+        F.col('is_elig')
+    )
+
+    included_year1_df = exc_filtered_data_dict['rx'].withColumn(
+        'year',
+        F.year(F.col('fromdate'))
+    ).where(
+        F.col('year') == measurement_date_end.year - 1
+    ).groupBy('member_id').agg(
+        F.collect_set(F.col('description')).alias('rx_types')
+    ).withColumn(
+        'is_included',
+        F.when(
+            (F.array_contains(F.col('rx_types'), 'Leukotriene modifiers') &
+            F.array_contains(F.col('rx_types'), 'Antibody inhibitor')) &
+            (F.size(F.col('rx_types')) == F.lit(2)),
+            True
+        ).otherwise(False)
+    ).where(
+        F.col('is_included') == True
+    ).join(
+        exc_filtered_data_dict['rx'],
+        'member_id'
+    ).groupBy('member_id').count().where(
+        F.col('count') >= 4
+    ).select(
+        F.col('member_id')
+    )
+
+    included_year2_df = exc_filtered_data_dict['rx'].withColumn(
+        'year',
+        F.year(F.col('fromdate'))
+    ).where(
+        F.col('year') == performance_yearstart.year
+    ).groupBy('member_id').agg(
+        F.collect_set(F.col('description')).alias('rx_types')
+    ).withColumn(
+        'is_included',
+        F.when(
+            (F.array_contains(F.col('rx_types'), 'Leukotriene modifiers') &
+            F.array_contains(F.col('rx_types'), 'Antibody inhibitor')) &
+            (F.size(F.col('rx_types')) == F.lit(2)),
+            True
+        ).otherwise(False)
+    ).where(
+        F.col('is_included') == True
+    ).join(
+        exc_filtered_data_dict['rx'],
+        'member_id'
+    ).groupBy('member_id').count().where(
+        F.col('count') >= 4
+    ).select(
+        F.col('member_id')
+    )
+
+    included_df = included_year1_df.union(
+        included_year2_df
+    ).distinct()
+
+    included_diag_df = included_df.join(
+        exc_filtered_data_dict['med'].select(
+            F.col('member_id'),
+            F.col('diagnosis_valueset_name')
+        ),
+        'member_id',
+        'inner'
+    ).where(
+        F.col('diagnosis_valueset_name').rlike('Asthma')
+    ).select(
+        F.col('member_id')
+    ).withColumn(
+        'is_elig',
+        F.lit(True)
+    )
+
+    elig_members_df = ed_event_df.union(
+        acute_inp_event_df
+    ).union(
+        out_obs_event_med_df
+    ).union(
+        out_obs_event_rx_df
+    ).union(
+        asthma_disp_event_df
+    ).union(
+        included_diag_df
+    ).where(
+        F.col('is_elig') == True
+    ).select(
+        F.col('member_id')
+    ).distinct()
+
+    members_df = exc_filtered_data_dict['members'].join(
+        elig_members_df,
+        'member_id',
+        'left_outer'
+    )
+
+    med_df = exc_filtered_data_dict['med'].join(
+        members_df,
+        'member_id',
+        'left_outer'
+    )
+
+    rx_df = exc_filtered_data_dict['rx'].join(
+        members_df,
+        'member_id',
+        'left_outer'
+    )
+
+    return {
+        'med': med_df,
+        'rx': rx_df,
+        'members': members_df
+    }
+
+
+def calculate_denominator(dfs_input, measurement_date_end):
+    # do some general filtering
+    filtered_data_dict = _initial_filtering(
+        dfs_input,
+        measurement_date_end
+    )
+
+    # do some exclusionary filtering
+    exc_filtered_data_dict = _exclusionary_filtering(
+        dfs_input,
+        filtered_data_dict,
+        measurement_date_end
+    )
+
+    # do some filtering based on "events"
+    event_filtered_data_dict = _event_filtering(
+        dfs_input,
+        exc_filtered_data_dict,
+        measurement_date_end
+    )
+
+
+class MMA(QualityMeasure):
+    """Class for MMA implementation"""
+    def _calc_measure(
+            self,
+            dfs_input: "typing.Mapping[str, DataFrame]",
+            performance_yearstart=datetime.date,
+        ):
+
+        # set timeline variables
+        measurement_date_end = datetime.date(
+            performance_yearstart.year,
+            12,
+            31
+        )
+
+        denom = calculate_denominator(dfs_input, measurement_date_end)
+
+
+
 
 
 if __name__ == '__main__':
