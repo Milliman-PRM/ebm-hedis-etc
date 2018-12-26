@@ -10,6 +10,7 @@ import datetime
 import dateutil.relativedelta
 
 import pyspark.sql.functions as F
+import pyspark.sql.types as T
 from pyspark.sql.window import Window
 from pyspark.sql.dataframe import DataFrame
 from prm.dates.windows import decouple_common_windows
@@ -25,214 +26,212 @@ LOGGER = logging.getLogger(__name__)
 # =============================================================================
 
 
-
-
 def _initial_filtering(dfs_input, measurement_date_end):
-        # filter down to relevant value sets and diagnoses
-        visit_valueset_df = dfs_input['reference'].where(
-            F.col('value_set_name').rlike(r'\bED\b') |
-            F.col('value_set_name').rlike(r'Acute Inpatient') |
-            F.col('value_set_name').rlike(r'Outpatient') |
-            F.col('value_set_name').rlike(r'Observation')
-        ).select(
-            F.col('value_set_name').alias('visit_valueset_name'),
-            F.col('code_system').alias('visit_codesystem'),
-            F.col('code').alias('visit_code')
-        )
+    # filter down to relevant value sets and diagnoses
+    visit_valueset_df = dfs_input['reference'].where(
+        F.col('value_set_name').rlike(r'\bED\b') |
+        F.col('value_set_name').rlike(r'Acute Inpatient') |
+        F.col('value_set_name').rlike(r'Outpatient') |
+        F.col('value_set_name').rlike(r'Observation')
+    ).select(
+        F.col('value_set_name').alias('visit_valueset_name'),
+        F.col('code_system').alias('visit_codesystem'),
+        F.col('code').alias('visit_code')
+    )
 
-        diagnosis_valueset_df = dfs_input['reference'].where(
-            F.col('value_set_name').rlike('Asthma')
-        ).select(
-            F.col('value_set_name').alias('diagnosis_valueset_name'),
-            F.col('code_system').alias('diagnosis_codesystem'),
-            F.col('code').alias('diagnosis_code')
-        )
+    diagnosis_valueset_df = dfs_input['reference'].where(
+        F.col('value_set_name').rlike('Asthma')
+    ).select(
+        F.col('value_set_name').alias('diagnosis_valueset_name'),
+        F.col('code_system').alias('diagnosis_codesystem'),
+        F.col('code').alias('diagnosis_code')
+    )
 
-        med_df = dfs_input['claims'].join(
-            diagnosis_valueset_df,
-            [
-                dfs_input['claims'].icdversion == F.regexp_extract(
-                    diagnosis_valueset_df.diagnosis_codesystem,
-                    '\d+',
-                    0
-                    ),
-                dfs_input['claims'].icddiag1 == F.regexp_replace(
-                    diagnosis_valueset_df.diagnosis_code,
-                    '\.',
-                    ''
-                )
-            ],
-            'inner'
-        ).join(
-            visit_valueset_df.where(
-                F.col('code_system') == 'UBREV'
-            ),
-            F.col('revcode') == visit_valueset_df.visit_code,
-            'inner'
-        )
+    med_df = dfs_input['claims'].join(
+        diagnosis_valueset_df,
+        [
+            dfs_input['claims'].icdversion == F.regexp_extract(
+                diagnosis_valueset_df.diagnosis_codesystem,
+                '\d+',
+                0
+                ),
+            dfs_input['claims'].icddiag1 == F.regexp_replace(
+                diagnosis_valueset_df.diagnosis_code,
+                '\.',
+                ''
+            )
+        ],
+        'inner'
+    ).join(
+        visit_valueset_df.where(
+            F.col('code_system') == 'UBREV'
+        ),
+        F.col('revcode') == visit_valueset_df.visit_code,
+        'inner'
+    )
 
-        asthma_controller_meds = [
-            'Antiasthmatic combinations',
-            'Antibody inhibitor',
-            'Inhaled steroid combinations',
-            'Inhaled corticosteroids',
-            'Leukotriene modifiers',
-            'Mast cell stabilizers',
-            'Methylxanthines'
-        ]
+    asthma_controller_meds = [
+        'Antiasthmatic combinations',
+        'Antibody inhibitor',
+        'Inhaled steroid combinations',
+        'Inhaled corticosteroids',
+        'Leukotriene modifiers',
+        'Mast cell stabilizers',
+        'Methylxanthines'
+    ]
 
-        asthma_reliever_meds = [
-            'Short-acting inhaled beta-2 agonists'
-        ]
+    asthma_reliever_meds = [
+        'Short-acting inhaled beta-2 agonists'
+    ]
 
-        controller_meds_df = dfs_input['ndc'].where(
-            F.col('description').isin(asthma_controller_meds)
-        ).withColumn(
-            'medication_type',
-            F.lit('controller')
-        )
+    controller_meds_df = dfs_input['ndc'].where(
+        F.col('description').isin(asthma_controller_meds)
+    ).withColumn(
+        'medication_type',
+        F.lit('controller')
+    )
 
-        reliever_meds_df = dfs_input['ndc'].where(
-            F.col('description').isin(asthma_reliever_meds)
-        ).withColumn(
-            'medication_type',
-            F.lit('reliever')
-        )
+    reliever_meds_df = dfs_input['ndc'].where(
+        F.col('description').isin(asthma_reliever_meds)
+    ).withColumn(
+        'medication_type',
+        F.lit('reliever')
+    )
 
-        rx_df = dfs_input['rx_claims'].join(
-            controller_meds_df,
+    rx_df = dfs_input['rx_claims'].join(
+        controller_meds_df,
+        F.col('ndc') == controller_meds_df.ndc_code,
+        'inner'
+    ).union(
+        dfs_input['rx_claims'].join(
+            reliever_meds_df,
             F.col('ndc') == controller_meds_df.ndc_code,
             'inner'
-        ).union(
-            dfs_input['rx_claims'].join(
-                reliever_meds_df,
-                F.col('ndc') == controller_meds_df.ndc_code,
-                'inner'
-            )
         )
+    )
 
-        members_df = dfs_input['member'].where(
-            F.abs(
-                F.year(F.col('dob')) - F.year(F.lit(measurement_date_end))
-            ).between(5,64)
-        ).join(
-            dfs_input['member_time'].where(
-                F.col('cover_medical') == 'Y'
-                ),
-            ['member_id'],
-            'left_outer'
-        )
+    members_df = dfs_input['member'].where(
+        F.abs(
+            F.year(F.col('dob')) - F.year(F.lit(measurement_date_end))
+        ).between(5,64)
+    ).join(
+        dfs_input['member_time'].where(
+            F.col('cover_medical') == 'Y'
+            ),
+        ['member_id'],
+        'left_outer'
+    )
 
-        return {
-            'med': med_df,
-            'rx': rx_df,
-            'members': members_df
-        }
+    return {
+        'med': med_df,
+        'rx': rx_df,
+        'members': members_df
+    }
 
 
 def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end):
-        # find members with at least more than 1 45 day gap in
-        # eligibility during meas. year
-        member_time_window = Window.partitionBy('member_id').orderBy(
-            ['member_id', 'date_start']
-        )
+    # find members with at least more than 1 45 day gap in
+    # eligibility during meas. year
+    member_time_window = Window.partitionBy('member_id').orderBy(
+        ['member_id', 'date_start']
+    )
 
-        gap_exclusions_df = filtered_data_dict['members'].withColumn(
-            'gap_exists',
-            F.when(
-                (F.datediff(
-                    F.col('date_start'),
-                    F.lag(F.col('date_end')).over(member_time_window)
-                    ) - F.lit(1)) >= 45,
-                True
-                ).otherwise(
-                    False
-                )
-        ).groupBy(['gap_exists', 'member_id']).count().where(
-            F.col('gap_exists') & (F.col('count') > 1)
-        ).select('member_id')
-
-        # find members with any presense of certain diagnoses
-        excluded_diags_df = dfs_input['reference'].where(
-            F.col('value_set_name').rlike(r'Emphysema') |
-            F.col('value_set_name').rlike(r'COPD') |
-            F.col('value_set_name').rlike(r'Obstructive Chronic Bronchitis') |
-            F.col('value_set_name').rlike(r'Chronic Respiratory Conditions') |
-            F.col('value_set_name').rlike(r'Cystic Fibrosis') |
-            F.col('value_set_name').rlike(r'Acute Respiratory Failure')
-        )
-
-        valueset_exclusions_df = dfs_input['claims'].join(
-            excluded_diags_df,
-            [
-                dfs_input['claims'].icdversion == F.regexp_extract(
-                    excluded_diags_df.code_system,
-                    '\d+',
-                    0
-                ),
-                dfs_input['claims'].icddiag1 == F.regexp_replace(
-                    excluded_diags_df.code,
-                    '\.',
-                    ''
-                )
-            ],
-            'inner'
-        ).where(
-            F.datediff(
-                F.col('fromdate'),
-                F.lit(measurement_date_end)
-            ) <= 0
-        ).select('member_id')
-
-        # find members who had no asthma controller medications dispensed
-        # during the measurement year.
-        controller_exclusions_df = filtered_rx_df.groupBy(
-            ['member_id', 'fromdate']
-        ).agg(
-            F.collect_set('medication_type').alias('med_types')
-        ).where(
-            ~F.array_contains(F.col('med_types'), 'controller') &
-            F.col('fromdate').between(
-                F.lit(
-                    datetime.date(
-                        measurement_date_end.year - 1,
-                        12,
-                        31
-                    )
-                ),
-                F.lit(measurement_date_end)
+    gap_exclusions_df = filtered_data_dict['members'].withColumn(
+        'gap_exists',
+        F.when(
+            (F.datediff(
+                F.col('date_start'),
+                F.lag(F.col('date_end')).over(member_time_window)
+                ) - F.lit(1)) >= 45,
+            True
+            ).otherwise(
+                False
             )
-        ).select('member_id')
+    ).groupBy(['gap_exists', 'member_id']).count().where(
+        F.col('gap_exists') & (F.col('count') > 1)
+    ).select('member_id')
 
-        exclusions_df = gap_exclusions_df.union(
-            valueset_exclusions_df
-        ).union(
-            controller_exclusions_df
-        ).distinct()
+    # find members with any presense of certain diagnoses
+    excluded_diags_df = dfs_input['reference'].where(
+        F.col('value_set_name').rlike(r'Emphysema') |
+        F.col('value_set_name').rlike(r'COPD') |
+        F.col('value_set_name').rlike(r'Obstructive Chronic Bronchitis') |
+        F.col('value_set_name').rlike(r'Chronic Respiratory Conditions') |
+        F.col('value_set_name').rlike(r'Cystic Fibrosis') |
+        F.col('value_set_name').rlike(r'Acute Respiratory Failure')
+    )
 
-        members_df = filtered_data_dict['members'].join(
-            exclusions_df,
-            'member_id',
-            'left_anti'
+    valueset_exclusions_df = dfs_input['claims'].join(
+        excluded_diags_df,
+        [
+            dfs_input['claims'].icdversion == F.regexp_extract(
+                excluded_diags_df.code_system,
+                '\d+',
+                0
+            ),
+            dfs_input['claims'].icddiag1 == F.regexp_replace(
+                excluded_diags_df.code,
+                '\.',
+                ''
+            )
+        ],
+        'inner'
+    ).where(
+        F.datediff(
+            F.col('fromdate'),
+            F.lit(measurement_date_end)
+        ) <= 0
+    ).select('member_id')
+
+    # find members who had no asthma controller medications dispensed
+    # during the measurement year.
+    controller_exclusions_df = filtered_data_dict['rx'].groupBy(
+        ['member_id', 'fromdate']
+    ).agg(
+        F.collect_set('medication_type').alias('med_types')
+    ).where(
+        ~F.array_contains(F.col('med_types'), 'controller') &
+        F.col('fromdate').between(
+            F.lit(
+                datetime.date(
+                    measurement_date_end.year - 1,
+                    12,
+                    31
+                )
+            ),
+            F.lit(measurement_date_end)
         )
+    ).select('member_id')
 
-        med_df = members_df.join(
-            filtered_data_dict['med'],
-            'member_id',
-            'inner'
-        )
+    exclusions_df = gap_exclusions_df.union(
+        valueset_exclusions_df
+    ).union(
+        controller_exclusions_df
+    ).distinct()
 
-        rx_df = members_df.join(
-            filtered_data_dict['rx'],
-            'member_id',
-            'inner'
-        )
+    members_df = filtered_data_dict['members'].join(
+        exclusions_df,
+        'member_id',
+        'left_anti'
+    )
 
-        return {
-            'med': med_df,
-            'rx': rx_df,
-            'members': members_df
-        }
+    med_df = members_df.join(
+        filtered_data_dict['med'],
+        'member_id',
+        'inner'
+    )
+
+    rx_df = members_df.join(
+        filtered_data_dict['rx'],
+        'member_id',
+        'inner'
+    )
+
+    return {
+        'med': med_df,
+        'rx': rx_df,
+        'members': members_df
+    }
 
 
 def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
@@ -440,6 +439,164 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
     }
 
 
+def oral_event(rx_data):
+    rx_data = event_filtered_data_dict['rx']
+    rx_data.groupBy('member_id').agg()
+    rx_data.where(
+        (F.col('route') == 'oral') &
+        (F.col('dayssupply') <= 30)
+    ).view()
+
+
+def inhaler_event():
+    pass
+
+
+def injection_event():
+    pass
+
+
+def _calculate_rates(rx_data, measurement_date_end):
+    controller_claims_df = rx_data.where(
+        (F.col('medication_type') == 'controller') &
+        F.col('fromdate').between(
+            F.lit(
+                datetime.date(
+                    measurement_date_end.year - 1,
+                    12,
+                    31
+                )
+            ),
+            F.lit(measurement_date_end)
+        )
+    ).select(
+        F.col('member_id'),
+        F.col('fromdate'),
+        F.col('drug_id'),
+        F.col('dayssupply'),
+        F.expr('date_add(fromdate, dayssupply - 1)').alias('fromdate_to_dayssupply')
+    ).where(
+        F.col('dayssupply') > 0
+    ).select(
+        '*',
+        F.create_map(
+            F.lit('date_start'),
+            F.col('fromdate'),
+            F.lit('date_end'),
+            F.col('fromdate_to_dayssupply'),
+        ).alias('map_coverage_window')
+    )
+
+    collect_date_windows = controller_claims_df.groupby(
+        'member_id',
+        'drug_id',
+    ).agg(
+        F.collect_list(F.col('map_coverage_window')).alias('array_coverage_windows'),
+    )
+
+    def adjust_date_windows(
+            array_coverage_windows: "typing.Iterable[typing.Mapping[str, datetime.date]]",
+        ) -> "typing.Iterable[typing.Mapping[str, datetime.date]]":
+        """Combine and extend overlapping windows"""
+
+        sorted_array = sorted(
+            array_coverage_windows,
+            key=lambda x: (x['date_start'], x['date_end']),
+            )
+        output_array = []
+        last_date_end = None
+        for window_coverage in sorted_array:
+            date_start = window_coverage['date_start']
+            date_end = window_coverage['date_end']
+            if last_date_end and last_date_end >= date_start:
+                bump_factor = (last_date_end - date_start).days + 1
+                adj_date_start = date_start + datetime.timedelta(days=bump_factor)
+                adj_date_end = date_end + datetime.timedelta(days=bump_factor)
+                last_date_end = adj_date_end
+            else:
+                last_date_end = date_end
+                adj_date_start = date_start
+                adj_date_end = date_end
+
+            output_array.append({
+                'date_start': adj_date_start,
+                'date_end': adj_date_end,
+                })
+        return output_array
+
+    udf_adjust_date_windows = F.udf(
+        adjust_date_windows,
+        T.ArrayType(
+            T.MapType(
+                T.StringType(),
+                T.DateType(),
+            )
+        )
+    )
+
+    adjusted_date_windows = collect_date_windows.select(
+        '*',
+        F.explode(
+            udf_adjust_date_windows(
+                F.col('array_coverage_windows')
+            )
+        ).alias('map_adj_coverage_windows'),
+    ).select(
+        '*',
+        F.col('map_adj_coverage_windows')['date_start'].alias('date_start'),
+        F.col('map_adj_coverage_windows')['date_end'].alias('date_end'),
+    )
+
+    decouple_overlapping_coverage = decouple_common_windows(
+        adjusted_date_windows,
+        'member_id',
+        'date_start',
+        'date_end',
+    ).select(
+        'member_id',
+        'date_start',
+        F.least(
+            F.col('date_end'),
+            F.lit(
+                datetime.date(performance_yearstart.year, 12, 31)
+            )
+        ).alias('date_end'),
+    ).withColumn(
+        'days_covered',
+        F.datediff(
+            F.col('date_end'),
+            F.col('date_start'),
+            ) + 1,
+    )
+
+    member_coverage_summ = decouple_overlapping_coverage.groupby(
+        'member_id',
+    ).agg(
+        F.min('date_start').alias('ipsd'),
+        F.sum('days_covered').alias('days_covered'),
+    ).select(
+        '*',
+        spark_funcs.datediff(
+            F.lit(datetime.date(performance_yearstart.year, 12, 31)),
+            F.col('ipsd')
+        ).alias('treatment_period'),
+    ).withColumn(
+        'days_covered',
+        F.least(
+            F.col('days_covered'),
+            F.col('treatment_period')
+        )
+    ).withColumn(
+        'pdc',
+        F.round(
+            (F.col('days_covered') / F.col('treatment_period')),
+            2
+        )
+    )
+
+    return member_coverage_summ
+
+
 def calculate_denominator(dfs_input, measurement_date_end):
     # do some general filtering
     filtered_data_dict = _initial_filtering(
@@ -461,6 +618,12 @@ def calculate_denominator(dfs_input, measurement_date_end):
         measurement_date_end
     )
 
+    return event_filtered_data_dict
+
+
+def calculate_numerator(rx_data, measurement_date_end):
+    return _calculate_rates(rx_data, measurement_date_end)
+
 
 class MMA(QualityMeasure):
     """Class for MMA implementation"""
@@ -477,10 +640,11 @@ class MMA(QualityMeasure):
             31
         )
 
-        denom = calculate_denominator(dfs_input, measurement_date_end)
+        denominator = calculate_denominator(dfs_input, measurement_date_end)
 
+        numerator = calculate_numerator(denominator['rx'], measurement_date_end)
 
-
+        result = numerator/denominator
 
 
 if __name__ == '__main__':
@@ -525,8 +689,6 @@ if __name__ == '__main__':
         "ndc": sqlContext.read.csv(ref_rx_path, header=True)
         }
 
-    reference_dfs['claims'].groupBy('value_set_name').count().where(F.col('value_set_name').isin('Hospice')).view()
-    dfs_input['member'].view()
     # ------------------------------------------------------------------
     mma_decorator = MMA()
     result = mma_decorator.calc_decorator(DFS_INPUT_MED)
