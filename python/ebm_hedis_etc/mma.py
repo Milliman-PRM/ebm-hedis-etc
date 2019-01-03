@@ -8,6 +8,7 @@
 import logging
 import datetime
 import dateutil.relativedelta
+from math import ceil, floor
 
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
@@ -24,6 +25,80 @@ LOGGER = logging.getLogger(__name__)
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 # =============================================================================
+
+def oral_events(rx_data):
+    # eliminate rescinded claims
+    oral_events_df = rx_data.where(
+        F.col('route') == 'oral'
+    ).groupBy(
+        ['member_id', 'fromdate', 'dayssupply', 'drug_id', 'claimid']
+    ).agg(
+        F.count('*').alias('count'),
+        F.when(
+            F.col('dayssupply') <= 30,
+            F.bround(F.col('dayssupply')/F.lit(30)).cast('int')
+        ).otherwise(
+            F.floor(F.col('dayssupply')/F.lit(30)).cast('int')
+        ).alias('num_disp_events')
+    )
+
+    max_disp_events = oral_events_df.select(
+        F.max('num_disp_events').alias('max_n')
+    ).first()['max_n']
+
+    exploded_oral_events_df = oral_events_df.withColumn(
+        'disp_events',
+        F.array(
+            [F.lit(x) for x in range(max_disp_events)]
+        )
+    ).select(
+        F.col('*'),
+        F.explode('disp_events').alias('expl_disp_events')
+    ).where(
+        F.col('expl_disp_events') < F.col('num_disp_events')
+    ).withColumn(
+        'rx_event_number',
+        F.row_number().over(
+            Window.partitionBy(
+                'member_id', 'fromdate', 'dayssupply', 'drug_id', 'claimid'
+            ).orderBy('member_id')
+        )
+    ).select(
+        F.col('member_id'),
+        F.col('claimid'),
+        F.col('fromdate'),
+        F.col('dayssupply')
+    )
+
+    return exploded_oral_events_df
+
+
+def inhaler_events(rx_data):
+
+    inhaler_events_df = rx_data.where(
+        F.col('route') == 'inhalation'
+    ).groupBy(
+        ['member_id', 'fromdate', 'drug_id']
+    ).agg(
+        F.count('*').alias('count'),
+        F.row_number().over(
+            Window.partitionBy(
+                'member_id', 'fromdate', 'drug_id'
+            ).orderBy('member_id')
+        ).alias('rx_event_number')
+    )
+    return inhaler_events_df
+
+
+def injection_events(rx_data):
+    injection_event_df = rx_data.distinct().where(
+        F.col('route') == 'subcutaneous'
+    ).withColumn(
+        'rx_event_number',
+        F.lit(1)
+    )
+
+    return injection_event_df
 
 
 def _initial_filtering(dfs_input, measurement_date_end):
@@ -215,16 +290,16 @@ def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end)
         'left_anti'
     )
 
-    med_df = members_df.join(
-        filtered_data_dict['med'],
+    med_df = filtered_data_dict['med'].join(
+        exclusions_df,
         'member_id',
-        'inner'
+        'left_anti'
     )
 
-    rx_df = members_df.join(
-        filtered_data_dict['rx'],
+    rx_df = filtered_data_dict['rx'].join(
+        exclusions_df,
         'member_id',
-        'inner'
+        'left_anti'
     )
 
     return {
@@ -240,6 +315,22 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         ['member_id', 'visit_valueset_name',
          'diagnosis_valueset_name', 'fromdate']
     ).count()
+
+    oral_events_df = oral_events(exc_filtered_data_dict['rx'])
+    inhaler_events_df = inhaler_events(exc_filtered_data_dict['rx'])
+    injection_events_df = injection_events(exc_filtered_data_dict['rx'])
+
+    oral_events_df
+    dfs_input['rx_claims'].groupBy(
+
+    ).count().where(
+        F.col('count') <= 1
+    ).view()
+
+    dfs_input['rx_claims'].where(
+    	(F.col('member_id') == 'C06649940000') &
+        (F.col('claimid') == '000000928852')
+    ).view()
 
     rx_event_df = exc_filtered_data_dict['rx'].groupBy(
         ['member_id', 'ndc', 'fromdate', 'medication_type']
@@ -280,7 +371,7 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
     ).join(
         med_event_df,
         'member_id',
-        'left_outer'
+        'inner'
     ).withColumn(
         'is_elig',
         F.when(
@@ -297,7 +388,7 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
     ).join(
         rx_event_df,
         'member_id',
-        'left_outer'
+        'inner'
     ).withColumn(
         'is_elig',
         F.when(
@@ -314,7 +405,7 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
     ).join(
         rx_event_df,
         'member_id',
-        'left_outer'
+        'inner'
     ).withColumn(
         'is_elig',
         F.when(
@@ -345,7 +436,8 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         F.col('is_included') == True
     ).join(
         exc_filtered_data_dict['rx'],
-        'member_id'
+        'member_id',
+        'left_outer'
     ).groupBy('member_id').count().where(
         F.col('count') >= 4
     ).select(
@@ -371,7 +463,8 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         F.col('is_included') == True
     ).join(
         exc_filtered_data_dict['rx'],
-        'member_id'
+        'member_id',
+        'left_outer'
     ).groupBy('member_id').count().where(
         F.col('count') >= 4
     ).select(
@@ -417,19 +510,19 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
     members_df = exc_filtered_data_dict['members'].join(
         elig_members_df,
         'member_id',
-        'left_outer'
+        'left_semi'
     )
 
     med_df = exc_filtered_data_dict['med'].join(
         members_df,
         'member_id',
-        'left_outer'
+        'left_semi'
     )
 
     rx_df = exc_filtered_data_dict['rx'].join(
         members_df,
         'member_id',
-        'left_outer'
+        'left_semi'
     )
 
     return {
@@ -439,21 +532,7 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
     }
 
 
-def oral_event(rx_data):
-    rx_data = event_filtered_data_dict['rx']
-    rx_data.groupBy('member_id').agg()
-    rx_data.where(
-        (F.col('route') == 'oral') &
-        (F.col('dayssupply') <= 30)
-    ).view()
 
-
-def inhaler_event():
-    pass
-
-
-def injection_event():
-    pass
 
 
 def _calculate_rates(rx_data, measurement_date_end):
