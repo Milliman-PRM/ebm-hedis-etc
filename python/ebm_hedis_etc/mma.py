@@ -26,79 +26,85 @@ LOGGER = logging.getLogger(__name__)
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 # =============================================================================
 
-def oral_events(rx_data):
-    # eliminate rescinded claims
-    oral_events_df = rx_data.where(
-        F.col('route') == 'oral'
-    ).groupBy(
-        ['member_id', 'fromdate', 'dayssupply', 'drug_id', 'claimid']
-    ).agg(
-        F.count('*').alias('count'),
-        F.when(
-            F.col('dayssupply') <= 30,
-            F.bround(F.col('dayssupply')/F.lit(30)).cast('int')
-        ).otherwise(
-            F.floor(F.col('dayssupply')/F.lit(30)).cast('int')
-        ).alias('num_disp_events')
-    )
-
-    max_disp_events = oral_events_df.select(
-        F.max('num_disp_events').alias('max_n')
-    ).first()['max_n']
-
-    exploded_oral_events_df = oral_events_df.withColumn(
-        'disp_events',
-        F.array(
-            [F.lit(x) for x in range(max_disp_events)]
+def _rx_route_events(rx_data, route):
+    med_route_event_df = None
+    if route is 'oral':
+        oral_events_df = rx_data.where(
+            F.col('route') == 'oral'
+        ).groupBy(
+            ['member_id', 'fromdate', 'dayssupply', 'drug_id', 'claimid']
+        ).agg(
+            F.count('*').alias('count'),
+            F.when(
+                F.col('dayssupply') <= 30,
+                F.bround(F.col('dayssupply')/F.lit(30)).cast('int')
+            ).otherwise(
+                F.floor(F.col('dayssupply')/F.lit(30)).cast('int')
+            ).alias('num_disp_events')
         )
-    ).select(
-        F.col('*'),
-        F.explode('disp_events').alias('expl_disp_events')
-    ).where(
-        F.col('expl_disp_events') < F.col('num_disp_events')
-    ).withColumn(
-        'rx_event_number',
-        F.row_number().over(
-            Window.partitionBy(
-                'member_id', 'fromdate', 'dayssupply', 'drug_id', 'claimid'
-            ).orderBy('member_id')
+
+        max_disp_events = oral_events_df.select(
+            F.max('num_disp_events').alias('max_n')
+        ).first()['max_n']
+
+        exploded_oral_events_df = oral_events_df.withColumn(
+            'disp_events',
+            F.array(
+                [F.lit(x) for x in range(max_disp_events)]
+            )
+        ).select(
+            F.col('*'),
+            F.explode('disp_events').alias('expl_disp_events')
+        ).where(
+            F.col('expl_disp_events') < F.col('num_disp_events')
+        ).withColumn(
+            'rx_event_number',
+            F.row_number().over(
+                Window.partitionBy(
+                    'member_id', 'fromdate', 'dayssupply', 'drug_id', 'claimid'
+                ).orderBy('member_id')
+            )
+        ).select(
+            F.col('member_id'),
+            F.col('claimid'),
+            F.col('fromdate'),
+            F.col('drug_id'),
+            F.col('dayssupply'),
+            F.col('rx_event_number')
         )
-    ).select(
-        F.col('member_id'),
-        F.col('claimid'),
-        F.col('fromdate'),
-        F.col('dayssupply')
-    )
 
-    return exploded_oral_events_df
+        med_route_event_df = exploded_oral_events_df.join(
+            rx_data,
+            ['member_id', 'fromdate', 'dayssupply', 'drug_id', 'claimid'],
+            'left_outer'
+        )
+    elif route is 'inhaler':
+        inhaler_events_df = rx_data.where(
+            F.col('route') == 'inhalation'
+        ).groupBy(
+            ['member_id', 'fromdate', 'drug_id']
+        ).agg(
+            F.row_number().over(
+                Window.partitionBy(
+                    'member_id', 'fromdate', 'drug_id'
+                ).orderBy('member_id')
+            ).alias('rx_event_number')
+        )
 
+        med_route_event_df = inhaler_events_df.join(
+            rx_data,
+            ['member_id', 'fromdate', 'drug_id'],
+            'left_outer'
+        )
+    elif route is 'injected':
+        med_route_event_df = rx_data.distinct().where(
+            F.col('route') == 'subcutaneous'
+        ).withColumn(
+            'rx_event_number',
+            F.lit(1)
+        )
 
-def inhaler_events(rx_data):
-
-    inhaler_events_df = rx_data.where(
-        F.col('route') == 'inhalation'
-    ).groupBy(
-        ['member_id', 'fromdate', 'drug_id']
-    ).agg(
-        F.count('*').alias('count'),
-        F.row_number().over(
-            Window.partitionBy(
-                'member_id', 'fromdate', 'drug_id'
-            ).orderBy('member_id')
-        ).alias('rx_event_number')
-    )
-    return inhaler_events_df
-
-
-def injection_events(rx_data):
-    injection_event_df = rx_data.distinct().where(
-        F.col('route') == 'subcutaneous'
-    ).withColumn(
-        'rx_event_number',
-        F.lit(1)
-    )
-
-    return injection_event_df
+    return med_route_event_df
 
 
 def _initial_filtering(dfs_input, measurement_date_end):
@@ -310,29 +316,42 @@ def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end)
 
 
 def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
+    rx_route = ['oral', 'inhaler', 'injected']
+
     # filter claims data by event
     med_event_df = exc_filtered_data_dict['med'].groupBy(
         ['member_id', 'visit_valueset_name',
          'diagnosis_valueset_name', 'fromdate']
     ).count()
 
-    oral_events_df = oral_events(exc_filtered_data_dict['rx'])
-    inhaler_events_df = inhaler_events(exc_filtered_data_dict['rx'])
-    injection_events_df = injection_events(exc_filtered_data_dict['rx'])
+    rx_route_df = None
+    for route in rx_route:
+        if rx_route_df is None:
+            rx_route_df = _rx_route_events(
+                exc_filtered_data_dict['rx'],
+                route
+            ).select(
+                F.col('member_id'),
+                F.col('ndc'),
+                F.col('fromdate'),
+                F.col('medication_type'),
+                F.col('route')
+            )
+        else:
+            rx_route_df = rx_route_df.union(
+                _rx_route_events(
+                    exc_filtered_data_dict['rx'],
+                    route
+                ).select(
+                    F.col('member_id'),
+                    F.col('ndc'),
+                    F.col('fromdate'),
+                    F.col('medication_type'),
+                    F.col('route')
+                )
+            )
 
-    oral_events_df
-    dfs_input['rx_claims'].groupBy(
-
-    ).count().where(
-        F.col('count') <= 1
-    ).view()
-
-    dfs_input['rx_claims'].where(
-    	(F.col('member_id') == 'C06649940000') &
-        (F.col('claimid') == '000000928852')
-    ).view()
-
-    rx_event_df = exc_filtered_data_dict['rx'].groupBy(
+    rx_event_df = rx_route_df.groupBy(
         ['member_id', 'ndc', 'fromdate', 'medication_type']
     ).count()
 
@@ -530,9 +549,6 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         'rx': rx_df,
         'members': members_df
     }
-
-
-
 
 
 def _calculate_rates(rx_data, measurement_date_end):
@@ -766,7 +782,7 @@ if __name__ == '__main__':
             ),
         "reference": sqlContext.read.csv(ref_claims_path, header=True),
         "ndc": sqlContext.read.csv(ref_rx_path, header=True)
-        }
+    }
 
     # ------------------------------------------------------------------
     mma_decorator = MMA()
