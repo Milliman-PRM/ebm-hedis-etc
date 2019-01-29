@@ -26,6 +26,7 @@ LOGGER = logging.getLogger(__name__)
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 # =============================================================================
 
+
 def _rx_route_events(rx_data, route):
     med_route_event_df = None
     if route is 'oral':
@@ -179,7 +180,7 @@ def _initial_filtering(dfs_input, measurement_date_end):
         F.lit('reliever')
     )
 
-    rx_df = dfs_input['rx_claims'].join(
+    rx_filtered_df = dfs_input['rx_claims'].join(
         controller_meds_df,
         F.col('ndc') == controller_meds_df.ndc_code,
         'inner'
@@ -190,6 +191,41 @@ def _initial_filtering(dfs_input, measurement_date_end):
             'inner'
         )
     )
+
+    # modify rx claims data for the various intake routes
+    rx_route = ['oral', 'inhaler', 'injected']
+    rx_df = None
+    for route in rx_route:
+        if rx_df is None:
+            rx_df = _rx_route_events(
+                rx_filtered_df,
+                route
+            ).select(
+                F.col('member_id'),
+                F.col('ndc'),
+                F.col('fromdate'),
+                F.col('medication_type'),
+                F.col('route'),
+                F.col('drug_id'),
+                F.col('description'),
+                F.col('dayssupply')
+            )
+        else:
+            rx_df = rx_df.union(
+                _rx_route_events(
+                    rx_filtered_df,
+                    route
+                ).select(
+                    F.col('member_id'),
+                    F.col('ndc'),
+                    F.col('fromdate'),
+                    F.col('medication_type'),
+                    F.col('route'),
+                    F.col('drug_id'),
+                    F.col('description'),
+                    F.col('dayssupply')
+                )
+            )
 
     members_df = dfs_input['member'].where(
         F.abs(
@@ -211,7 +247,7 @@ def _initial_filtering(dfs_input, measurement_date_end):
 
 
 def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end):
-    # find members with at least more than 1 45 day gap in
+    # find members with at least more than one 45 day gap in
     # eligibility during meas. year
     member_time_window = Window.partitionBy('member_id').orderBy(
         ['member_id', 'date_start']
@@ -316,46 +352,18 @@ def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end)
 
 
 def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
-    rx_route = ['oral', 'inhaler', 'injected']
+    """helper function that filters claims by medical and pharmacutical dispensing events of interest"""
+    rx_event_mask_df = exc_filtered_data_dict['rx'].groupBy(
+        ['member_id', 'ndc', 'fromdate', 'medication_type']
+    ).count()
 
-    # filter claims data by event
-    med_event_df = exc_filtered_data_dict['med'].groupBy(
+    med_event_mask_df = exc_filtered_data_dict['med'].groupBy(
         ['member_id', 'visit_valueset_name',
          'diagnosis_valueset_name', 'fromdate']
     ).count()
 
-    rx_route_df = None
-    for route in rx_route:
-        if rx_route_df is None:
-            rx_route_df = _rx_route_events(
-                exc_filtered_data_dict['rx'],
-                route
-            ).select(
-                F.col('member_id'),
-                F.col('ndc'),
-                F.col('fromdate'),
-                F.col('medication_type'),
-                F.col('route')
-            )
-        else:
-            rx_route_df = rx_route_df.union(
-                _rx_route_events(
-                    exc_filtered_data_dict['rx'],
-                    route
-                ).select(
-                    F.col('member_id'),
-                    F.col('ndc'),
-                    F.col('fromdate'),
-                    F.col('medication_type'),
-                    F.col('route')
-                )
-            )
-
-    rx_event_df = rx_route_df.groupBy(
-        ['member_id', 'ndc', 'fromdate', 'medication_type']
-    ).count()
-
-    ed_event_df = med_event_df.withColumn(
+    # filter data by various medical events
+    ed_event_df = med_event_mask_df.withColumn(
         'is_elig',
         F.when(
             F.col('visit_valueset_name').rlike(r'\bED\b') &
@@ -368,7 +376,7 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         F.col('is_elig')
     )
 
-    acute_inp_event_df = med_event_df.withColumn(
+    acute_inp_event_df = med_event_mask_df.withColumn(
         'is_elig',
         F.when(
             F.col('visit_valueset_name').rlike(r'Acute Inpatient') &
@@ -381,14 +389,14 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         F.col('is_elig')
     )
 
-    out_obs_event_med_df = med_event_df.where(
+    out_obs_event_med_df = med_event_mask_df.where(
         (F.col('visit_valueset_name').rlike(r'Outpatient') |
         F.col('visit_valueset_name').rlike(r'Observation')) &
         F.col('diagnosis_valueset_name').rlike(r'Asthma')
     ).groupBy('member_id').agg(
         F.count('*').alias('unique_service_dates')
     ).join(
-        med_event_df,
+        med_event_mask_df,
         'member_id',
         'inner'
     ).withColumn(
@@ -402,10 +410,11 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         F.col('is_elig')
     )
 
-    out_obs_event_rx_df = rx_event_df.groupBy('member_id').agg(
+    # filter data by various rx dispensing events
+    out_obs_event_rx_df = rx_event_mask_df.groupBy('member_id').agg(
         F.count('*').alias('unique_disp_event')
     ).join(
-        rx_event_df,
+        rx_event_mask_df,
         'member_id',
         'inner'
     ).withColumn(
@@ -419,10 +428,10 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         F.col('is_elig')
     )
 
-    asthma_disp_event_df = rx_event_df.groupBy('member_id').agg(
+    asthma_disp_event_df = rx_event_mask_df.groupBy('member_id').agg(
         F.count('*').alias('unique_disp_event')
     ).join(
-        rx_event_df,
+        rx_event_mask_df,
         'member_id',
         'inner'
     ).withColumn(
@@ -671,7 +680,7 @@ def _calculate_rates(rx_data, measurement_date_end):
         F.sum('days_covered').alias('days_covered'),
     ).select(
         '*',
-        spark_funcs.datediff(
+        F.datediff(
             F.lit(datetime.date(performance_yearstart.year, 12, 31)),
             F.col('ipsd')
         ).alias('treatment_period'),
@@ -693,20 +702,17 @@ def _calculate_rates(rx_data, measurement_date_end):
 
 
 def calculate_denominator(dfs_input, measurement_date_end):
-    # do some general filtering
     filtered_data_dict = _initial_filtering(
         dfs_input,
         measurement_date_end
     )
 
-    # do some exclusionary filtering
     exc_filtered_data_dict = _exclusionary_filtering(
         dfs_input,
         filtered_data_dict,
         measurement_date_end
     )
 
-    # do some filtering based on "events"
     event_filtered_data_dict = _event_filtering(
         dfs_input,
         exc_filtered_data_dict,
@@ -716,8 +722,16 @@ def calculate_denominator(dfs_input, measurement_date_end):
     return event_filtered_data_dict
 
 
-def calculate_numerator(rx_data, measurement_date_end):
-    return _calculate_rates(rx_data, measurement_date_end)
+def calculate_numerator(dfs_input, rx_data, measurement_date_end):
+    rx_data = rx_data.join(
+        dfs_input['rx_claims'],
+        ['member_id', 'ndc', 'fromdate', 'dayssupply'],
+        'inner'
+    )
+
+    numer_rates = _calculate_rates(rx_data, measurement_date_end)
+
+    return numer_rates
 
 
 class MMA(QualityMeasure):
@@ -728,62 +742,71 @@ class MMA(QualityMeasure):
             performance_yearstart=datetime.date,
         ):
 
-        # set timeline variables
         measurement_date_end = datetime.date(
             performance_yearstart.year,
             12,
             31
         )
 
-        denominator = calculate_denominator(dfs_input, measurement_date_end)
+        denom_df = calculate_denominator(dfs_input, measurement_date_end)
 
-        numerator = calculate_numerator(denominator['rx'], measurement_date_end)
+        numer_df = calculate_numerator(
+            dfs_input,
+            denom_df['rx'],
+            measurement_date_end
+        )
 
-        result = numerator/denominator
+        denom_final_df = denom_df['members'].select(
+            F.col('member_id')
+        ).distinct().join(
+            denom_df['rx'].select(
+                F.col('member_id')
+            ),
+            'member_id',
+            'inner'
+        ).join(
+            denom_df['med'].select(
+                F.col('member_id')
+            ),
+            'member_id',
+            'inner'
+        ).distinct().select(
+            F.col('member_id'),
+            F.lit('MMA').alias('comp_quality_short'),
+            F.lit(0).alias('comp_quality_numerator'),
+            F.when(
+                F.col('member_id').isNotNull(),
+                F.lit(1)
+            ).otherwise(
+                F.lit(0)
+            ).alias('comp_quality_denominator'),
+            F.lit(None).cast('string').alias('comp_quality_date_last'),
+            F.lit(None).cast('string').alias('comp_quality_date_actionable'),
+            F.lit(None).cast('string').alias('comp_quality_comments')
+        )
 
+        numer_final_df = numer_df.where(
+            F.col('pdc') >= 0.75
+        ).distinct().select(
+            F.col('member_id'),
+            F.lit('MMA').alias('comp_quality_short'),
+            F.when(
+                F.col('member_id').isNotNull(),
+                F.lit(1)
+            ).otherwise(
+                F.lit(0)
+            ).alias('comp_quality_numerator'),
+            F.lit(0).alias('comp_quality_denominator'),
+            F.lit(None).cast('string').alias('comp_quality_date_last'),
+            F.lit(None).cast('string').alias('comp_quality_date_actionable'),
+            F.lit(None).cast('string').alias('comp_quality_comments')
+        )
+
+        result_df = denom_final_df.union(numer_final_df)
+
+        return result_df
 
 if __name__ == '__main__':
     # pylint: disable=wrong-import-position, wrong-import-order, ungrouped-imports
-    import prm.utils.logging_ext
-    import prm.spark.defaults_prm
-    import prm.meta.project
-    from prm.spark.app import SparkApp
-
-    PRM_META = prm.meta.project.parse_project_metadata()
-
-    prm.utils.logging_ext.setup_logging_stdout_handler()
-    SPARK_DEFAULTS_PRM = prm.spark.defaults_prm.get_spark_defaults(PRM_META)
-
-    sparkapp = SparkApp(PRM_META['pipeline_signature'], **SPARK_DEFAULTS_PRM)
-    sparkapp.session.conf.set("spark.sql.autoBroadcastJoinThreshold", "-1")
-
-    # ------------------------------------------------------------------
-    from pathlib import Path
-    from pyspark.sql import SQLContext
-
-    performance_yearstart = datetime.datetime(2018, 1, 1)
-
-    ref_claims_path = r"C:\Users\Demerrick.Moton\repos\ebm-hedis-etc\references\_data\hedis_codes.csv"
-    ref_rx_path = r"C:\Users\Demerrick.Moton\repos\ebm-hedis-etc\references\_data\hedis_ndc_codes.csv"
-
-    sqlContext = SQLContext(sparkapp.session.sparkContext)
-    dfs_input = {
-        "claims": sparkapp.load_df(
-            PRM_META[(40, "out")] / "outclaims.parquet"
-            ),
-        "member_time": sparkapp.load_df(
-            PRM_META[(35, "out")] / "member_time.parquet"
-            ),
-        'rx_claims': sparkapp.load_df(
-            PRM_META[40, 'out'] / 'outpharmacy.parquet'
-            ),
-        "member": sparkapp.load_df(
-            PRM_META[(35, "out")] / "member.parquet"
-            ),
-        "reference": sqlContext.read.csv(ref_claims_path, header=True),
-        "ndc": sqlContext.read.csv(ref_rx_path, header=True)
-    }
-
-    # ------------------------------------------------------------------
     mma_decorator = MMA()
     result = mma_decorator.calc_decorator(DFS_INPUT_MED)
