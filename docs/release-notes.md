@@ -2,6 +2,9 @@
 
 A non-exhaustive list of what has changed in a more readable form than a commit history.
 
+### v0.9.1
+ - Updated targets to be the most recent HEDIS average result rounded to the nearest 5. 
+
 ### v0.9.0
 
  - Implemented Persistence of Beta-Blockers after Heart Attack Measure
