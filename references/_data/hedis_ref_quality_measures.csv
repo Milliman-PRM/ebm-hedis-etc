@@ -1,25 +1,25 @@
 comp_quality_dual,comp_quality_short,comp_quality,comp_quality_category,comp_quality_direction,comp_quality_target_value,comp_quality_format_code,comp_quality_calculation_type
-1,SPD: Rate One,Statin Therapy for Patients With Diabetes: Received Statin Therapy,At Risk Population - Diabetes,Higher_Better,.9,"#,##0.0%",Binary
-2,SPD: Rate Two,Statin Therapy for Patients With Diabetes: Statin Adherence 80%,At Risk Population - Diabetes,Higher_Better,.9,"#,##0.0%",Binary
-3,SPC: Rate One (Total),Statin Therapy for Patients With Cardiovascular Disease: Received Statin Therapy (Total),At Risk Population - Cardiovascular,Higher_Better,.9,"#,##0.0%",Binary
-4,SPC: Rate One (Females 40-75),Statin Therapy for Patients With Cardiovascular Disease: Received Statin Therapy (Females 40-75),At Risk Population - Cardiovascular,Higher_Better,.9,"#,##0.0%",Binary
-5,SPC: Rate One (Males 21-75),Statin Therapy for Patients With Cardiovascular Disease: Received Statin Therapy (Males 21-75),At Risk Population - Cardiovascular,Higher_Better,.9,"#,##0.0%",Binary
-6,SPC: Rate Two (Total),Statin Therapy for Patients With Cardiovascular Disease: Statin Adherence 80% (Total),At Risk Population - Cardiovascular,Higher_Better,.9,"#,##0.0%",Binary
-7,SPC: Rate Two (Females 40-75),Statin Therapy for Patients With Cardiovascular Disease: Statin Adherence 80% (Females 40-75),At Risk Population - Cardiovascular,Higher_Better,.9,"#,##0.0%",Binary
-8,SPC: Rate Two (Males 21-75),Statin Therapy for Patients With Cardiovascular Disease: Statin Adherence 80% (Males 21-75),At Risk Population - Cardiovascular,Higher_Better,.9,"#,##0.0%",Binary
-9,PBH,Persistence of Beta-Blockers after Heart Attack,At Risk Population - Cardiovascular,Higher_Better,.9,"#,##0.0%",Binary
-10,CIS - DTaP,Childhood Immunization Status: DTap,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
-11,CIS - IPV,Childhood Immunization Status: IPV,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
-12,CIS - HiB,Childhood Immunization Status: HiB,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
-13,CIS - Pneumococcal Conjugate,Childhood Immunization Status: Pneumococcal Conjugate,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
-14,CIS - Influenza,Childhood Immunization Status: Influenza,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
-15,CIS - Hepatitis B,Childhood Immunization Status: Hepatitis B,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
-16,CIS - Hepatitis A,Childhood Immunization Status: Hepatitis A,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
+1,SPD: Rate One,Statin Therapy for Patients With Diabetes: Received Statin Therapy,At Risk Population - Diabetes,Higher_Better,.6,"#,##0.0%",Binary
+2,SPD: Rate Two,Statin Therapy for Patients With Diabetes: Statin Adherence 80%,At Risk Population - Diabetes,Higher_Better,.7,"#,##0.0%",Binary
+3,SPC: Rate One (Total),Statin Therapy for Patients With Cardiovascular Disease: Received Statin Therapy (Total),At Risk Population - Cardiovascular,Higher_Better,.8,"#,##0.0%",Binary
+4,SPC: Rate One (Females 40-75),Statin Therapy for Patients With Cardiovascular Disease: Received Statin Therapy (Females 40-75),At Risk Population - Cardiovascular,Higher_Better,.8,"#,##0.0%",Binary
+5,SPC: Rate One (Males 21-75),Statin Therapy for Patients With Cardiovascular Disease: Received Statin Therapy (Males 21-75),At Risk Population - Cardiovascular,Higher_Better,.8,"#,##0.0%",Binary
+6,SPC: Rate Two (Total),Statin Therapy for Patients With Cardiovascular Disease: Statin Adherence 80% (Total),At Risk Population - Cardiovascular,Higher_Better,.75,"#,##0.0%",Binary
+7,SPC: Rate Two (Females 40-75),Statin Therapy for Patients With Cardiovascular Disease: Statin Adherence 80% (Females 40-75),At Risk Population - Cardiovascular,Higher_Better,.75,"#,##0.0%",Binary
+8,SPC: Rate Two (Males 21-75),Statin Therapy for Patients With Cardiovascular Disease: Statin Adherence 80% (Males 21-75),At Risk Population - Cardiovascular,Higher_Better,.75,"#,##0.0%",Binary
+9,PBH,Persistence of Beta-Blockers after Heart Attack,At Risk Population - Cardiovascular,Higher_Better,.85,"#,##0.0%",Binary
+10,CIS - DTaP,Childhood Immunization Status: DTap,Preventive Health,Higher_Better,.80,"#,##0.0%",Binary
+11,CIS - IPV,Childhood Immunization Status: IPV,Preventive Health,Higher_Better,.85,"#,##0.0%",Binary
+12,CIS - HiB,Childhood Immunization Status: HiB,Preventive Health,Higher_Better,.85,"#,##0.0%",Binary
+13,CIS - Pneumococcal Conjugate,Childhood Immunization Status: Pneumococcal Conjugate,Preventive Health,Higher_Better,.8,"#,##0.0%",Binary
+14,CIS - Influenza,Childhood Immunization Status: Influenza,Preventive Health,Higher_Better,.65,"#,##0.0%",Binary
+15,CIS - Hepatitis B,Childhood Immunization Status: Hepatitis B,Preventive Health,Higher_Better,.8,"#,##0.0%",Binary
+16,CIS - Hepatitis A,Childhood Immunization Status: Hepatitis A,Preventive Health,Higher_Better,.85,"#,##0.0%",Binary
 17,CIS - VZV,Childhood Immunization Status: VZV,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
-18,CIS - Rotavirus,Childhood Immunization Status: Rotavirus,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
+18,CIS - Rotavirus,Childhood Immunization Status: Rotavirus,Preventive Health,Higher_Better,.75,"#,##0.0%",Binary
 19,CIS - MMR,Childhood Immunization Status: MMR,Preventive Health,Higher_Better,.9,"#,##0.0%",Binary
-20,PCR,All-Cause Readmissions,Care Coordination/Patient Safety,Lower_Better,.1,"#,##0.0",Rate
-21,MPM3,Annual Monitoring for Patients on Persistent Medications: Diuretics,Medication Management and Care Coordination,Higher_Better,.9,"#,##0.0%",Binary
+20,PCR,All-Cause Readmissions,Care Coordination/Patient Safety,Lower_Better,.1,"#,##0.0%",Rate
+21,MPM3,Annual Monitoring for Patients on Persistent Medications: Diuretics,Medication Management and Care Coordination,Higher_Better,.5,"#,##0.0%",Binary
 22,CDC: HBA1C, Comprehensive Diabetes Care: HbA1c Testing,Diabetes,Higher_Better,.9,"#,##0.0%",Binary
 23,CDC: NEP, Comprehensive Diabetes Care: Medical Attention for Nephropathy,Diabetes,Higher_Better,.9,"#,##0.0%",Binary
 24,CDC: EYE, Comprehensive Diabetes Care: Eye Exam,Diabetes,Higher_Better,.9,"#,##0.0%",Binary
