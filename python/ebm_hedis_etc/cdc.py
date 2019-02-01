@@ -105,7 +105,20 @@ def _identify_med_event(
 ) -> DataFrame:
     """Identify members who had diabetes diagnoses with either two outpatient visits or
     one inpatient encounter"""
-    restricted_med_claims = med_claims.where(
+    restricted_med_claims = med_claims.select(
+        'member_id',
+        'claimid',
+        'fromdate',
+        'revcode',
+        'hcpcs',
+        'icdversion',
+        spark_funcs.explode(
+            spark_funcs.array(
+                [spark_funcs.col(col) for col in med_claims.columns if
+                 col.find('icddiag') > -1]
+            )
+        ).alias('diag')
+    ).distinct().where(
         spark_funcs.col('fromdate').between(
             spark_funcs.lit(datetime.date(performance_yearstart.year - 1, 1, 1)),
             spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31))
@@ -138,12 +151,7 @@ def _identify_med_event(
         'member_id',
         'fromdate',
         restricted_med_claims.icdversion,
-        spark_funcs.explode(
-            spark_funcs.array(
-                [spark_funcs.col(col) for col in acute_inpatient_df.columns if
-                 col.find('icddiag') > -1]
-            )
-        ).alias('diag')
+        'diag'
     )
 
     acute_diabetes_encounter_members = acute_diags_explode_df.join(
@@ -187,12 +195,7 @@ def _identify_med_event(
         'member_id',
         'fromdate',
         restricted_med_claims.icdversion,
-        spark_funcs.explode(
-            spark_funcs.array(
-                [spark_funcs.col(col) for col in non_acute_encounters_df.columns if
-                 col.find('icddiag') > -1]
-            )
-        ).alias('diag')
+        'diag'
     )
 
     non_acute_diabetes_encounter_members = non_acute_diags_explode_df.join(
