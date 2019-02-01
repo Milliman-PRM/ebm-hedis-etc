@@ -468,8 +468,10 @@ def identify_eye_exam(
             )
         ).alias('diag')
     ).join(
-        reference_df.where(
-            spark_funcs.col('value_set_name').isin('Diabetes Mellitus Without Complications')
+        spark_funcs.broadcast(
+            reference_df.where(
+                spark_funcs.col('value_set_name').isin('Diabetes Mellitus Without Complications')
+            )
         ),
         [
             restricted_claims_prior_df.icdversion == reference_df.icdversion,
