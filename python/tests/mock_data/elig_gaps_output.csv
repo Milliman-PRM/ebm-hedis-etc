@@ -1,0 +1,6 @@
+member_id,largest_gap,gap_count
+no_gaps,0,0
+one_small_gap,14,1
+two_small_gaps,14,2
+one_large_gap,364,1
+three_same_length_gap,1,3
