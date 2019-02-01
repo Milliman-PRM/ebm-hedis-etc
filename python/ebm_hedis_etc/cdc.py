@@ -271,7 +271,7 @@ def identify_nephropathy(
         )
     )
 
-    proc_explode_df = restricted_claims_df.select(
+    diag_explode_df = restricted_claims_df.select(
         'member_id',
         restricted_claims_df.icdversion,
         spark_funcs.explode(
@@ -280,9 +280,9 @@ def identify_nephropathy(
                  col.find('icddiag') > -1]
             )
         ).alias('diag')
-    )
+    ).distinct()
 
-    diag_explode_df = restricted_claims_df.select(
+    proc_explode_df = restricted_claims_df.select(
         'member_id',
         restricted_claims_df.icdversion,
         spark_funcs.explode(
@@ -290,8 +290,8 @@ def identify_nephropathy(
                 [spark_funcs.col(col) for col in restricted_claims_df.columns if
                  col.find('icdproc') > -1]
             )
-        ).alias('diag')
-    )
+        ).alias('proc')
+    ).distinct()
 
     cpt_df = restricted_claims_df.join(
         spark_funcs.broadcast(
@@ -360,7 +360,7 @@ def identify_nephropathy(
         ),
         [
             restricted_claims_df.icdversion == reference_df.icdversion,
-            spark_funcs.col('diag') == spark_funcs.col('code')
+            spark_funcs.col('proc') == spark_funcs.col('code')
         ],
         how='inner'
     ).select(
