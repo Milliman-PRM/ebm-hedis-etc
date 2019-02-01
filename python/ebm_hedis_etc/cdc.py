@@ -112,12 +112,17 @@ def _identify_med_event(
         'revcode',
         'hcpcs',
         'icdversion',
+        spark_funcs.array(
+            [spark_funcs.col(col) for col in med_claims.columns if
+             col.find('icddiag') > -1]
+        ).alias('diag_explode')
+    ).distinct().withColumn(
+        'diag',
         spark_funcs.explode(
-            spark_funcs.array(
-                [spark_funcs.col(col) for col in med_claims.columns if
-                 col.find('icddiag') > -1]
-            )
-        ).alias('diag')
+            spark_funcs.col('diag_explode')
+        )
+    ).drop(
+        'diag_explode'
     ).distinct().where(
         spark_funcs.col('fromdate').between(
             spark_funcs.lit(datetime.date(performance_yearstart.year - 1, 1, 1)),
