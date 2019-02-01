@@ -1,4 +1,4 @@
-member_id,largest_gap,gap_count
+member_id,expected_largest_gap,expected_gap_count
 no_gaps,0,0
 one_small_gap,14,1
 two_small_gaps,14,2
