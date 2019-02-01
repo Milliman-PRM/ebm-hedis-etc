@@ -120,3 +120,29 @@ def find_elig_gaps(
         'row'
     )
 
+
+def flag_gap_exclusions(
+        member_gap_df: DataFrame,
+        allowable_gap_length: int = 0,
+        allowable_gap_count: int = 0
+) -> DataFrame:
+    """
+    Add flag of member exclusion based on allowable gaps in enrollment
+    Args:
+        member_gap_df: df with longest gap and number of gaps for each member
+        allowable_gap_length: max number of days with no medical coverage allowed
+        allowable_gap_count: max number of gaps in in medical coverage allowed
+
+    Returns:
+        df with gap_exclusion YN column
+    """
+    return member_gap_df.select(
+        'member_id',
+        spark_funcs.when(
+            (spark_funcs.col('largest_gap') > allowable_gap_length)
+            | (spark_funcs.col('gap_count') > allowable_gap_count),
+            spark_funcs.lit('Y')
+        ).otherwise(
+            spark_funcs.lit('N')
+        ).alias('enrollment_gap_excluded')
+    )
