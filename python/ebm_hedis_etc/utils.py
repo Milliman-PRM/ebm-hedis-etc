@@ -134,4 +134,4 @@ def flag_gap_exclusions(
         ).otherwise(
             spark_funcs.lit('N')
         ).alias('enrollment_gap_excluded')
-    )
+    ).distinct()
