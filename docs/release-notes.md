@@ -2,9 +2,14 @@
 
 A non-exhaustive list of what has changed in a more readable form than a commit history.
 
-### vX.X.X
+### v0.9.1
+ - Updated targets to be the most recent HEDIS average result rounded to the nearest 5. 
+
+### v0.9.0
 
  - Implemented Persistence of Beta-Blockers after Heart Attack Measure
  - Implemented All-cause Readmissions (PCR) Measure
  - Implemented Childhood Immunization Measure
  - Implemented Annual Monitoring for Patients on Diuretics Measure
+ - Implemented Statin Therapy with Cardiovascular Disease Measure
+ - Implemented Statin Therapy with Diabetes Measure
