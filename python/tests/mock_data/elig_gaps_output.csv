@@ -4,3 +4,5 @@ one_small_gap,14,1
 two_small_gaps,14,2
 one_large_gap,364,1
 three_same_length_gap,1,3
+mid_gap_and_gap_to_end,31,2
+early_gap,59,1
