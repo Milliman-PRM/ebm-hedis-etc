@@ -2,6 +2,12 @@
 
 A non-exhaustive list of what has changed in a more readable form than a commit history.
 
+### v1.0.0
+
+ - Implemented utils library for the following functions:
+   -  `find_elig_gaps`
+   - `flag_gap_exclusions`
+
 ### v0.9.1
  - Updated targets to be the most recent HEDIS average result rounded to the nearest 5. 
 
