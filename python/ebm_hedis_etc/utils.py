@@ -10,7 +10,7 @@
 import logging
 
 import pyspark.sql.functions as spark_funcs
-from pyspark.sql import Column, DataFrame, Window
+from pyspark.sql import Column, DataFrame
 
 from prm.dates.windows import decouple_common_windows
 
@@ -34,18 +34,30 @@ def find_elig_gaps(
     Returns:
 
     """
-    decoupled_windows = decouple_common_windows(
-        member_time.where(
-            (spark_funcs.col('date_start') >= ce_start_date)
-            & (spark_funcs.col('date_end') <= ce_end_date)
-        ),
+    member_time_to_edges_df = member_time.where(
+        (spark_funcs.col('date_start') >= ce_start_date)
+        & (spark_funcs.col('date_end') <= ce_end_date)
+    ).select(
+        'member_id',
+        'date_start',
+        'date_end'
+    ).union(
+        member_time.select(
+            'member_id',
+            spark_funcs.lit(ce_start_date).alias('date_start'),
+            spark_funcs.lit(ce_end_date).alias('date_end')
+        )
+    )
+
+    decoupled_windows_df = decouple_common_windows(
+        member_time_to_edges_df,
         'member_id',
         'date_start',
         'date_end',
         create_windows_for_gaps=True
     )
 
-    gaps_df = decoupled_windows.join(
+    gaps_df = decoupled_windows_df.join(
         member_time,
         ['member_id', 'date_start', 'date_end'],
         how='full_outer'
@@ -64,60 +76,37 @@ def find_elig_gaps(
         ) + 1).alias('date_diff')
     )
 
-    gaps_to_end_df = gaps_df.groupBy(
+    agg_gaps_df = gaps_df.groupBy(
         'member_id',
         'cover_medical'
     ).agg(
         spark_funcs.when(
             spark_funcs.col('cover_medical').isin('N'),
-            spark_funcs.max('date_diff')
-        ).alias('longest_gap'),
+            spark_funcs.max(
+                spark_funcs.col('date_diff')
+            )
+        ).alias('largest_gap'),
         spark_funcs.when(
             spark_funcs.col('cover_medical').isin('N'),
             spark_funcs.count('*')
-        ).alias('gap_count'),
-        spark_funcs.when(
-            spark_funcs.col('cover_medical').isin('Y'),
-            spark_funcs.datediff(
-                ce_end_date,
-                spark_funcs.max('date_end')
-            )
-        ).alias('gap_to_end')
-    ).withColumn(
-        'gap_count',
-        spark_funcs.when(
-            spark_funcs.col('gap_to_end') > 0,
-            spark_funcs.lit(1)
-        ).otherwise(
-            spark_funcs.col('gap_count')
-        )
-    ).select(
-        'member_id',
-        spark_funcs.greatest(
-            spark_funcs.col('longest_gap'),
-            spark_funcs.col('gap_to_end'),
-            spark_funcs.lit(0)
-        ).alias('largest_gap'),
-        spark_funcs.coalesce(
-            spark_funcs.col('gap_count'),
-            spark_funcs.lit(0)
         ).alias('gap_count')
     )
 
-    window = Window().partitionBy(
+    return agg_gaps_df.groupBy(
         'member_id'
-    ).orderBy(
-        spark_funcs.col('largest_gap').desc(),
-        spark_funcs.col('gap_count').desc()
-    )
-
-    return gaps_to_end_df.withColumn(
-        'row',
-        spark_funcs.row_number().over(window)
-    ).where(
-        spark_funcs.col('row') == 1
-    ).drop(
-        'row'
+    ).agg(
+        spark_funcs.coalesce(
+            spark_funcs.sum(
+                spark_funcs.col('largest_gap')
+            ),
+            spark_funcs.lit(0)
+        ).alias('largest_gap'),
+        spark_funcs.coalesce(
+            spark_funcs.sum(
+                spark_funcs.col('gap_count')
+            ),
+            spark_funcs.lit(0)
+        ).alias('gap_count')
     )
 
 
