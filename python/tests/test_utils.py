@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Alexander Olivero
+### CODE OWNERS: Alexander Olivero, Matthew Hawthorne
 
 ### OBJECTIVE:
   Test common used functions among the HEDIS quality measures.
