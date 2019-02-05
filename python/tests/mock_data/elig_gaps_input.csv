@@ -1,0 +1,17 @@
+member_id,date_start,date_end,cover_medical
+no_gaps,2017-01-01,2018-12-31,Y
+one_small_gap,2017-01-01,2018-11-30,Y
+one_small_gap,2018-12-15,2018-12-31,Y
+two_small_gaps,2017-01-01,2017-11-30,Y
+two_small_gaps,2017-12-10,2017-12-31,Y
+two_small_gaps,2018-01-15,2018-12-31,Y
+one_large_gap,2017-01-01,2017-12-31,Y
+one_large_gap,2018-01-01,2018-01-01,Y
+three_same_length_gap,2017-01-01,2017-12-30,Y
+three_same_length_gap,2018-01-01,2018-01-01,Y
+three_same_length_gap,2018-01-03,2018-01-03,Y
+three_same_length_gap,2018-01-05,2018-12-31,Y
+mid_gap_and_gap_to_end,2017-01-01,2017-12-31,Y
+mid_gap_and_gap_to_end,2018-01-15,2018-01-31,Y
+mid_gap_and_gap_to_end,2018-02-01,2018-11-30,Y
+early_gap,2017-03-01,2018-12-31,Y
