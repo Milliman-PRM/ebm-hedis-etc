@@ -3,7 +3,7 @@
 ### OBJECTIVE:
     Implement MMA - Persistent Asthma Patients with >75% medication adherence
 ### DEVELOPER NOTES:
-  <none>
+  Remove "no cover" flag after unit testing is added.
 """
 import logging
 import datetime
@@ -19,6 +19,7 @@ from ebm_hedis_etc.base_classes import QualityMeasure
 
 LOGGER = logging.getLogger(__name__)
 
+# pragma: no cover
 # pylint does not recognize many of the spark functions
 # pylint: disable=no-member
 
@@ -748,7 +749,10 @@ class MMA(QualityMeasure):
             31
         )
 
-        denom_df = calculate_denominator(dfs_input, measurement_date_end)
+        denom_df = calculate_denominator(
+            dfs_input,
+            measurement_date_end
+        )
 
         numer_df = calculate_numerator(
             dfs_input,
@@ -805,8 +809,3 @@ class MMA(QualityMeasure):
         result_df = denom_final_df.union(numer_final_df)
 
         return result_df
-
-if __name__ == '__main__':
-    # pylint: disable=wrong-import-position, wrong-import-order, ungrouped-imports
-    mma_decorator = MMA()
-    result = mma_decorator.calc_decorator(DFS_INPUT_MED)
