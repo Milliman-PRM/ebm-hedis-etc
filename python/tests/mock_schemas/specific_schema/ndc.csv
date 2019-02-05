@@ -1,0 +1,6 @@
+name,datatype,nullable
+medication_list,string,FALSE
+ndc_code,string,FALSE
+description,string,FALSE
+route,string,FALSE
+drug_id,string,FALSE
