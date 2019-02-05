@@ -70,42 +70,30 @@ def find_elig_gaps(
         'date_start',
         'date_end',
         'cover_medical',
-        (spark_funcs.datediff(
-            spark_funcs.col('date_end'),
-            spark_funcs.col('date_start')
-        ) + 1).alias('date_diff')
-    )
-
-    agg_gaps_df = gaps_df.groupBy(
-        'member_id',
-        'cover_medical'
-    ).agg(
         spark_funcs.when(
             spark_funcs.col('cover_medical').isin('N'),
-            spark_funcs.max(
-                spark_funcs.col('date_diff')
-            )
-        ).alias('largest_gap'),
+            (spark_funcs.datediff(
+                spark_funcs.col('date_end'),
+                spark_funcs.col('date_start')
+            ) + 1)
+        ).alias('elig_gap_date_diff'),
         spark_funcs.when(
             spark_funcs.col('cover_medical').isin('N'),
-            spark_funcs.count('*')
-        ).alias('gap_count')
+            spark_funcs.lit(1)
+        ).otherwise(
+            spark_funcs.lit(0)
+        ).alias('elig_gap_flag')
+
     )
 
-    return agg_gaps_df.groupBy(
+    return gaps_df.groupBy(
         'member_id'
     ).agg(
-        spark_funcs.coalesce(
-            spark_funcs.sum(
-                spark_funcs.col('largest_gap')
-            ),
-            spark_funcs.lit(0)
+        spark_funcs.max(
+            spark_funcs.col('elig_gap_date_diff')
         ).alias('largest_gap'),
-        spark_funcs.coalesce(
-            spark_funcs.sum(
-                spark_funcs.col('gap_count')
-            ),
-            spark_funcs.lit(0)
+        spark_funcs.sum(
+            spark_funcs.col('elig_gap_flag')
         ).alias('gap_count')
     )
 
