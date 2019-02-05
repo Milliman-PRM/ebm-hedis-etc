@@ -227,6 +227,34 @@ class MonitoringDiuretics(PRMPythonTask):
         )
 
 
+class ComprehensiveDiabetesCare(PRMPythonTask):
+    """Run comprehensive_diabetes_care.py"""
+
+    requirements = RequirementsContainer(
+        ImportReferences,
+        staging_membership.DeriveParamsFromMembership,
+        hcg_grouper_validation.Validations,
+    )
+
+    def output(self):
+        names_output = {
+            'results_cdc.parquet'
+        }
+        return [
+            IndyPyLocalTarget(PRM_META[150, 'out'] / name)
+            for name in names_output
+        ]
+
+    def run(self):
+        """Run the Luigi job"""
+        program = PATH_SCRIPTS / 'comprehensive_diabetes_care.py'
+        super().run(
+            program,
+            path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
+            create_folder=True
+        )
+
+
 class PersistentAsthmaAdherence(PRMPythonTask):
     """Run persistent_asthma_adherence.py"""
 
@@ -252,7 +280,7 @@ class PersistentAsthmaAdherence(PRMPythonTask):
             program,
             path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
             create_folder=True
-)
+        )
 
 
 class CombineAll(PRMPythonTask):
@@ -265,6 +293,7 @@ class CombineAll(PRMPythonTask):
         MonitoringDiuretics,
         ChildhoodImmunization,
         AllCauseReadmissions,
+        ComprehensiveDiabetesCare
     )
 
     def output(self):

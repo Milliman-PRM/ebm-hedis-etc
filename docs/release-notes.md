@@ -2,6 +2,12 @@
 
 A non-exhaustive list of what has changed in a more readable form than a commit history.
 
+### v0.9.2
+ - Implemented Comprehensive Diabetes Care Measure
+
+### v0.9.1
+ - Updated targets to be the most recent HEDIS average result rounded to the nearest 5. 
+
 ### v0.9.0
 
  - Implemented Persistence of Beta-Blockers after Heart Attack Measure
@@ -10,3 +16,4 @@ A non-exhaustive list of what has changed in a more readable form than a commit 
  - Implemented Annual Monitoring for Patients on Diuretics Measure
  - Implemented Statin Therapy with Cardiovascular Disease Measure
  - Implemented Statin Therapy with Diabetes Measure
+ 
