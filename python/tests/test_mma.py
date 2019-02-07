@@ -20,7 +20,6 @@ try:
     _PATH_FILE = Path(__file__).parent
 except NameError:  # Likely interactive development
     _PATH_FILE = Path(ebm_hedis_etc.pbh.__file__).parents[1] / 'tests'  # pylint: disable=redefined-variable-type
-#_PATH_FILE = Path(r'C:\Users\Demerrick.Moton\repos\ebm-hedis-etc\python\tests')
 
 PATH_MOCK_SCHEMAS = _PATH_FILE / "mock_schemas"
 PATH_SPECIFIC_SCHEMAS = PATH_MOCK_SCHEMAS / "specific_schemas"
@@ -86,7 +85,7 @@ def compare_actual_expected(
 
 def test_mma(mock_dataframes):
     """Test the mma measure"""
-    test_instance = ebm_hedis_etc.mma
+    test_instance = ebm_hedis_etc.mma.MMA()
     result_actual = test_instance.calc_measure(mock_dataframes, datetime.date(2018, 1, 1))
     result_actual.cache()
     result_expected = mock_dataframes['expected'].cache()
