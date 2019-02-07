@@ -7,6 +7,7 @@
 ### DEVELOPER NOTES:
     <none>
 """
+# pragma: no cover
 # pylint: disable=redefined-outer-name
 import datetime
 from pathlib import Path
