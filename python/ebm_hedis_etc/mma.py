@@ -14,8 +14,10 @@ import pyspark.sql.functions as F
 import pyspark.sql.types as T
 from pyspark.sql.window import Window
 from pyspark.sql.dataframe import DataFrame
+
 from prm.dates.windows import decouple_common_windows
 from ebm_hedis_etc.base_classes import QualityMeasure
+from ebm_hedis_etc.utils import find_elig_gaps
 
 LOGGER = logging.getLogger(__name__)
 
@@ -228,12 +230,21 @@ def _initial_filtering(dfs_input, measurement_date_end):
                 )
             )
 
+    unique_memtime_cols = list(
+        set(dfs_input['member_time'].columns).difference(
+            set(dfs_input['member'].columns)
+        )
+    )
+
     members_df = dfs_input['member'].where(
         F.abs(
             F.year(F.col('dob')) - F.year(F.lit(measurement_date_end))
         ).between(5,64)
     ).join(
-        dfs_input['member_time'].where(
+        dfs_input['member_time'].select(
+            F.col('member_id'),
+            *unique_memtime_cols
+        ).where(
             F.col('cover_medical') == 'Y'
             ),
         ['member_id'],
@@ -254,20 +265,15 @@ def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end)
         ['member_id', 'date_start']
     )
 
-    gap_exclusions_df = filtered_data_dict['members'].withColumn(
-        'gap_exists',
-        F.when(
-            (F.datediff(
-                F.col('date_start'),
-                F.lag(F.col('date_end')).over(member_time_window)
-                ) - F.lit(1)) >= 45,
-            True
-            ).otherwise(
-                False
-            )
-    ).groupBy(['gap_exists', 'member_id']).count().where(
-        F.col('gap_exists') & (F.col('count') > 1)
-    ).select('member_id')
+    gaps_df = find_elig_gaps(
+        filtered_data_dict['members'],
+        filtered_data_dict['members'].date_start,
+        filtered_data_dict['members'].date_end
+    )
+
+    gap_exclusions_df = gaps_df.where(
+        (F.col('largest_gap') >= 45) & (F.col('gap_count') > 1)
+    )
 
     # find members with any presense of certain diagnoses
     excluded_diags_df = dfs_input['reference'].where(
@@ -295,10 +301,7 @@ def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end)
         ],
         'inner'
     ).where(
-        F.datediff(
-            F.col('fromdate'),
-            F.lit(measurement_date_end)
-        ) <= 0
+        F.col('fromdate') <= F.lit(measurement_date_end)
     ).select('member_id')
 
     # find members who had no asthma controller medications dispensed
