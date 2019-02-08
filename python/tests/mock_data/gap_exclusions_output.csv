@@ -1,0 +1,8 @@
+member_id,expected_enrollment_gap_excluded
+no_gaps,N
+one_small_gap,N
+two_small_gaps,Y
+one_large_gap,Y
+three_same_length_gap,Y
+mid_gap_and_gap_to_end,Y
+early_gap,Y

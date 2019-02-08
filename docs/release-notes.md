@@ -2,7 +2,11 @@
 
 A non-exhaustive list of what has changed in a more readable form than a commit history.
 
-### v0.9.2
+### v1.0.0
+
+ - Implemented utils library for the following functions:
+   -  `find_elig_gaps`
+   - `flag_gap_exclusions`
  - Implemented Comprehensive Diabetes Care Measure
 
 ### v0.9.1
