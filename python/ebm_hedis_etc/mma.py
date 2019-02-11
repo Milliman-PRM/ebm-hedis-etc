@@ -452,7 +452,7 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
             True
         ).otherwise(False)
     ).where(
-        F.col('is_included') == True
+        F.col('is_included')
     ).join(
         exc_filtered_data_dict['rx'],
         'member_id',
