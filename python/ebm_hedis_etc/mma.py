@@ -476,7 +476,7 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
             True
         ).otherwise(False)
     ).where(
-        F.col('is_included') == True
+        F.col('is_included')
     ).join(
         exc_filtered_data_dict['rx'],
         'member_id',
@@ -507,12 +507,16 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         F.lit(True)
     )
 
+    out_obs_event_df = out_obs_event_med_df.join(
+        out_obs_event_rx_df,
+        ['member_id', 'is_elig'],
+        'inner'
+    )
+
     elig_members_df = ed_event_df.union(
         acute_inp_event_df
     ).union(
-        out_obs_event_med_df
-    ).union(
-        out_obs_event_rx_df
+        out_obs_event_df
     ).union(
         asthma_disp_event_df
     ).union(
