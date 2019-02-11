@@ -294,12 +294,12 @@ def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end)
     valueset_exclusions_df = filtered_data_dict['med'].join(
         excluded_diags_df,
         [
-            dfs_input['claims_exploded'].icdversion == F.regexp_extract(
+            filtered_data_dict['med'].icdversion == F.regexp_extract(
                 excluded_diags_df.code_system,
                 '\d+',
                 0
             ),
-            dfs_input['claims_exploded'].icddiag1 == F.regexp_replace(
+            filtered_data_dict['med'].icddiag1 == F.regexp_replace(
                 excluded_diags_df.code,
                 '\.',
                 ''
