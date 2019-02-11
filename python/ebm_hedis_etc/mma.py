@@ -401,10 +401,6 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         F.col('diagnosis_valueset_name').rlike(r'Asthma')
     ).groupBy('member_id').agg(
         F.count('*').alias('unique_service_dates')
-    ).join(
-        med_event_mask_df,
-        'member_id',
-        'inner'
     ).withColumn(
         'is_elig',
         F.when(
@@ -419,10 +415,6 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
     # filter data by various rx dispensing events
     out_obs_event_rx_df = rx_event_mask_df.groupBy('member_id').agg(
         F.count('*').alias('unique_disp_event')
-    ).join(
-        rx_event_mask_df,
-        'member_id',
-        'inner'
     ).withColumn(
         'is_elig',
         F.when(
@@ -436,10 +428,6 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
 
     asthma_disp_event_df = rx_event_mask_df.groupBy('member_id').agg(
         F.count('*').alias('unique_disp_event')
-    ).join(
-        rx_event_mask_df,
-        'member_id',
-        'inner'
     ).withColumn(
         'is_elig',
         F.when(
