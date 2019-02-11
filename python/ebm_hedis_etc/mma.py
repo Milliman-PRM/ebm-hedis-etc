@@ -132,15 +132,25 @@ def _initial_filtering(dfs_input, measurement_date_end):
         F.col('code').alias('diagnosis_code')
     )
 
-    med_df = dfs_input['claims'].join(
+    claims_exploded_df = dfs_input['claims'].withColumn(
+        'diag',
+        F.explode(
+            F.array(
+                [F.col(col) for col in dfs_input['claims'].columns
+                 if col.find('icddiag') > -1]
+            )
+        )
+    )
+
+    med_df = claims_exploded_df.join(
         diagnosis_valueset_df,
         [
-            dfs_input['claims'].icdversion == F.regexp_extract(
-                diagnosis_valueset_df.diagnosis_codesystem,
-                '\d+',
-                0
-                ),
-            dfs_input['claims'].icddiag1 == F.regexp_replace(
+            claims_exploded_df.icdversion == F.regexp_extract(
+                    diagnosis_valueset_df.diagnosis_codesystem,
+                    '\d+',
+                    0
+            ),
+            claims_exploded_df.diag == F.regexp_replace(
                 diagnosis_valueset_df.diagnosis_code,
                 '\.',
                 ''
@@ -153,7 +163,7 @@ def _initial_filtering(dfs_input, measurement_date_end):
         ),
         F.col('revcode') == visit_valueset_df.visit_code,
         'inner'
-    )
+    ).distinct()
 
     asthma_controller_meds = [
         'Antiasthmatic combinations',
@@ -259,12 +269,8 @@ def _initial_filtering(dfs_input, measurement_date_end):
 
 
 def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end):
-    # find members with at least more than one 45 day gap in
+    # find members with more than one 45 day gap in
     # eligibility during meas. year
-    member_time_window = Window.partitionBy('member_id').orderBy(
-        ['member_id', 'date_start']
-    )
-
     gaps_df = find_elig_gaps(
         filtered_data_dict['members'],
         filtered_data_dict['members'].date_start,
@@ -273,7 +279,7 @@ def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end)
 
     gap_exclusions_df = gaps_df.where(
         (F.col('largest_gap') >= 45) & (F.col('gap_count') > 1)
-    )
+    ).select(F.col('member_id'))
 
     # find members with any presense of certain diagnoses
     excluded_diags_df = dfs_input['reference'].where(
@@ -285,15 +291,15 @@ def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end)
         F.col('value_set_name').rlike(r'Acute Respiratory Failure')
     )
 
-    valueset_exclusions_df = dfs_input['claims'].join(
+    valueset_exclusions_df = filtered_data_dict['med'].join(
         excluded_diags_df,
         [
-            dfs_input['claims'].icdversion == F.regexp_extract(
+            dfs_input['claims_exploded'].icdversion == F.regexp_extract(
                 excluded_diags_df.code_system,
                 '\d+',
                 0
             ),
-            dfs_input['claims'].icddiag1 == F.regexp_replace(
+            dfs_input['claims_exploded'].icddiag1 == F.regexp_replace(
                 excluded_diags_df.code,
                 '\.',
                 ''
@@ -356,7 +362,8 @@ def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end)
 
 
 def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
-    """helper function that filters claims by medical and pharmacutical dispensing events of interest"""
+    """helper function that filters claims by medical and pharmacutical
+       dispensing events of interest"""
     rx_event_mask_df = exc_filtered_data_dict['rx'].groupBy(
         ['member_id', 'ndc', 'fromdate', 'medication_type']
     ).count()
