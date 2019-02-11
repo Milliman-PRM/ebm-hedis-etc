@@ -52,7 +52,7 @@ def mock_dataframes(spark_app):
 
     for path in PATH_SPECIFIC_SCHEMAS.glob('*.csv'):
         specific_schema = build_structtype_from_csv(path)
-        dataframes['mma'] = mma_df.select(
+        dataframes[path.stem] = mma_df.select(
             *[col.name for col in specific_schema.fields]
         )
 
