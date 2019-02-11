@@ -312,22 +312,17 @@ def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end)
 
     # find members who had no asthma controller medications dispensed
     # during the measurement year.
-    controller_exclusions_df = filtered_data_dict['rx'].groupBy(
-        ['member_id', 'fromdate']
+    controller_exclusions_df = filtered_data_dict['rx'].where(
+        F.col('fromdate').between(
+            F.lit(datetime.date(measurement_date_end.year - 1, 1, 1)),
+            F.lit(measurement_date_end)
+        )
+    ).groupBy(
+        'member_id'
     ).agg(
         F.collect_set('medication_type').alias('med_types')
     ).where(
-        ~F.array_contains(F.col('med_types'), 'controller') &
-        F.col('fromdate').between(
-            F.lit(
-                datetime.date(
-                    measurement_date_end.year - 1,
-                    12,
-                    31
-                )
-            ),
-            F.lit(measurement_date_end)
-        )
+        ~F.array_contains(F.col('med_types'), 'controller')
     ).select('member_id')
 
     exclusions_df = gap_exclusions_df.union(
@@ -456,11 +451,8 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         F.col('is_elig')
     )
 
-    included_year1_df = exc_filtered_data_dict['rx'].withColumn(
-        'year',
-        F.year(F.col('fromdate'))
-    ).where(
-        F.col('year') == measurement_date_end.year - 1
+    included_year1_df = exc_filtered_data_dict['rx'].where(
+        F.year(F.col('fromdate')) == measurement_date_end.year - 1
     ).groupBy('member_id').agg(
         F.collect_set(F.col('description')).alias('rx_types')
     ).withColumn(
@@ -483,11 +475,8 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         F.col('member_id')
     )
 
-    included_year2_df = exc_filtered_data_dict['rx'].withColumn(
-        'year',
-        F.year(F.col('fromdate'))
-    ).where(
-        F.col('year') == performance_yearstart.year
+    included_year2_df = exc_filtered_data_dict['rx'].where(
+        F.year(F.col('fromdate')) == performance_yearstart.year
     ).groupBy('member_id').agg(
         F.collect_set(F.col('description')).alias('rx_types')
     ).withColumn(
