@@ -160,8 +160,9 @@ def _initial_filtering(dfs_input, measurement_date_end):
         ).alias('diagnosis_code')
     )
     diagnosis_valueset_list = [x[2] for x in diagnosis_valueset_df.collect()]
-
-    med_dx_array_df = dfs_input['claims'].withColumn(
+    diagnosis_valueset_list
+    # compare with all diags to find valid claims
+    med_anydiag_df = dfs_input['claims'].withColumn(
         'diag_array',
         _build_dx_array(dfs_input['claims'].columns, 'icddiag')
     ).withColumn(
@@ -172,10 +173,28 @@ def _initial_filtering(dfs_input, measurement_date_end):
         )
     ).drop(
         'diag_array'
+    ).where(
+        F.col('is_valid') == True
+    ).join(
+        F.broadcast(
+            visit_valueset_df.where(
+                F.col('code_system') == 'UBREV'
+            )
+        ),
+        F.col('revcode') == visit_valueset_df.visit_code,
+        'inner'
     )
 
-    med_df = med_dx_array_df.where(
-        F.col('is_valid') == True
+    # compare with principle diags
+    med_prindiag_df = dfs_input['claims'].join(
+        diagnosis_valueset_df,
+        [
+            dfs_input['claims'].icdversion == \
+            diagnosis_valueset_df.diagnosis_codesystem,
+            dfs_input['claims'].icddiag1 == \
+            diagnosis_valueset_df.diagnosis_code
+        ],
+        'inner'
     ).join(
         F.broadcast(
             visit_valueset_df.where(
@@ -283,7 +302,8 @@ def _initial_filtering(dfs_input, measurement_date_end):
     )
 
     return {
-        'med': med_df,
+        'med_anydiag': med_alldiag_df,
+        'med_prindiag': med_princdiag_df,
         'rx': rx_df,
         'members': members_df
     }
@@ -311,24 +331,22 @@ def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end)
         F.col('value_set_name').rlike(r'Cystic Fibrosis') |
         F.col('value_set_name').rlike(r'Acute Respiratory Failure')
     )
+    excluded_diags_list = [x[2] for x in excluded_diags_df.collect()]
 
-    valueset_exclusions_df = filtered_data_dict['med'].join(
-        excluded_diags_df,
-        [
-            filtered_data_dict['med'].icdversion == F.regexp_extract(
-                excluded_diags_df.code_system,
-                '\d+',
-                0
-            ),
-            filtered_data_dict['med'].icddiag1 == F.regexp_replace(
-                excluded_diags_df.code,
-                '\.',
-                ''
-            )
-        ],
-        'inner'
+    valueset_exclusions_df = dfs_input['claims'].withColumn(
+        'diag_array',
+        _build_dx_array(dfs_input['claims'].columns, 'icddiag')
+    ).withColumn(
+        'is_valid',
+        _check_dx_array(
+            F.col('diag_array'),
+            excluded_diags_list
+        )
+    ).drop(
+        'diag_array'
     ).where(
-        F.col('fromdate') <= F.lit(measurement_date_end)
+        (F.col('is_valid') == True) & \
+        (F.col('fromdate') <= F.lit(measurement_date_end))
     ).select('member_id')
 
     # find members who had no asthma controller medications dispensed
@@ -358,7 +376,13 @@ def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end)
         'left_anti'
     )
 
-    med_df = filtered_data_dict['med'].join(
+    med_any_df = filtered_data_dict['med_anydiag'].join(
+        exclusions_df,
+        'member_id',
+        'left_anti'
+    )
+
+    med_principal_df = filtered_data_dict['med_prindiag'].join(
         exclusions_df,
         'member_id',
         'left_anti'
@@ -371,7 +395,8 @@ def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end)
     )
 
     return {
-        'med': med_df,
+        'med_anydiag': med_any_df,
+        'med_prindiag': med_principal_df,
         'rx': rx_df,
         'members': members_df
     }
@@ -384,13 +409,17 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         ['member_id', 'ndc', 'fromdate', 'medication_type']
     ).count()
 
-    med_event_mask_df = exc_filtered_data_dict['med'].groupBy(
+    med_eventmask_any_df = exc_filtered_data_dict['med_anydiag'].groupBy(
+        ['member_id', 'visit_valueset_name', 'fromdate']
+    ).agg(F.countDistinct(F.col('visit_valueset_name')).alias('count'))
+
+    med_eventmask_prin_df = exc_filtered_data_dict['med_prindiag'].groupBy(
         ['member_id', 'visit_valueset_name',
          'diagnosis_valueset_name', 'fromdate']
-    ).count()
+    ).agg(F.countDistinct('visit_valueset_name').alias('count'))
 
     # filter data by various medical events
-    ed_event_df = med_event_mask_df.withColumn(
+    ed_event_df = med_eventmask_prin_df.withColumn(
         'is_elig',
         F.when(
             F.col('visit_valueset_name').rlike(r'\bED\b') &
@@ -403,11 +432,10 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         F.col('is_elig')
     )
 
-    acute_inp_event_df = med_event_mask_df.withColumn(
+    acute_inp_event_df = med_eventmask_prin_df.withColumn(
         'is_elig',
         F.when(
             F.col('visit_valueset_name').rlike(r'Acute Inpatient') &
-            F.col('diagnosis_valueset_name').rlike(r'Asthma') &
             (F.col('count') >= 1),
             True
         ).otherwise(False)
@@ -416,12 +444,13 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         F.col('is_elig')
     )
 
-    out_obs_event_med_df = med_event_mask_df.where(
+    out_obs_event_med_df = med_eventmask_any_df.where(
         (F.col('visit_valueset_name').rlike(r'Outpatient') |
-        F.col('visit_valueset_name').rlike(r'Observation')) &
-        F.col('diagnosis_valueset_name').rlike(r'Asthma')
+        F.col('visit_valueset_name').rlike(r'Observation'))
+    ).groupBy('member_id', 'fromdate').agg(
+        F.max('count').alias('obs_out_visit')
     ).groupBy('member_id').agg(
-        F.count('*').alias('unique_service_dates')
+        F.sum('obs_out_visit').alias('unique_service_dates')
     ).withColumn(
         'is_elig',
         F.when(
@@ -513,16 +542,11 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
     ).distinct()
 
     included_diag_df = included_df.join(
-        exc_filtered_data_dict['med'].select(
-            F.col('member_id'),
-            F.col('diagnosis_valueset_name')
+        med_eventmask_any_df.select(
+            F.col('member_id')
         ),
         'member_id',
         'inner'
-    ).where(
-        F.col('diagnosis_valueset_name').rlike('Asthma')
-    ).select(
-        F.col('member_id')
     ).withColumn(
         'is_elig',
         F.lit(True)
@@ -554,7 +578,7 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
         'left_semi'
     )
 
-    med_df = exc_filtered_data_dict['med'].join(
+    med_df = exc_filtered_data_dict['med_anydiag'].join(
         members_df,
         'member_id',
         'left_semi'
