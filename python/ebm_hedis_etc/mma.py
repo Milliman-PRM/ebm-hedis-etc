@@ -9,6 +9,7 @@ import logging
 import datetime
 import dateutil.relativedelta
 from math import ceil, floor
+import re
 
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
@@ -28,6 +29,25 @@ LOGGER = logging.getLogger(__name__)
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 # =============================================================================
+
+
+def _check_dx_array(dx_array, test_values, num_dx_codes=15):
+    test_array = [
+        F.coalesce(
+            dx_array[dx_num].isin(test_values),
+            F.lit(False)
+        ) for dx_num in range(num_dx_codes)
+    ]
+    return F.array_contains(F.array(*test_array), True)
+
+
+def _build_dx_array(df_columns, dx_field_name):
+    """Build dx column from dataframe column list"""
+    dx_column_list = [
+        F.col(field) for field in
+        df_columns if re.search(dx_field_name, field)
+    ]
+    return F.array(*dx_column_list)
 
 
 def _rx_route_events(rx_data, route):
@@ -128,42 +148,43 @@ def _initial_filtering(dfs_input, measurement_date_end):
         F.col('value_set_name').rlike('Asthma')
     ).select(
         F.col('value_set_name').alias('diagnosis_valueset_name'),
-        F.col('code_system').alias('diagnosis_codesystem'),
-        F.col('code').alias('diagnosis_code')
+        F.regexp_extract(
+            F.col('code_system'),
+            '\d+',
+            0
+        ).alias('diagnosis_codesystem'),
+        F.regexp_replace(
+            F.col('code'),
+            '\.',
+            ''
+        ).alias('diagnosis_code')
     )
+    diagnosis_valueset_list = [x[2] for x in diagnosis_valueset_df.collect()]
 
-    claims_exploded_df = dfs_input['claims'].withColumn(
-        'diag',
-        F.explode(
-            F.array(
-                [F.col(col) for col in dfs_input['claims'].columns
-                 if col.find('icddiag') > -1]
-            )
+    med_dx_array_df = dfs_input['claims'].withColumn(
+        'diag_array',
+        _build_dx_array(dfs_input['claims'].columns, 'icddiag')
+    ).withColumn(
+        'is_valid',
+        _check_dx_array(
+            F.col('diag_array'),
+            diagnosis_valueset_list
         )
+    ).drop(
+        'diag_array'
     )
 
-    med_df = claims_exploded_df.join(
-        diagnosis_valueset_df,
-        [
-            claims_exploded_df.icdversion == F.regexp_extract(
-                    diagnosis_valueset_df.diagnosis_codesystem,
-                    '\d+',
-                    0
-            ),
-            claims_exploded_df.diag == F.regexp_replace(
-                diagnosis_valueset_df.diagnosis_code,
-                '\.',
-                ''
-            )
-        ],
-        'inner'
+    med_df = med_dx_array_df.where(
+        F.col('is_valid') == True
     ).join(
-        visit_valueset_df.where(
-            F.col('code_system') == 'UBREV'
+        F.broadcast(
+            visit_valueset_df.where(
+                F.col('code_system') == 'UBREV'
+            )
         ),
         F.col('revcode') == visit_valueset_df.visit_code,
         'inner'
-    ).distinct()
+    )
 
     asthma_controller_meds = [
         'Antiasthmatic combinations',
