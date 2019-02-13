@@ -160,7 +160,7 @@ def _initial_filtering(dfs_input, measurement_date_end):
         ).alias('diagnosis_code')
     )
     diagnosis_valueset_list = [x[2] for x in diagnosis_valueset_df.collect()]
-    diagnosis_valueset_list
+
     # compare with all diags to find valid claims
     med_anydiag_df = dfs_input['claims'].withColumn(
         'diag_array',
@@ -302,8 +302,8 @@ def _initial_filtering(dfs_input, measurement_date_end):
     )
 
     return {
-        'med_anydiag': med_alldiag_df,
-        'med_prindiag': med_princdiag_df,
+        'med_anydiag': med_anydiag_df,
+        'med_prindiag': med_prindiag_df,
         'rx': rx_df,
         'members': members_df
     }
@@ -843,5 +843,5 @@ class MMA(QualityMeasure):
         )
 
         result_df = denom_final_df.union(numer_final_df)
-
+        
         return result_df
