@@ -812,36 +812,45 @@ class MMA(QualityMeasure):
             'inner'
         ).distinct().select(
             F.col('member_id'),
-            F.lit('MMA').alias('comp_quality_short'),
-            F.lit(0).alias('comp_quality_numerator'),
             F.when(
                 F.col('member_id').isNotNull(),
                 F.lit(1)
             ).otherwise(
                 F.lit(0)
             ).alias('comp_quality_denominator'),
-            F.lit(None).cast('string').alias('comp_quality_date_last'),
-            F.lit(None).cast('string').alias('comp_quality_date_actionable'),
-            F.lit(None).cast('string').alias('comp_quality_comments')
         )
 
         numer_final_df = numer_df.where(
             F.col('pdc') >= 0.75
         ).distinct().select(
             F.col('member_id'),
-            F.lit('MMA').alias('comp_quality_short'),
             F.when(
                 F.col('member_id').isNotNull(),
                 F.lit(1)
             ).otherwise(
                 F.lit(0)
             ).alias('comp_quality_numerator'),
-            F.lit(0).alias('comp_quality_denominator'),
+
+        )
+
+        result_df = denom_final_df.join(
+            numer_final_df,
+            'member_id',
+            'full'
+        ).select(
+            F.col('member_id'),
+            F.coalesce(
+                F.col('comp_quality_numerator'),
+                F.lit(0)
+            ).alias('comp_quality_numerator'),
+            F.coalesce(
+                F.col('comp_quality_denominator'),
+                F.lit(0)
+            ).alias('comp_quality_denominator'),
             F.lit(None).cast('string').alias('comp_quality_date_last'),
             F.lit(None).cast('string').alias('comp_quality_date_actionable'),
+            F.lit('MMA').alias('comp_quality_short'),
             F.lit(None).cast('string').alias('comp_quality_comments')
         )
 
-        result_df = denom_final_df.union(numer_final_df)
-        
         return result_df
