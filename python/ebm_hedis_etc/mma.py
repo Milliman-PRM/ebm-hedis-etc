@@ -159,7 +159,8 @@ def _initial_filtering(dfs_input, measurement_date_end):
             ''
         ).alias('diagnosis_code')
     )
-    diagnosis_valueset_list = [x[2] for x in diagnosis_valueset_df.collect()]
+    diagnosis_valueset_list = [dx_col[2] for dx_col \
+                               in diagnosis_valueset_df.collect()]
 
     # compare with all diags to find valid claims
     med_anydiag_df = dfs_input['claims'].withColumn(
@@ -309,7 +310,11 @@ def _initial_filtering(dfs_input, measurement_date_end):
     }
 
 
-def _exclusionary_filtering(dfs_input, filtered_data_dict, measurement_date_end):
+def _exclusionary_filtering(
+        dfs_input,
+        filtered_data_dict,
+        measurement_date_end
+    ):
     # find members with more than one 45 day gap in
     # eligibility during meas. year
     gaps_df = find_elig_gaps(
@@ -738,7 +743,11 @@ def _calculate_rates(rx_data, measurement_date_end):
     return member_coverage_summ
 
 
-def calculate_denominator(dfs_input, measurement_date_end):
+def calculate_denominator(
+        dfs_input: DataFrame,
+        measurement_date_end: datetime.date
+    ):
+    """Calculate the numerator portion of MMA measure"""
     filtered_data_dict = _initial_filtering(
         dfs_input,
         measurement_date_end
@@ -759,7 +768,12 @@ def calculate_denominator(dfs_input, measurement_date_end):
     return event_filtered_data_dict
 
 
-def calculate_numerator(dfs_input, rx_data, measurement_date_end):
+def calculate_numerator(
+        dfs_input: DataFrame,
+        rx_data: dict,
+        measurement_date_end: datetime.date
+    ):
+    """Calculate the denominator portion of MMA measure"""
     rx_data = rx_data.join(
         dfs_input['rx_claims'],
         ['member_id', 'ndc', 'fromdate', 'dayssupply'],
