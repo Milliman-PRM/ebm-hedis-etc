@@ -1,4 +1,6 @@
 value_set_name,code,code_system
-Not AMI,0000,A10
+Not AMI,0,A10
 AMI,1111,Q10
-Inpatient Stay,0123,revcode
+Inpatient Stay,123,revcode
+Acute Inpatient,2222,UBREV
+Asthma,J45901,ICD10CM
