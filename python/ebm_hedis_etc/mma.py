@@ -334,8 +334,20 @@ def _exclusionary_filtering(
         F.col('value_set_name').rlike(r'Chronic Respiratory Conditions') |
         F.col('value_set_name').rlike(r'Cystic Fibrosis') |
         F.col('value_set_name').rlike(r'Acute Respiratory Failure')
+    ).select(
+        F.col('value_set_name').alias('diagnosis_valueset_name'),
+        F.regexp_extract(
+            F.col('code_system'),
+            '\d+',
+            0
+        ).alias('excluded_codesystem'),
+        F.regexp_replace(
+            F.col('code'),
+            '\.',
+            ''
+        ).alias('excluded_code')
     )
-    excluded_diags_list = [dx_col['code'] for dx_col \
+    excluded_diags_list = [dx_col['excluded_code'] for dx_col \
                            in excluded_diags_df.collect()]
 
     valueset_exclusions_df = dfs_input['claims'].withColumn(
