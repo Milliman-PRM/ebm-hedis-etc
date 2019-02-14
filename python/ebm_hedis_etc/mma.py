@@ -158,7 +158,7 @@ def _initial_filtering(dfs_input, measurement_date_end):
             ''
         ).alias('diagnosis_code')
     )
-    diagnosis_valueset_list = [dx_col[2] for dx_col \
+    diagnosis_valueset_list = [dx_col['diagnosis_code'] for dx_col \
                                in diagnosis_valueset_df.collect()]
 
     # compare with all diags to find valid claims
@@ -335,7 +335,8 @@ def _exclusionary_filtering(
         F.col('value_set_name').rlike(r'Cystic Fibrosis') |
         F.col('value_set_name').rlike(r'Acute Respiratory Failure')
     )
-    excluded_diags_list = [x[2] for x in excluded_diags_df.collect()]
+    excluded_diags_list = [dx_col['code'] for dx_col \
+                           in excluded_diags_df.collect()]
 
     valueset_exclusions_df = dfs_input['claims'].withColumn(
         'diag_array',
