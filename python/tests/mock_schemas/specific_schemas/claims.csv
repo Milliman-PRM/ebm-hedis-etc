@@ -1,0 +1,11 @@
+name,datatype,nullable
+claimid,string,FALSE
+member_id,string,FALSE
+admitdate,date,FALSE
+dischdate,date,FALSE
+icdversion,string,FALSE
+icddiag1,string,TRUE
+icddiag2,string,TRUE
+icddiag3,string,TRUE
+revcode,string,TRUE
+fromdate,date,FALSE
