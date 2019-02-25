@@ -808,7 +808,7 @@ class MMA(QualityMeasure):
     def _calc_measure(
             self,
             dfs_input: "typing.Mapping[str, DataFrame]",
-            performance_yearstart=datetime.date,
+            performance_yearstart: datetime.date,
         ):
 
         measurement_date_end = datetime.date(
