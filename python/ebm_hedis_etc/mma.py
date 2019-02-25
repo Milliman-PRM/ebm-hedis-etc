@@ -7,7 +7,6 @@
 """
 import logging
 import datetime
-from math import floor
 import re
 
 import pyspark.sql.functions as F
