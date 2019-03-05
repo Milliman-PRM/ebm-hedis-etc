@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Alexander Olivero
+### CODE OWNERS: Alexander Olivero, Matthew Hawthorne
 ### OBJECTIVE:
     Calculate the Comprehensive Diabetes Care measures.
 ### DEVELOPER NOTES:

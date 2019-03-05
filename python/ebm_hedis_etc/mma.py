@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Demerrick Moton
+### CODE OWNERS: Demerrick Moton, Matthew Hawthorne
 ### OBJECTIVE:
     Implement MMA - Persistent Asthma Patients with >75% medication adherence
 ### DEVELOPER NOTES:
