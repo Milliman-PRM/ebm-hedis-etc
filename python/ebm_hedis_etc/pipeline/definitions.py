@@ -293,7 +293,8 @@ class CombineAll(PRMPythonTask):
         MonitoringDiuretics,
         ChildhoodImmunization,
         AllCauseReadmissions,
-        ComprehensiveDiabetesCare
+        ComprehensiveDiabetesCare,
+        PersistentAsthmaAdherence
     )
 
     def output(self):

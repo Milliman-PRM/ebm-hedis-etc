@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Demerrick Moton
+### CODE OWNERS: Demerrick Moton, Matthew Hawthorne
 
 ### OBJECTIVE:
     Test the persistent asthma adherence quality measure
