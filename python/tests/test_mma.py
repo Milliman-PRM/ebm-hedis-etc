@@ -1,8 +1,8 @@
 """
-### CODE OWNERS: Alexander Olivero, Demerrick Moton
+### CODE OWNERS: Demerrick Moton, Matthew Hawthorne
 
 ### OBJECTIVE:
-    Test the persistence of beta-blockers after heart attack quality measure
+    Test the persistent asthma adherence quality measure
 
 ### DEVELOPER NOTES:
     <none>
@@ -13,8 +13,7 @@ import datetime
 from pathlib import Path
 import pytest
 
-
-import ebm_hedis_etc.pbh
+import ebm_hedis_etc.mma
 from prm.spark.io_txt import build_structtype_from_csv
 
 try:
@@ -23,16 +22,12 @@ except NameError:  # Likely interactive development
     _PATH_FILE = Path(ebm_hedis_etc.pbh.__file__).parents[1] / 'tests'  # pylint: disable=redefined-variable-type
 
 PATH_MOCK_SCHEMAS = _PATH_FILE / "mock_schemas"
+PATH_SPECIFIC_SCHEMAS = PATH_MOCK_SCHEMAS / "specific_schemas"
 PATH_MOCK_DATA = _PATH_FILE / "mock_data"
 
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 # =============================================================================
-
-
-def _get_name_from_path(path_):
-    """Get the data set name from the path"""
-    return path_.stem[path_.stem.find('_') + 1:]
 
 
 @pytest.fixture
@@ -46,17 +41,21 @@ def mock_dataframes(spark_app):
         header=True,
         mode='FAILFAST'
     )
-    for path_ in PATH_MOCK_SCHEMAS.glob('pbh*.csv'):
-        name = _get_name_from_path(path_)
-        if name != 'input':
-            specific_schema = build_structtype_from_csv(path_)
-            dataframes[name] = spark_app.session.read.csv(
-                str(PATH_MOCK_DATA / 'pbh_input.csv'),
-                schema=build_structtype_from_csv(PATH_MOCK_SCHEMAS / 'pbh_input.csv'),
-                sep=',',
-                header=True,
-                mode='FAILFAST'
-            ).select(*[col.name for col in specific_schema.fields])
+
+    mma_df = spark_app.session.read.csv(
+        str(PATH_MOCK_DATA / 'mma.csv'),
+        schema=build_structtype_from_csv(PATH_MOCK_SCHEMAS / 'mma.csv'),
+        sep=',',
+        header=True,
+        mode='FAILFAST'
+    )
+
+    for path in PATH_SPECIFIC_SCHEMAS.glob('*.csv'):
+        specific_schema = build_structtype_from_csv(path)
+        dataframes[path.stem] = mma_df.select(
+            *[col.name for col in specific_schema.fields]
+        )
+
     return dataframes
 
 
@@ -69,7 +68,7 @@ def compare_actual_expected(
     compare = result_expected.join(
         result_actual,
         "member_id",
-        "left_outer",
+        "left_outer"
         )
     compare_columns = {
         expected_column: expected_column[expected_column.find("_") + 1:]
@@ -84,9 +83,9 @@ def compare_actual_expected(
     assert not failures, "Column(s) '{}' contains unexpected values".format(failures)
 
 
-def test_pbh(mock_dataframes):
-    """Test the persistence of beta-blockers after heart attack logic"""
-    test_instance = ebm_hedis_etc.pbh.PBH()
+def test_mma(mock_dataframes):
+    """Test the mma measure"""
+    test_instance = ebm_hedis_etc.mma.MMA()
     result_actual = test_instance.calc_measure(mock_dataframes, datetime.date(2018, 1, 1))
     result_actual.cache()
     result_expected = mock_dataframes['expected'].cache()

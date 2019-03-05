@@ -4,7 +4,7 @@ A component to encapsulate the running of EBM measures (both HEDIS and non-HEDIS
 
 ## Development Guidelines
 
-### Branching Stragegy
+### Branching Strategy
 
 This repository utilizes full [git-flow](https://datasift.github.io/gitflow/IntroducingGitFlow.html)
 
