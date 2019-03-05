@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Demerrick Moton
+### CODE OWNERS: Demerrick Moton, Matthew Hawthorne
 ### OBJECTIVE:
     Implement MMA - Persistent Asthma Patients with >75% medication adherence
 ### DEVELOPER NOTES:
@@ -7,7 +7,6 @@
 """
 import logging
 import datetime
-from math import floor
 import re
 
 import pyspark.sql.functions as F
@@ -419,7 +418,11 @@ def _exclusionary_filtering(
     }
 
 
-def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
+def _event_filtering(
+        exc_filtered_data_dict,
+        performance_yearstart,
+        measurement_date_end
+):
     """helper function that filters claims by medical and pharmacutical
        dispensing events of interest"""
     rx_event_mask_df = exc_filtered_data_dict['rx'].groupBy(
@@ -614,7 +617,7 @@ def _event_filtering(dfs_input, exc_filtered_data_dict, measurement_date_end):
     }
 
 
-def _calculate_rates(rx_data, measurement_date_end):
+def _calculate_rates(rx_data, performance_yearstart, measurement_date_end):
     controller_claims_df = rx_data.where(
         (F.col('medication_type') == 'controller') &
         F.col('fromdate').between(
@@ -757,6 +760,7 @@ def _calculate_rates(rx_data, measurement_date_end):
 
 def calculate_denominator(
         dfs_input: DataFrame,
+        performance_yearstart: datetime.date,
         measurement_date_end: datetime.date
     ):
     """Calculate the numerator portion of MMA measure"""
@@ -772,8 +776,8 @@ def calculate_denominator(
     )
 
     event_filtered_data_dict = _event_filtering(
-        dfs_input,
         exc_filtered_data_dict,
+        performance_yearstart,
         measurement_date_end
     )
 
@@ -783,6 +787,7 @@ def calculate_denominator(
 def calculate_numerator(
         dfs_input: DataFrame,
         rx_data: dict,
+        performance_yearstart: datetime.date,
         measurement_date_end: datetime.date
     ):
     """Calculate the denominator portion of MMA measure"""
@@ -792,7 +797,7 @@ def calculate_numerator(
         'inner'
     )
 
-    numer_rates = _calculate_rates(rx_data, measurement_date_end)
+    numer_rates = _calculate_rates(rx_data, performance_yearstart, measurement_date_end)
 
     return numer_rates
 
@@ -802,7 +807,7 @@ class MMA(QualityMeasure):
     def _calc_measure(
             self,
             dfs_input: "typing.Mapping[str, DataFrame]",
-            performance_yearstart=datetime.date,
+            performance_yearstart: datetime.date,
         ):
 
         measurement_date_end = datetime.date(
@@ -813,12 +818,14 @@ class MMA(QualityMeasure):
 
         denom_df = calculate_denominator(
             dfs_input,
+            performance_yearstart,
             measurement_date_end
         )
 
         numer_df = calculate_numerator(
             dfs_input,
             denom_df['rx'],
+            performance_yearstart,
             measurement_date_end
         )
 

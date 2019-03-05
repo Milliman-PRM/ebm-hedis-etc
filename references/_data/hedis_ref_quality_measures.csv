@@ -23,3 +23,4 @@ comp_quality_dual,comp_quality_short,comp_quality,comp_quality_category,comp_qua
 22,CDC: HBA1C, Comprehensive Diabetes Care: HbA1c Testing,Diabetes,Higher_Better,.9,"#,##0.0%",Binary
 23,CDC: NEP, Comprehensive Diabetes Care: Medical Attention for Nephropathy,Diabetes,Higher_Better,.9,"#,##0.0%",Binary
 24,CDC: EYE, Comprehensive Diabetes Care: Eye Exam,Diabetes,Higher_Better,.5,"#,##0.0%",Binary
+25,MMA,Persistent Asthma Patients with >75% Medication Adherence,Respiratory Conditions,Higher_Better,.4,"#,##0.0%",Binary
