@@ -217,6 +217,56 @@ def _format_measure_results(
     return measure_formatted
 
 
+def _flag_denominator(
+        dfs_input: "typing.Mapping[str, DataFrame]",
+        map_references: "typing.Mapping[str, DataFrame]",
+        date_performanceyearstart: datetime.date,
+        date_performanceyearend: datetime.date,
+    ) -> DataFrame:
+    """Wrap execution of denominator flagging logic"""
+    elig_members = _calculate_age_criteria(
+        dfs_input['members'],
+        date_performanceyearstart,
+        date_performanceyearend,
+    )
+    acute_bronchitis_events = _identify_acute_bronchitis_events(
+        dfs_input['outclaims'],
+        map_references,
+        date_performanceyearstart,
+        date_performanceyearend,
+    )
+    negative_condition_events = _identify_negative_condition_events(
+        dfs_input['outclaims'],
+        map_references,
+    )
+    negative_rx_events = _identify_negative_medication_events(
+        dfs_input['outpharmacy'],
+        map_references,
+    )
+    negative_comp_diags = _identify_competing_diagnoses(
+        dfs_input['outclaims'],
+        map_references,
+    )
+    excluded_negative_history = _exclude_negative_history(
+        acute_bronchitis_events,
+        negative_condition_events,
+        negative_rx_events,
+        negative_comp_diags,
+    )
+    elig_gap_exclusions = _apply_elig_gap_exclusions(
+        excluded_negative_history,
+        dfs_input['member_time'],
+    )
+    age_exclusions = _apply_age_exclusions(
+        elig_gap_exclusions,
+        elig_members,
+    )
+    earliest_episode = _select_earliest_episode(
+        age_exclusions,
+    )
+    return earliest_episode
+
+
 class AAB(QualityMeasure):
     """Object to house the logic to calculate AAB measure"""
     def _calc_measure(
@@ -225,55 +275,21 @@ class AAB(QualityMeasure):
             performance_yearstart=datetime.date,
             **kwargs
     ):
-        elig_members = _calculate_age_criteria(
-            dfs_input['members'],
-            date_performanceyearstart,
-            date_performanceyearend,
-        )
         map_references = _prep_reference_data(
             dfs_input['reference'],
         )
-        acute_bronchitis_events = _identify_acute_bronchitis_events(
-            dfs_input['outclaims'],
+        denominator = _flag_denominator(
+            dfs_input,
             map_references,
             date_performanceyearstart,
             date_performanceyearend,
-        )
-        negative_condition_events = _identify_negative_condition_events(
-            dfs_input['outclaims'],
-            map_references,
-        )
-        negative_rx_events = _identify_negative_medication_events(
-            dfs_input['outpharmacy'],
-            map_references,
-        )
-        negative_comp_diags = _identify_competing_diagnoses(
-            dfs_input['outclaims'],
-            map_references,
-        )
-        excluded_negative_history = _exclude_negative_history(
-            acute_bronchitis_events,
-            negative_condition_events,
-            negative_rx_events,
-            negative_comp_diags,
-        )
-        elig_gap_exclusions = _apply_elig_gap_exclusions(
-            excluded_negative_history,
-            dfs_input['member_time'],
-        )
-        age_exclusions = _apply_age_exclusions(
-            elig_gap_exclusions,
-            elig_members,
-        )
-        earliest_episode = _select_earliest_episode(
-            age_exclusions,
         )
         aab_rx = _identify_aab_prescriptions(
             dfs_input['outpharmacy'],
             map_references,
         )
         numerator_flagged = _calculate_numerator(
-            earliest_episode,
+            denominator,
             aab_rx,
         )
         measure_results = _format_measure_results(
