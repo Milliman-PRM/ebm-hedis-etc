@@ -92,6 +92,42 @@ def _calculate_age_criteria(
     ) -> DataFrame:
     """Determine which members meet the age criteria"""
 
+    date_performanceyearstart_prior = datetime.date(
+        date_performanceyearstart.year - 1,
+        date_performanceyearstart.month,
+        date_performanceyearstart.day,
+    )
+
+    elig_members = members.select(
+        '*',
+        (
+            spark_funcs.datediff(
+                spark_funcs.lit(date_performanceyearstart_prior),
+                spark_funcs.col('dob'),
+            )
+            / 365.25
+        ).alias('age_py_start_prior'),
+        (
+            spark_funcs.datediff(
+                spark_funcs.lit(date_performanceyearend),
+                spark_funcs.col('dob'),
+            )
+            / 365.25
+        ).alias('age_py_end'),
+    ).select(
+        'member_id',
+        'dob',
+        'age_py_start_prior',
+        'age_py_end',
+        spark_funcs.when(
+            (spark_funcs.col('age_py_start_prior') < AGE_LOWER)
+            | (spark_funcs.col('age_py_end') > AGE_UPPER),
+            spark_funcs.lit(0),
+        ).otherwise(
+            spark_funcs.lit(1),
+        ).alias('meets_age_criteria'),
+    )
+
     return elig_members
 
 
@@ -225,7 +261,7 @@ def _flag_denominator(
     ) -> DataFrame:
     """Wrap execution of denominator flagging logic"""
     elig_members = _calculate_age_criteria(
-        dfs_input['members'],
+        dfs_input['member'],
         date_performanceyearstart,
         date_performanceyearend,
     )
@@ -275,6 +311,13 @@ class AAB(QualityMeasure):
             performance_yearstart=datetime.date,
             **kwargs
     ):
+        date_performanceyearstart = performance_yearstart
+        date_performanceyearend = datetime.date(
+            performance_yearstart.year + 1,
+            performance_yearstart.month,
+            performance_yearstart.day,
+        ) - datetime.timedelta(days=8)
+
         map_references = _prep_reference_data(
             dfs_input['reference'],
         )
