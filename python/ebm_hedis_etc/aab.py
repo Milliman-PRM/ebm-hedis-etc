@@ -132,10 +132,61 @@ def _calculate_age_criteria(
 
 
 def _prep_reference_data(
-        reference_df: DataFrame,
+        value_set_reference_df: DataFrame,
+        ndc_reference_df: DataFrame,
     ) -> "typing.Mapping[str, DataFrame]":
     """Gather all of our reference data into a form that can be used easily"""
-    reference_munge = reference_df.withColumn(
+    map_med_reference_codesets = {
+        'index_visit':  [
+            'Outpatient',
+            'Observation',
+            'ED',
+        ],
+        'index_diag': [
+            'Acute Bronchitis',
+        ],
+        'index_ip_excl': [
+            'Inpatient Stay',
+        ],
+        'negative_conditions': [
+            'HIV',
+            'HIV Type 2',
+            'Malignant Neoplasms',
+            'Emphysema',
+            'COPD',
+            'Cystic Fibrosis',
+            'Comorbid Conditions',
+            'Disorders of the Immune System',
+        ],
+        'negative_comp_diag': [
+            'Pharyngitis',
+            'Competing Diagnosis',
+        ]
+    }
+    map_rx_reference_codesets = {
+        'aab_rx': [
+            'Aminoglycosides',
+            'Aminopenicillins',
+            #'Antipseudomonal penicillins', # Listed in specs but not found in reference
+            'Beta-lactamase inhibitors',
+            'First generation cephalosporins',
+            'Fourth generation cephalosporins',
+            'Ketolides',
+            'Lincomycin derivatives',
+            'Macrolides',
+            'Miscellaneous antibiotics',
+            'Natural penicillins',
+            'Penicillinase-resistant penicillins',
+            'Quinolones',
+            'Rifamycin derivatives',
+            'Second generation cephalosporins',
+            'Sulfonamides',
+            'Tetracyclines',
+            'Third generation cephalosporins',
+            'Urinary anti-infectives',
+        ],
+    }
+    value_set_munge = value_set_reference_df.withColumn(
         'code',
         spark_funcs.regexp_replace(spark_funcs.col('code'), r'\.', '')
     ).withColumn(
@@ -148,6 +199,38 @@ def _prep_reference_data(
                 0)
         )
     )
+
+    map_references = dict()
+    for key_reference, iter_code_sets in map_med_reference_codesets.items():
+        map_references[key_reference] = value_set_munge.filter(
+            spark_funcs.col('value_set_name').isin(iter_code_sets)
+        ).cache()
+
+        found_value_sets = {
+            row['value_set_name']
+            for row in map_references[key_reference].select('value_set_name').distinct().collect()
+            }
+        missing_value_sets = set(iter_code_sets) - found_value_sets
+        assert not(missing_value_sets), 'Did not find {} value sets in {} grouping'.format(
+            missing_value_sets,
+            key_reference,
+        )
+
+    for key_reference, iter_code_sets in map_rx_reference_codesets.items():
+        map_references[key_reference] = ndc_reference_df.filter(
+            (spark_funcs.col('medication_list') == 'AAB Antibiotic Medications')
+            & spark_funcs.col('description').isin(iter_code_sets)
+        ).cache()
+
+        found_value_sets = {
+            row['description']
+            for row in map_references[key_reference].select('description').distinct().collect()
+            }
+        missing_value_sets = set(iter_code_sets) - found_value_sets
+        assert not(missing_value_sets), 'Did not find {} value sets in {} grouping'.format(
+            missing_value_sets,
+            key_reference,
+        )
 
     return map_references
 
@@ -320,6 +403,7 @@ class AAB(QualityMeasure):
 
         map_references = _prep_reference_data(
             dfs_input['reference'],
+            dfs_input['ndc'],
         )
         denominator = _flag_denominator(
             dfs_input,
