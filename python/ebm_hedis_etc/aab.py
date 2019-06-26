@@ -11,6 +11,7 @@
 """
 import logging
 import datetime
+import typing
 
 import pyspark.sql.functions as spark_funcs
 import pyspark.sql.types as spark_types
@@ -84,52 +85,136 @@ def _exclude_elig_gaps(
     ).distinct()
 
 
-def _calculate_age_criteria():
+def _calculate_age_criteria(
+        members: DataFrame,
+        date_performanceyearstart: datetime.date,
+        date_performanceyearend: datetime.date,
+    ) -> DataFrame:
     """Determine which members meet the age criteria"""
 
+    return elig_members
 
-def _prep_reference_data():
+
+def _prep_reference_data(
+        reference_df: DataFrame,
+    ) -> "typing.Mapping[str, DataFrame]":
     """Gather all of our reference data into a form that can be used easily"""
+    reference_munge = reference_df.withColumn(
+        'code',
+        spark_funcs.regexp_replace(spark_funcs.col('code'), r'\.', '')
+    ).withColumn(
+        'icdversion',
+        spark_funcs.when(
+            spark_funcs.col('code_system').contains('ICD'),
+            spark_funcs.regexp_extract(
+                spark_funcs.col('code_system'),
+                r'\d+',
+                0)
+        )
+    )
+
+    return map_references
 
 
-def _identify_acute_bronchitis_events():
+def _identify_acute_bronchitis_events(
+        outclaims: DataFrame,
+        map_references: "typing.Mapping[str, DataFrame]",
+        date_performanceyearstart: datetime.date,
+        date_performanceyearend: datetime.date,
+    ) -> DataFrame:
     """Find all qualifying visits with diagnosis of acute bronchitis"""
 
+    return acute_bronchitis_events
 
-def _identify_negative_condition_events():
+
+def _identify_negative_condition_events(
+        outclaims: DataFrame,
+        map_references: "typing.Mapping[str, DataFrame]",
+    ):
     """Find dates for all medical events that could disqualify an index episode"""
 
+    return negative_condition_events
 
-def _identify_negative_medication_events():
+
+def _identify_negative_medication_events(
+        outpharmacy: DataFrame,
+        map_references: "typing.Mapping[str, DataFrame]",
+    ) -> DataFrame:
     """Find dates for all prescription events that could disqualify an index episode"""
 
+    return negative_rx_events
 
-def _identify_competing_diagnoses():
+
+def _identify_competing_diagnoses(
+        outclaims: DataFrame,
+        map_references: "typing.Mapping[str, DataFrame]",
+    ) -> DataFrame:
     """Find dates for all competing diagnosis events that could disqualify an index episode"""
 
+    return negative_comp_diags
 
-def _exclude_negative_history():
+
+def _exclude_negative_history(
+        acute_bronchitis_events: DataFrame,
+        negative_condition_events: DataFrame,
+        negative_rx_events: DataFrame,
+        negative_comp_diags: DataFrame,
+    ) -> DataFrame:
     """Apply exclusions for index episodes from negative history events"""
 
+    return excluded_negative_history
 
-def _apply_elig_gap_exclusions():
+
+def _apply_elig_gap_exclusions(
+        excluded_negative_history: DataFrame,
+        member_time: DataFrame,
+    ) -> DataFrame:
     """Apply exclusions for index episodes that don't meet continuous enrollment criteria"""
 
+    return elig_gap_exclusions
 
-def _select_earliest_episode():
+
+def _apply_age_exclusions(
+        elig_gap_exclusions: DataFrame,
+        elig_members: DataFrame,
+    ) -> DataFrame:
+    """Apply exclusions for index episodes that don't meet continuous enrollment criteria"""
+
+    return age_exclusions
+
+
+def _select_earliest_episode(
+        age_exclusions: DataFrame,
+    ) -> DataFrame:
     """Limit to the earliest eligible episode per member"""
 
+    return earliest_episode
 
-def _identify_aab_prescriptions():
+
+def _identify_aab_prescriptions(
+        outpharmacy: DataFrame,
+        map_references: "typing.Mapping[str, DataFrame]",
+    ) -> DataFrame:
     """Find prescriptions of interest for the episode numerator calculation"""
 
+    return aab_rx
 
-def _calculate_numerator():
+
+def _calculate_numerator(
+        earliest_episode: DataFrame,
+        aab_rx: DataFrame,
+    ):
     """Apply AAB prescriptions to index episodes to determine numerator compliance"""
 
+    return numerator_flagged
 
-def _format_measure_results():
+
+def _format_measure_results(
+        numerator_flagged: DataFrame,
+    ) -> DataFrame:
     """Get our measure results in the format expected by the pipeline"""
+
+    return measure_formatted
 
 
 class AAB(QualityMeasure):
@@ -140,18 +225,9 @@ class AAB(QualityMeasure):
             performance_yearstart=datetime.date,
             **kwargs
     ):
-        reference_df = dfs_input['reference'].withColumn(
-            'code',
-            spark_funcs.regexp_replace(spark_funcs.col('code'), r'\.', '')
-        ).withColumn(
-            'icdversion',
-            spark_funcs.when(
-                spark_funcs.col('code_system').contains('ICD'),
-                spark_funcs.regexp_extract(
-                    spark_funcs.col('code_system'),
-                    r'\d+',
-                    0)
-            )
+        map_references = _prep_reference_data(
+            dfs_input['reference'],
         )
+
 
         return
