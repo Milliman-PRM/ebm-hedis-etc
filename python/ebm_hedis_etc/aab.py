@@ -15,7 +15,7 @@ import typing
 
 import pyspark.sql.functions as spark_funcs
 import pyspark.sql.types as spark_types
-from pyspark.sql import DataFrame
+from pyspark.sql import DataFrame, Window
 from prm.dates.windows import decouple_common_windows
 from ebm_hedis_etc.base_classes import QualityMeasure
 
@@ -639,6 +639,19 @@ def _select_earliest_episode(
         index_eligible_events: DataFrame,
     ) -> DataFrame:
     """Limit to the earliest eligible episode per member"""
+
+    earliest_window = Window().partitionBy(
+        'member_id',
+    ).orderBy(
+        spark_funcs.desc('denominator'),
+        'fromdate',
+    )
+    earliest_episode = index_eligible_events.withColumn(
+        'row_order',
+        spark_funcs.row_number().over(earliest_window)
+    ).filter(
+        spark_funcs.col('row_order') == 1
+    )
 
     return earliest_episode
 
