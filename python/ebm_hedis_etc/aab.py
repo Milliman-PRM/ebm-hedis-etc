@@ -441,6 +441,66 @@ def _exclude_negative_history(
     ) -> DataFrame:
     """Apply exclusions for index episodes from negative history events"""
 
+    negative_rx = aab_rx.select(
+        '*',
+        spark_funcs.lit(1).alias('negative_rx_event'),
+    )
+
+    excluded_negative_conds = acute_bronchitis_events.join(
+        negative_condition_events,
+        on=[
+            acute_bronchitis_events.member_id == negative_condition_events.member_id,
+            negative_condition_events.fromdate.between(
+                spark_funcs.date_sub(acute_bronchitis_events.fromdate, 365),
+                acute_bronchitis_events.fromdate,
+            ),
+        ],
+        how='left',
+    ).select(
+        acute_bronchitis_events.member_id,
+        acute_bronchitis_events.fromdate,
+        negative_condition_events.negative_conditions,
+    ).distinct()
+
+    excluded_negative_rx = excluded_negative_conds.join(
+        negative_rx,
+        on=[
+            excluded_negative_conds.member_id == negative_rx.member_id,
+            negative_rx.fromdate.between(
+                spark_funcs.date_sub(excluded_negative_conds.fromdate, 30),
+                spark_funcs.date_sub(excluded_negative_conds.fromdate, 1),
+            ),
+        ],
+        how='left',
+    ).select(
+        excluded_negative_conds.member_id,
+        excluded_negative_conds.fromdate,
+        excluded_negative_conds.negative_conditions,
+        negative_rx.negative_rx_event,
+    ).distinct()
+
+    excluded_negative_history = excluded_negative_rx.join(
+        negative_comp_diags,
+        on=[
+            excluded_negative_rx.member_id == negative_comp_diags.member_id,
+            negative_comp_diags.fromdate.between(
+                spark_funcs.date_sub(excluded_negative_rx.fromdate, 30),
+                spark_funcs.date_add(excluded_negative_rx.fromdate, 7),
+            ),
+        ],
+        how='left',
+    ).select(
+        excluded_negative_rx.member_id,
+        excluded_negative_rx.fromdate,
+        excluded_negative_rx.negative_conditions,
+        excluded_negative_rx.negative_rx_event,
+        negative_comp_diags.negative_comp_diag,
+    ).distinct().fillna({
+        'negative_conditions': 0,
+        'negative_rx_event': 0,
+        'negative_comp_diag': 0,
+    })
+
     return excluded_negative_history
 
 
