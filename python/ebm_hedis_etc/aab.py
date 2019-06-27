@@ -611,8 +611,32 @@ def _apply_age_exclusions(
     return age_exclusions
 
 
-def _select_earliest_episode(
+def _flag_index_eligible_events(
         age_exclusions: DataFrame,
+    ) -> DataFrame:
+    """Identify index events that meet all of the inclusion/exclusion criteria"""
+
+    index_eligible_events = age_exclusions.withColumn(
+        'denominator',
+        spark_funcs.when(
+            (
+                (spark_funcs.col('negative_conditions') == 0)
+                & (spark_funcs.col('negative_rx_script') == 0)
+                & (spark_funcs.col('negative_rx_active_supply') == 0)
+                & (spark_funcs.col('negative_comp_diag') == 0)
+                & (spark_funcs.col('elig_exclusion') == 0)
+                & (spark_funcs.col('meets_age_criteria') == 1)
+            ),
+            spark_funcs.lit(1),
+        ).otherwise(
+            spark_funcs.lit(0),
+        )
+    )
+    return index_eligible_events
+
+
+def _select_earliest_episode(
+        index_eligible_events: DataFrame,
     ) -> DataFrame:
     """Limit to the earliest eligible episode per member"""
 
@@ -677,8 +701,11 @@ def _flag_denominator(
         elig_gap_exclusions,
         elig_members,
     )
-    earliest_episode = _select_earliest_episode(
+    index_eligible_events = _flag_index_eligible_events(
         age_exclusions,
+    )
+    earliest_episode = _select_earliest_episode(
+        index_eligible_events,
     )
     return earliest_episode
 
