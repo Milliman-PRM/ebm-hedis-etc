@@ -381,6 +381,34 @@ def _identify_competing_diagnoses(
         map_references: "typing.Mapping[str, DataFrame]",
     ) -> DataFrame:
     """Find dates for all competing diagnosis events that could disqualify an index episode"""
+    assert map_references['negative_comp_diag'].filter(
+        ~spark_funcs.col('code_system').isin('ICD10CM', 'ICD9CM')
+    ).count() == 0, \
+        'Some "negative_conditions" code systems have not been accounted for'
+
+    negative_comp_diags = outclaims.select(
+        '*',
+        spark_funcs.explode(
+            spark_funcs.array([
+                spark_funcs.col(colname)
+                for colname in outclaims.columns
+                if colname.startswith('icddiag')
+            ])
+        ).alias('icddiag'),
+    ).join(
+        spark_funcs.broadcast(
+            map_references['negative_comp_diag'].select(
+                spark_funcs.col('code').alias('icddiag'),
+                spark_funcs.lit(1).alias('negative_comp_diag')
+            )
+        ),
+        on='icddiag',
+        how='inner',
+    ).select(
+        'member_id',
+        'fromdate',
+        'negative_comp_diag',
+    ).distinct()
 
     return negative_comp_diags
 
