@@ -698,6 +698,25 @@ def _format_measure_results(
     ) -> DataFrame:
     """Get our measure results in the format expected by the pipeline"""
 
+    measure_formatted = numerator_flagged.select(
+        'member_id',
+        spark_funcs.lit('AAB').alias('comp_quality_short'),
+        spark_funcs.col('denominator').alias('comp_quality_denominator'),
+        spark_funcs.when(
+            (spark_funcs.col('denominator') == 1)
+            & (spark_funcs.col('numerator') == 1), # Inverse measure (antibiotic scripts are bad)
+            spark_funcs.lit(0),
+        ).when(
+            spark_funcs.col('denominator') == 1,
+            spark_funcs.lit(1),
+        ).otherwise(
+            spark_funcs.lit(0),
+        ).alias('comp_quality_numerator'),
+        spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
+        spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+        spark_funcs.lit(None).cast('string').alias('comp_quality_comments'),
+    )
+
     return measure_formatted
 
 
