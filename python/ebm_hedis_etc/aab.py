@@ -247,10 +247,12 @@ def _identify_aab_prescriptions(
         ),
         on='ndc',
         how='inner',
-    ).select(
+    ).groupby(
         'member_id',
         'fromdate',
-    ).distinct()
+    ).agg(
+        spark_funcs.max('dayssupply').alias('dayssupply'),
+    )
 
     return aab_rx
 
@@ -441,9 +443,17 @@ def _exclude_negative_history(
     ) -> DataFrame:
     """Apply exclusions for index episodes from negative history events"""
 
-    negative_rx = aab_rx.select(
-        '*',
-        spark_funcs.lit(1).alias('negative_rx_event'),
+    negative_rx_scripts = aab_rx.select(
+        'member_id',
+        'fromdate',
+        spark_funcs.lit(1).alias('negative_rx_script'),
+    )
+
+    negative_rx_active_supply = aab_rx.select(
+        'member_id',
+        'fromdate',
+        spark_funcs.expr('date_add(fromdate, dayssupply)').alias('todate'),
+        spark_funcs.lit(1).alias('negative_rx_active_supply'),
     )
 
     excluded_negative_conds = acute_bronchitis_events.join(
@@ -463,10 +473,10 @@ def _exclude_negative_history(
     ).distinct()
 
     excluded_negative_rx = excluded_negative_conds.join(
-        negative_rx,
+        negative_rx_scripts,
         on=[
-            excluded_negative_conds.member_id == negative_rx.member_id,
-            negative_rx.fromdate.between(
+            excluded_negative_conds.member_id == negative_rx_scripts.member_id,
+            negative_rx_scripts.fromdate.between(
                 spark_funcs.date_sub(excluded_negative_conds.fromdate, 30),
                 spark_funcs.date_sub(excluded_negative_conds.fromdate, 1),
             ),
@@ -476,16 +486,16 @@ def _exclude_negative_history(
         excluded_negative_conds.member_id,
         excluded_negative_conds.fromdate,
         excluded_negative_conds.negative_conditions,
-        negative_rx.negative_rx_event,
+        negative_rx_scripts.negative_rx_script,
     ).distinct()
 
-    excluded_negative_history = excluded_negative_rx.join(
-        negative_comp_diags,
+    excluded_negative_rx_active = excluded_negative_rx.join(
+        negative_rx_active_supply,
         on=[
-            excluded_negative_rx.member_id == negative_comp_diags.member_id,
-            negative_comp_diags.fromdate.between(
-                spark_funcs.date_sub(excluded_negative_rx.fromdate, 30),
-                spark_funcs.date_add(excluded_negative_rx.fromdate, 7),
+            excluded_negative_rx.member_id == negative_rx_scripts.member_id,
+            excluded_negative_rx.fromdate.between(
+                negative_rx_active_supply.fromdate,
+                negative_rx_active_supply.todate,
             ),
         ],
         how='left',
@@ -493,11 +503,31 @@ def _exclude_negative_history(
         excluded_negative_rx.member_id,
         excluded_negative_rx.fromdate,
         excluded_negative_rx.negative_conditions,
-        excluded_negative_rx.negative_rx_event,
+        excluded_negative_rx.negative_rx_script,
+        negative_rx_active_supply.negative_rx_active_supply,
+    ).distinct()
+
+    excluded_negative_history = excluded_negative_rx_active.join(
+        negative_comp_diags,
+        on=[
+            excluded_negative_rx_active.member_id == negative_comp_diags.member_id,
+            negative_comp_diags.fromdate.between(
+                spark_funcs.date_sub(excluded_negative_rx_active.fromdate, 30),
+                spark_funcs.date_add(excluded_negative_rx_active.fromdate, 7),
+            ),
+        ],
+        how='left',
+    ).select(
+        excluded_negative_rx_active.member_id,
+        excluded_negative_rx_active.fromdate,
+        excluded_negative_rx_active.negative_conditions,
+        excluded_negative_rx_active.negative_rx_script,
+        excluded_negative_rx_active.negative_rx_active_supply,
         negative_comp_diags.negative_comp_diag,
     ).distinct().fillna({
         'negative_conditions': 0,
-        'negative_rx_event': 0,
+        'negative_rx_script': 0,
+        'negative_rx_active_supply': 0,
         'negative_comp_diag': 0,
     })
 
