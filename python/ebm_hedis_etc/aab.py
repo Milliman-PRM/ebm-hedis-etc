@@ -243,6 +243,99 @@ def _identify_acute_bronchitis_events(
     ) -> DataFrame:
     """Find all qualifying visits with diagnosis of acute bronchitis"""
 
+    index_cpt_hcpcs = map_references['index_visit'].filter(
+        spark_funcs.col('code_system').isin('HCPCS', 'CPT')
+    ).select(
+        spark_funcs.col('code').alias('hcpcs'),
+        spark_funcs.lit(1).alias('index_cpt')
+    )
+    index_rev = map_references['index_visit'].filter(
+        spark_funcs.col('code_system') == 'UBREV'
+    ).select(
+        spark_funcs.col('code').alias('revcode'),
+        spark_funcs.lit(1).alias('index_rev')
+    )
+    assert (
+        (index_cpt_hcpcs.count() + index_rev.count())
+        == map_references['index_visit'].count()
+        ), 'Some "index_visit" code systems have not been accounted for'
+
+    assert map_references['index_diag'].select('code_system').distinct().count() == 1, \
+        'Some "index_diag" code systems have not been accounted for'
+    assert map_references['index_ip_excl'].select('code_system').distinct().count() == 1, \
+        'Some "index_ip_excl" code systems have not been accounted for'
+
+    index_events = outclaims.join(
+        spark_funcs.broadcast(index_cpt_hcpcs),
+        on='hcpcs',
+        how='left',
+    ).join(
+        spark_funcs.broadcast(index_rev),
+        on='revcode',
+        how='left',
+    ).filter(
+        (spark_funcs.col('index_cpt') == 1)
+        | (spark_funcs.col('index_rev') == 1)
+    ).select(
+        '*',
+        spark_funcs.explode(
+            spark_funcs.array([
+                spark_funcs.col(colname)
+                for colname in outclaims.columns
+                if colname.startswith('icddiag')
+            ])
+        ).alias('icddiag')
+    ).join(
+        spark_funcs.broadcast(
+            map_references['index_diag'].select(
+                spark_funcs.col('code').alias('icddiag'),
+                spark_funcs.lit(1).alias('index_diag')
+            )
+        ),
+        on='icddiag',
+        how='inner',
+    ).select(
+        'member_id',
+        'fromdate',
+    ).distinct().alias('index')
+
+    ip_excl_dates = outclaims.join(
+        spark_funcs.broadcast(
+            map_references['index_ip_excl'].select(
+                spark_funcs.col('code').alias('revcode'),
+                spark_funcs.lit(1).alias('ip_excl')
+            )
+        ),
+        on='revcode',
+        how='inner',
+    ).select(
+        'member_id',
+        'admitdate',
+        'ip_excl',
+    ).distinct().alias('ip_excl')
+
+    acute_bronchitis_events = index_events.join(
+        ip_excl_dates,
+        on=[
+            spark_funcs.col('index.member_id') == spark_funcs.col('ip_excl.member_id'),
+            spark_funcs.col('ip_excl.admitdate').between(
+                spark_funcs.col('index.fromdate'),
+                spark_funcs.date_add(spark_funcs.col('index.fromdate'), 1),
+            ),
+        ],
+        how='left',
+    ).filter(
+        spark_funcs.col('ip_excl').isNull()
+    ).select(
+        'index.member_id',
+        'index.fromdate',
+    ).distinct().filter(
+        spark_funcs.col('fromdate').between(
+            spark_funcs.lit(date_performanceyearstart),
+            spark_funcs.lit(date_performanceyearend),
+        )
+    )
+
     return acute_bronchitis_events
 
 
