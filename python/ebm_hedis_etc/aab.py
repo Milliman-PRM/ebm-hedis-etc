@@ -344,6 +344,34 @@ def _identify_negative_condition_events(
         map_references: "typing.Mapping[str, DataFrame]",
     ):
     """Find dates for all medical events that could disqualify an index episode"""
+    assert map_references['negative_conditions'].filter(
+        ~spark_funcs.col('code_system').isin('ICD10CM', 'ICD9CM')
+    ).count() == 0, \
+        'Some "negative_conditions" code systems have not been accounted for'
+
+    negative_condition_events = outclaims.select(
+        '*',
+        spark_funcs.explode(
+            spark_funcs.array([
+                spark_funcs.col(colname)
+                for colname in outclaims.columns
+                if colname.startswith('icddiag')
+            ])
+        ).alias('icddiag'),
+    ).join(
+        spark_funcs.broadcast(
+            map_references['negative_conditions'].select(
+                spark_funcs.col('code').alias('icddiag'),
+                spark_funcs.lit(1).alias('negative_conditions')
+            )
+        ),
+        on='icddiag',
+        how='inner',
+    ).select(
+        'member_id',
+        'fromdate',
+        'negative_conditions',
+    ).distinct()
 
     return negative_condition_events
 
