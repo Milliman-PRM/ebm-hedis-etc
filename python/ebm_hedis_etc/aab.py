@@ -600,6 +600,14 @@ def _apply_age_exclusions(
     ) -> DataFrame:
     """Apply exclusions for index episodes that don't meet continuous enrollment criteria"""
 
+    age_exclusions = elig_gap_exclusions.join(
+        elig_members.select(
+            'member_id',
+            'meets_age_criteria',
+        ),
+        on='member_id',
+    )
+
     return age_exclusions
 
 
