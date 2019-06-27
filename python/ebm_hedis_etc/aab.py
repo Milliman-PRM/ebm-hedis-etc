@@ -662,6 +662,34 @@ def _calculate_numerator(
     ):
     """Apply AAB prescriptions to index episodes to determine numerator compliance"""
 
+    numerator_flagged = earliest_episode.join(
+        aab_rx.select(
+            'member_id',
+            'fromdate',
+        ),
+        on=[
+            earliest_episode.member_id == aab_rx.member_id,
+            aab_rx.fromdate.between(
+                earliest_episode.fromdate,
+                spark_funcs.date_add(earliest_episode.fromdate, 3),
+            ),
+        ],
+        how='left',
+    ).withColumn(
+        'numerator',
+        spark_funcs.when(
+            (spark_funcs.col('denominator') == 1)
+            & aab_rx.fromdate.isNotNull(),
+            spark_funcs.lit(1),
+        ).otherwise(
+            spark_funcs.lit(0),
+        )
+    ).drop(
+        aab_rx.member_id,
+    ).drop(
+        aab_rx.fromdate,
+    ).distinct()
+
     return numerator_flagged
 
 
