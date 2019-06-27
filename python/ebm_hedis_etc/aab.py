@@ -348,15 +348,6 @@ def _identify_negative_condition_events(
     return negative_condition_events
 
 
-def _identify_negative_medication_events(
-        outpharmacy: DataFrame,
-        map_references: "typing.Mapping[str, DataFrame]",
-    ) -> DataFrame:
-    """Find dates for all prescription events that could disqualify an index episode"""
-
-    return negative_rx_events
-
-
 def _identify_competing_diagnoses(
         outclaims: DataFrame,
         map_references: "typing.Mapping[str, DataFrame]",
@@ -369,7 +360,7 @@ def _identify_competing_diagnoses(
 def _exclude_negative_history(
         acute_bronchitis_events: DataFrame,
         negative_condition_events: DataFrame,
-        negative_rx_events: DataFrame,
+        aab_rx: DataFrame,
         negative_comp_diags: DataFrame,
     ) -> DataFrame:
     """Apply exclusions for index episodes from negative history events"""
@@ -409,6 +400,11 @@ def _identify_aab_prescriptions(
     ) -> DataFrame:
     """Find prescriptions of interest for the episode numerator calculation"""
 
+    negative_meds =
+    negative_rx_events = outpharmacy.join(
+
+        )
+
     return aab_rx
 
 
@@ -431,6 +427,7 @@ def _format_measure_results(
 
 def _flag_denominator(
         dfs_input: "typing.Mapping[str, DataFrame]",
+        aab_rx: DataFrame,
         map_references: "typing.Mapping[str, DataFrame]",
         date_performanceyearstart: datetime.date,
         date_performanceyearend: datetime.date,
@@ -451,10 +448,6 @@ def _flag_denominator(
         dfs_input['outclaims'],
         map_references,
     )
-    negative_rx_events = _identify_negative_medication_events(
-        dfs_input['outpharmacy'],
-        map_references,
-    )
     negative_comp_diags = _identify_competing_diagnoses(
         dfs_input['outclaims'],
         map_references,
@@ -462,7 +455,7 @@ def _flag_denominator(
     excluded_negative_history = _exclude_negative_history(
         acute_bronchitis_events,
         negative_condition_events,
-        negative_rx_events,
+        aab_rx,
         negative_comp_diags,
     )
     elig_gap_exclusions = _apply_elig_gap_exclusions(
@@ -498,15 +491,16 @@ class AAB(QualityMeasure):
             dfs_input['reference'],
             dfs_input['ndc'],
         )
-        denominator = _flag_denominator(
-            dfs_input,
-            map_references,
-            date_performanceyearstart,
-            date_performanceyearend,
-        )
         aab_rx = _identify_aab_prescriptions(
             dfs_input['outpharmacy'],
             map_references,
+        )
+        denominator = _flag_denominator(
+            dfs_input,
+            aab_rx,
+            map_references,
+            date_performanceyearstart,
+            date_performanceyearend,
         )
         numerator_flagged = _calculate_numerator(
             denominator,
