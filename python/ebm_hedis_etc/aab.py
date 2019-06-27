@@ -33,56 +33,60 @@ AGE_UPPER = 64
 
 
 def _exclude_elig_gaps(
-        eligible_member_time: DataFrame,
-        allowable_gaps: int=0,
-        allowable_gap_length: int=0
+        denominator_events: DataFrame,
 ) -> DataFrame:
     """Find eligibility gaps and exclude members """
     decoupled_windows = decouple_common_windows(
-        eligible_member_time,
-        'member_id',
+        denominator_events,
+        ['member_id', 'fromdate'],
         'date_start',
         'date_end',
         create_windows_for_gaps=True
     )
-
-    gaps_df = decoupled_windows.join(
-        eligible_member_time,
-        ['member_id', 'date_start', 'date_end'],
-        how='left_outer'
-    ).where(
-        spark_funcs.col('cover_medical').isNull()
-    ).select(
+    cover_medical_windows = denominator_events.select(
         'member_id',
+        'fromdate',
         'date_start',
         'date_end',
-        spark_funcs.datediff(
+        'cover_medical',
+        )
+
+    gaps_df = decoupled_windows.join(
+        cover_medical_windows,
+        ['member_id', 'fromdate', 'date_start', 'date_end'],
+        how='left_outer'
+    ).fillna({
+        'cover_medical': 'N',
+    }).select(
+        'member_id',
+        'fromdate',
+        'date_start',
+        'date_end',
+        'cover_medical',
+        (spark_funcs.datediff(
             spark_funcs.col('date_end'),
             spark_funcs.col('date_start')
-        ).alias('date_diff')
+        ) + 1).alias('date_diff')
     )
 
-    long_gaps_df = gaps_df.where(
-        spark_funcs.col('date_diff') > allowable_gap_length
-    ).select(
-        'member_id'
-    )
-
-    gap_count_df = gaps_df.groupBy(
-        'member_id'
+    summ_gaps = gaps_df.groupby(
+        'member_id',
+        'fromdate',
     ).agg(
-        spark_funcs.count('*').alias('num_of_gaps')
-    ).where(
-        spark_funcs.col('num_of_gaps') > allowable_gaps
-    ).select(
-        'member_id'
+        spark_funcs.sum(
+            spark_funcs.when(
+                spark_funcs.col('cover_medical') == 'N',
+                spark_funcs.lit(1)
+            ).otherwise(spark_funcs.lit(0))
+        ).alias('count_gaps'),
+        spark_funcs.sum(
+            spark_funcs.when(
+                spark_funcs.col('cover_medical') == 'N',
+                spark_funcs.col('date_diff')
+            ).otherwise(spark_funcs.lit(0))
+        ).alias('count_gap_days'),
     )
-
-    return long_gaps_df.union(
-        gap_count_df
-    ).select(
-        spark_funcs.col('member_id').alias('exclude_member_id')
-    ).distinct()
+    return summ_gaps
 
 
 def _calculate_age_criteria(
