@@ -235,6 +235,26 @@ def _prep_reference_data(
     return map_references
 
 
+def _identify_aab_prescriptions(
+        outpharmacy: DataFrame,
+        map_references: "typing.Mapping[str, DataFrame]",
+    ) -> DataFrame:
+    """Find prescriptions of interest for the episode numerator calculation"""
+
+    aab_rx = outpharmacy.join(
+        spark_funcs.broadcast(
+            map_references['aab_rx'].select(spark_funcs.col('ndc_code').alias('ndc'))
+        ),
+        on='ndc',
+        how='inner',
+    ).select(
+        'member_id',
+        'fromdate',
+    ).distinct()
+
+    return aab_rx
+
+
 def _identify_acute_bronchitis_events(
         outclaims: DataFrame,
         map_references: "typing.Mapping[str, DataFrame]",
@@ -448,20 +468,6 @@ def _select_earliest_episode(
     """Limit to the earliest eligible episode per member"""
 
     return earliest_episode
-
-
-def _identify_aab_prescriptions(
-        outpharmacy: DataFrame,
-        map_references: "typing.Mapping[str, DataFrame]",
-    ) -> DataFrame:
-    """Find prescriptions of interest for the episode numerator calculation"""
-
-    negative_meds =
-    negative_rx_events = outpharmacy.join(
-
-        )
-
-    return aab_rx
 
 
 def _calculate_numerator(
