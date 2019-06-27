@@ -544,6 +544,53 @@ def _apply_elig_gap_exclusions(
     ) -> DataFrame:
     """Apply exclusions for index episodes that don't meet continuous enrollment criteria"""
 
+    index_stays_with_elig = excluded_negative_history.select(
+        '*',
+        spark_funcs.date_sub('fromdate', 365).alias('elig_date_start'),
+        spark_funcs.date_add('fromdate', 7).alias('elig_date_end'),
+    ).join(
+        member_time.select(
+            'member_id',
+            'cover_medical',
+            'date_start',
+            'date_end',
+            ),
+        on='member_id',
+        how='left',
+    ).where(
+        (spark_funcs.col('date_end') >= spark_funcs.col('elig_date_start'))
+        & (spark_funcs.col('date_start') <= spark_funcs.col('elig_date_end'))
+    ).withColumn(
+        'date_start',
+        spark_funcs.greatest(
+            spark_funcs.col('date_start'),
+            spark_funcs.col('elig_date_start'),
+            )
+    ).withColumn(
+        'date_end',
+        spark_funcs.least(
+            spark_funcs.col('date_end'),
+            spark_funcs.col('elig_date_end'),
+            )
+    )
+
+    summ_gaps = _exclude_elig_gaps(
+        index_stays_with_elig,
+    )
+    elig_gap_exclusions = excluded_negative_history.join(
+        summ_gaps,
+        on=['member_id', 'fromdate'],
+    ).withColumn(
+        'elig_exclusion',
+        spark_funcs.when(
+            (spark_funcs.col('count_gaps') > 1)
+            | (spark_funcs.col('count_gap_days') > 45),
+            spark_funcs.lit(1),
+        ).otherwise(
+            spark_funcs.lit(0)
+        )
+    )
+
     return elig_gap_exclusions
 
 
