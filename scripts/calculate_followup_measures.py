@@ -11,68 +11,40 @@ import logging
 import os
 from pathlib import Path
 
-import pyspark.sql.functions as spark_funcs
-
 from prm.spark.app import SparkApp
 from prm.meta.project import parse_project_metadata
+from ebm_hedis_etc.pcp_followup import PCP_Followup
 
 PRM_META = parse_project_metadata()
 LOGGER = logging.getLogger(__name__)
 
 PATH_REF = Path(os.environ['EBM_HEDIS_ETC_PATHREF'])
-# pylint: disable=no-member
 
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 # =============================================================================
-
-def calculate_followup_measures(
-        sparkapp: SparkApp
-    ):
-    """calculate 7-day and 14-day PCP follow-up measures"""
-    pcp_followup_df = sparkapp.load_df(
-        PRM_META[70, 'out'] / 'med120_prm_pcp_followup.parquet'
-    )
-
-    numerator_7_day = pcp_followup_df.where(
-        spark_funcs.col(
-            'prm_pcp_followup_days_since'
-        ).between(0, 7)
-    ).count()
-
-    numerator_14_day = pcp_followup_df.where(
-        spark_funcs.col(
-            'prm_pcp_followup_days_since'
-        ).between(0, 14)
-    ).count()
-
-    if numerator_7_day > numerator_14_day:
-        raise AssertionError(
-            '7-day followup success should not be greater than 14-day followup success'
-        )
-
-    denom = pcp_followup_df.where(
-        spark_funcs.col('prm_pcp_followup_potential_yn') == 'Y'
-        ).count()
-
-    if denom < numerator_14_day:
-        raise AssertionError(
-            '14-day followup success should not be greater than total potential followup'
-        )
-
-    ratio_7_day = numerator_7_day / denom
-    ratio_14_day = numerator_14_day / denom
-
-    LOGGER.info('The aggregate prm_pcp_followup_potential_yn is %s', denom)
-    LOGGER.info('The 7-day PCP Followup ratio is %s', (ratio_7_day * 100))
-    LOGGER.info('The 14-day PCP Followup ratio is %s', (ratio_14_day * 100))
 
 
 def main() -> int:
     """A function to enclose the execution of business logic."""
     sparkapp = SparkApp(PRM_META['pipeline_signature'])
 
-    calculate_followup_measures(sparkapp)
+    dfs_input = {
+        'outclaims_prm': sparkapp.load_df(PRM_META[73, 'out'] / 'outclaims_prm.parquet'),
+    }
+
+    for cutoff in [7, 14]:
+        measure = PCP_Followup()
+        results_df = measure.calc_measure(
+            dfs_input,
+            PRM_META['date_performanceyearstart'],
+            cutoff=cutoff
+        )
+
+        sparkapp.save_df(
+            results_df,
+            PRM_META[150, 'out'] / 'results_pcp_followup_{}_day.parquet'.format(cutoff)
+        )
 
     return 0
 
