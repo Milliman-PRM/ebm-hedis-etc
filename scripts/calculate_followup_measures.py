@@ -13,7 +13,8 @@ from pathlib import Path
 
 from prm.spark.app import SparkApp
 from prm.meta.project import parse_project_metadata
-from ebm_hedis_etc.pcp_followup import PCP_Followup
+from ebm_hedis_etc.pcp_followup import PCPFollowup
+from ebm_hedis_etc.pcp_followup import CUTOFFS
 
 PRM_META = parse_project_metadata()
 LOGGER = logging.getLogger(__name__)
@@ -33,8 +34,8 @@ def main() -> int:
         'outclaims_prm': sparkapp.load_df(PRM_META[73, 'out'] / 'outclaims_prm.parquet'),
     }
 
-    for cutoff in [7, 14]:
-        measure = PCP_Followup()
+    measure = PCPFollowup()
+    for cutoff in CUTOFFS:
         results_df = measure.calc_measure(
             dfs_input,
             PRM_META['date_performanceyearstart'],
