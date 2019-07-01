@@ -24,7 +24,7 @@ LOGGER = logging.getLogger(__name__)
 # =============================================================================
 
 
-class PCP_Followup(QualityMeasure):
+class PCPFollowup(QualityMeasure):
     """Object to house logic to calculate pcp followup measures"""
 
     def _calc_measure(
@@ -38,7 +38,9 @@ class PCP_Followup(QualityMeasure):
         quality_metric_name = '{}_day_followup'.format(cutoff)
 
         results_df = dfs_input['outclaims_prm'].where(
-            spark_funcs.lower(spark_funcs.col('prm_line')).isin('i11', 'i12', 'i13')
+            spark_funcs.lower(spark_funcs.col('prm_line')).isin(
+                'i11a', 'i11c', 'i12', 'i13a', 'i13b', 'i14a', 'i14b'
+            )
         ).select(
             'claimid',
             'member_id',
@@ -67,3 +69,6 @@ class PCP_Followup(QualityMeasure):
         )
 
         return results_df
+
+if __name__ == "__main__":
+    pass
