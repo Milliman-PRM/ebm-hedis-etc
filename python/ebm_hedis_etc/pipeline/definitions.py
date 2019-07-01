@@ -283,6 +283,34 @@ class PersistentAsthmaAdherence(PRMPythonTask):
         )
 
 
+class AvoidanceAntibioticBronchitis(PRMPythonTask):
+    """Run avoidance_antibiotics_bronchitis.py"""
+
+    requirements = RequirementsContainer(
+        ImportReferences,
+        staging_membership.DeriveParamsFromMembership,
+        hcg_grouper_validation.Validations,
+    )
+
+    def output(self):
+        names_output = {
+            'results_aab.parquet'
+        }
+        return [
+            IndyPyLocalTarget(PRM_META[150, 'out'] / name)
+            for name in names_output
+        ]
+
+    def run(self):
+        """Run the Luigi job"""
+        program = PATH_SCRIPTS / 'avoidance_antibiotics_bronchitis.py'
+        super().run(
+            program,
+            path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
+            create_folder=True
+        )
+
+
 class CombineAll(PRMPythonTask):
     """Run combine_all.py"""
 
@@ -294,7 +322,8 @@ class CombineAll(PRMPythonTask):
         ChildhoodImmunization,
         AllCauseReadmissions,
         ComprehensiveDiabetesCare,
-        PersistentAsthmaAdherence
+        PersistentAsthmaAdherence,
+        AvoidanceAntibioticBronchitis,
     )
 
     def output(self):
