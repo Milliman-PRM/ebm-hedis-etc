@@ -807,5 +807,7 @@ class AAB(QualityMeasure):
         measure_results = _format_measure_results(
             numerator_flagged,
         )
+        for _df_ref in map_references.values():
+            _df_ref.unpersist()
 
         return measure_results
