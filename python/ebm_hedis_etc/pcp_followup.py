@@ -36,7 +36,7 @@ class PCPFollowup(QualityMeasure):
     ) -> DataFrame:
 
         cutoff = kwargs['cutoff']
-        quality_metric_name = '{}_day_followup'.format(cutoff)
+        quality_metric_name = 'PCP Followup: {}-day'.format(cutoff)
 
         results_df = dfs_input['outclaims_prm'].where(
             spark_funcs.lower(spark_funcs.col('prm_line')).isin(
