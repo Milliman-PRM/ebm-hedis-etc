@@ -283,6 +283,34 @@ class PersistentAsthmaAdherence(PRMPythonTask):
         )
 
 
+class PCPFollowup(PRMPythonTask):
+    """Run calculate_followup_measures.py"""
+
+    requirements = RequirementsContainer(
+        ImportReferences,
+        staging_membership.DeriveParamsFromMembership,
+        hcg_grouper_validation.Validations,
+    )
+
+    def output(self):
+        _data_feeds = [
+            IndyPyLocalTarget(result)
+            for result in PRM_META[150, 'out'].glob('results_pcp_followup*.parquet')
+        ]
+        return _data_feeds if _data_feeds else [
+            IndyPyLocalTarget(PRM_META[150, 'out'] / 'does_not_exist')
+        ]
+
+    def run(self):
+        """Run the Luigi job"""
+        program = PATH_SCRIPTS / 'calculate_followup_measures.py'
+        super().run(
+            program,
+            path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
+            create_folder=True
+        )
+
+
 class CombineAll(PRMPythonTask):
     """Run combine_all.py"""
 
@@ -294,7 +322,8 @@ class CombineAll(PRMPythonTask):
         ChildhoodImmunization,
         AllCauseReadmissions,
         ComprehensiveDiabetesCare,
-        PersistentAsthmaAdherence
+        PersistentAsthmaAdherence,
+        PCPFollowup
     )
 
     def output(self):
