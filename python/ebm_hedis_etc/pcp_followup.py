@@ -48,28 +48,38 @@ class PCPFollowup(QualityMeasure):
             'prm_pcp_followup_success_yn',
             'prm_pcp_followup_potential_yn',
             'prm_pcp_followup_days_since'
-        ).distinct().select(
+        ).distinct().groupby(
+            'member_id'
+        ).agg(
+            spark_funcs.sum(
+                spark_funcs.when(
+                    (spark_funcs.col('prm_pcp_followup_success_yn') == 'Y')
+                    & (spark_funcs.col('prm_pcp_followup_days_since').between(0, cutoff)),
+                    spark_funcs.lit(1)
+                ).otherwise(
+                    spark_funcs.lit(0)
+                )
+            ).alias('comp_quality_numerator'),
+            spark_funcs.sum(
+                spark_funcs.when(
+                    spark_funcs.col('prm_pcp_followup_potential_yn') == 'Y',
+                    spark_funcs.lit(1)
+                ).otherwise(
+                    spark_funcs.lit(0)
+                )
+            ).alias('comp_quality_denominator')
+        ).select(
             'member_id',
             spark_funcs.lit(quality_metric_name).alias('comp_quality_short'),
-            spark_funcs.when(
-                (spark_funcs.col('prm_pcp_followup_success_yn') == 'Y')
-                & (spark_funcs.col('prm_pcp_followup_days_since').between(0, cutoff)),
-                spark_funcs.lit(1)
-            ).otherwise(
-                spark_funcs.lit(0)
-            ).alias('comp_quality_numerator'),
-            spark_funcs.when(
-                spark_funcs.col('prm_pcp_followup_potential_yn') == 'Y',
-                spark_funcs.lit(1)
-            ).otherwise(
-                spark_funcs.lit(0)
-            ).alias('comp_quality_denominator'),
+            'comp_quality_numerator',
+            'comp_quality_denominator',
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
         )
 
         return results_df
+
 
 if __name__ == "__main__":
     pass
