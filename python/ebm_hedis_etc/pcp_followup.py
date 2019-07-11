@@ -16,6 +16,7 @@ from ebm_hedis_etc.base_classes import QualityMeasure
 
 LOGGER = logging.getLogger(__name__)
 
+PRM_LINE_CHECK = ['i11a', 'i12', 'i13a', 'i13b', 'i14a', 'i14b']
 CUTOFFS = [7, 14]
 # pylint does not recognize many of the spark functions
 # pylint: disable=no-member
@@ -40,7 +41,7 @@ class PCPFollowup(QualityMeasure):
 
         results_df = dfs_input['outclaims_prm'].where(
             spark_funcs.lower(spark_funcs.col('prm_line')).isin(
-                'i11a', 'i12', 'i13a', 'i13b', 'i14a', 'i14b'
+                PRM_LINE_CHECK
             )
         ).select(
             'claimid',
