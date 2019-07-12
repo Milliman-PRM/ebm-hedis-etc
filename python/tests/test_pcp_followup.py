@@ -26,17 +26,11 @@ except NameError:  # Likely interactive development
 PATH_MOCK_SCHEMAS = _PATH_FILE / "mock_schemas"
 PATH_MOCK_DATA = _PATH_FILE / "mock_data"
 
-CUTOFFS = ebm_hedis_etc.pcp_followup.CUTOFFS
+CUTOFFS = [7, 14]
 
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 # =============================================================================
-
-
-def _get_name_from_path(path_):
-    """Get the data set name from the path"""
-    return path_.stem[path_.stem.find('_') + 1:]
-
 
 @pytest.fixture
 def mock_dataframe(spark_app):
@@ -75,7 +69,7 @@ def compare_actual_expected(
 
 
 def test_pcp_followup(mock_dataframe, expected_dataframe):
-    """Test the persistence of beta-blockers after heart attack logic"""
+    """Test pcp followup output against expected output"""
     test_instance = ebm_hedis_etc.pcp_followup.PCPFollowup()
 
     for cutoff in CUTOFFS:
