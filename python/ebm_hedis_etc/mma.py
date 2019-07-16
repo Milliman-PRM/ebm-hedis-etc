@@ -29,7 +29,7 @@ LOGGER = logging.getLogger(__name__)
 # =============================================================================
 
 
-def _check_dx_array(dx_array, test_values, num_dx_codes=15):
+def _check_dx_array(dx_array, test_values, num_dx_codes=15): # pragma: no cover
     test_array = [
         F.coalesce(
             dx_array[dx_num].isin(test_values),
@@ -39,7 +39,7 @@ def _check_dx_array(dx_array, test_values, num_dx_codes=15):
     return F.array_contains(F.array(*test_array), True)
 
 
-def _build_dx_array(df_columns, dx_field_name):
+def _build_dx_array(df_columns, dx_field_name): # pragma: no cover
     """Build dx column from dataframe column list"""
     dx_column_list = [
         F.col(field) for field in
@@ -48,7 +48,7 @@ def _build_dx_array(df_columns, dx_field_name):
     return F.array(*dx_column_list)
 
 
-def _rx_route_events(rx_data, route):
+def _rx_route_events(rx_data, route): # pragma: no cover
     med_route_event_df = None
     if route is 'oral':
         oral_events_df = rx_data.where(
@@ -129,7 +129,7 @@ def _rx_route_events(rx_data, route):
     return med_route_event_df
 
 
-def _initial_filtering(dfs_input, measurement_date_end):
+def _initial_filtering(dfs_input, measurement_date_end): # pragma: no cover
     # filter down to relevant value sets and diagnoses
     visit_valueset_df = dfs_input['reference'].where(
         F.col('value_set_name').rlike(r'\bED\b') |
@@ -312,7 +312,7 @@ def _exclusionary_filtering(
         dfs_input,
         filtered_data_dict,
         measurement_date_end
-    ):
+    ): # pragma: no cover
     # find members with more than one 45 day gap in
     # eligibility during meas. year
     gaps_df = find_elig_gaps(
@@ -422,7 +422,7 @@ def _event_filtering(
         exc_filtered_data_dict,
         performance_yearstart,
         measurement_date_end
-):
+): # pragma: no cover
     """helper function that filters claims by medical and pharmacutical
        dispensing events of interest"""
     rx_event_mask_df = exc_filtered_data_dict['rx'].groupBy(
@@ -617,7 +617,7 @@ def _event_filtering(
     }
 
 
-def _calculate_rates(rx_data, performance_yearstart, measurement_date_end):
+def _calculate_rates(rx_data, performance_yearstart, measurement_date_end): # pragma: no cover
     controller_claims_df = rx_data.where(
         (F.col('medication_type') == 'controller') &
         F.col('fromdate').between(
@@ -657,7 +657,7 @@ def _calculate_rates(rx_data, performance_yearstart, measurement_date_end):
 
     def adjust_date_windows(
             array_coverage_windows: "typing.Iterable[typing.Mapping[str, datetime.date]]",
-        ) -> "typing.Iterable[typing.Mapping[str, datetime.date]]":
+        ) -> "typing.Iterable[typing.Mapping[str, datetime.date]]": # pragma: no cover
         """Combine and extend overlapping windows"""
 
         sorted_array = sorted(
@@ -762,7 +762,7 @@ def calculate_denominator(
         dfs_input: DataFrame,
         performance_yearstart: datetime.date,
         measurement_date_end: datetime.date
-    ):
+    ): # pragma: no cover
     """Calculate the numerator portion of MMA measure"""
     filtered_data_dict = _initial_filtering(
         dfs_input,
@@ -789,7 +789,7 @@ def calculate_numerator(
         rx_data: dict,
         performance_yearstart: datetime.date,
         measurement_date_end: datetime.date
-    ):
+    ): # pragma: no cover
     """Calculate the denominator portion of MMA measure"""
     rx_data = rx_data.join(
         dfs_input['rx_claims'],

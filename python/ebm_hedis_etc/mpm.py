@@ -26,7 +26,7 @@ def _exclude_elig_gaps(
         eligible_member_time: DataFrame,
         allowable_gaps: int=0,
         allowable_gap_length: int=0
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Find eligibility gaps and exclude members """
     decoupled_windows = decouple_common_windows(
         eligible_member_time,
@@ -81,7 +81,7 @@ class MPM3(QualityMeasure):
             self,
             dfs_input: "typing.Mapping[str, DataFrame]",
             performance_yearstart=datetime.date,
-    ):
+    ): # pragma: no cover
         diuretic_claims_df = dfs_input['rx_claims'].where(
             spark_funcs.col('fromdate').between(
                 spark_funcs.lit(performance_yearstart),
