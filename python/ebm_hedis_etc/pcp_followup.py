@@ -17,9 +17,6 @@ from ebm_hedis_etc.base_classes import QualityMeasure
 LOGGER = logging.getLogger(__name__)
 
 PRM_LINE_CHECK = ['i11a', 'i12', 'i13a', 'i13b', 'i14a', 'i14b']
-CUTOFFS = [7, 14]
-# pylint does not recognize many of the spark functions
-# pylint: disable=no-member
 
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE

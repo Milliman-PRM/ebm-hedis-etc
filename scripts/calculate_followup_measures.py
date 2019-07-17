@@ -14,7 +14,8 @@ from pathlib import Path
 from prm.spark.app import SparkApp
 from prm.meta.project import parse_project_metadata
 from ebm_hedis_etc.pcp_followup import PCPFollowup
-from ebm_hedis_etc.pcp_followup import CUTOFFS
+
+CUTOFFS = [7, 14]
 
 PRM_META = parse_project_metadata()
 LOGGER = logging.getLogger(__name__)

@@ -293,12 +293,13 @@ class PCPFollowup(PRMPythonTask):
     )
 
     def output(self):
-        _data_feeds = [
-            IndyPyLocalTarget(result)
-            for result in PRM_META[150, 'out'].glob('results_pcp_followup*.parquet')
-        ]
-        return _data_feeds if _data_feeds else [
-            IndyPyLocalTarget(PRM_META[150, 'out'] / 'does_not_exist')
+        names_output = {
+            'results_pcp_followup_7_day.parquet',
+            'results_pcp_followup_14_day.parquet'
+        }
+        return [
+            IndyPyLocalTarget(PRM_META[150, 'out'] / name)
+            for name in names_output
         ]
 
     def run(self):
