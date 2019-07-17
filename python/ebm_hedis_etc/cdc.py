@@ -16,6 +16,7 @@ from ebm_hedis_etc.base_classes import QualityMeasure
 
 # pylint does not recognize many of the spark functions
 # pylint: disable=no-member
+# pragma: no cover
 
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
@@ -26,7 +27,7 @@ def _exclude_elig_gaps(
         eligible_member_time: DataFrame,
         allowable_gaps: int=0,
         allowable_gap_length: int=0
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Find eligibility gaps and exclude members """
     decoupled_windows = decouple_common_windows(
         eligible_member_time,
@@ -102,7 +103,7 @@ def _identify_med_event(
         med_claims: DataFrame,
         reference_df: DataFrame,
         performance_yearstart: datetime.date
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Identify members who had diabetes diagnoses with either two outpatient visits or
     one inpatient encounter"""
     restricted_med_claims = med_claims.select(
@@ -233,7 +234,7 @@ def identify_a1c_tests(
         claims_df: DataFrame,
         reference_df: DataFrame,
         performance_yearstart: datetime.date
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Identify members with HbA1c testing during the performance year"""
     return claims_df.join(
         eligible_members,
@@ -263,7 +264,7 @@ def identify_nephropathy(
         reference_df: DataFrame,
         rx_reference_df: DataFrame,
         performance_yearstart: datetime.date
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Identify members with screening for or evidence of nephropathy during measurement year"""
     restricted_claims_df = claims_df.join(
         eligible_members,
@@ -419,7 +420,7 @@ def identify_eye_exam(
         claims_df: DataFrame,
         reference_df: DataFrame,
         performance_yearstart: datetime.date
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Identify screening/monitoring for diabetic retinal disease during measurement year"""
     restricted_claims_df = claims_df.join(
         eligible_members,
@@ -620,7 +621,7 @@ def create_output_table(
         denominator: DataFrame,
         numerator: DataFrame,
         measure_name: str
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Prep numerator and denominator information for appropriate output format"""
     return members.join(
         denominator,
@@ -652,7 +653,7 @@ class CDC(QualityMeasure):
             self,
             dfs_input: "typing.Mapping[str, DataFrame]",
             performance_yearstart=datetime.date,
-    ): # pragma: no cover
+    ):
         reference_df = dfs_input['reference'].withColumn(
             'code',
             spark_funcs.regexp_replace(spark_funcs.col('code'), r'\.', '')

@@ -16,6 +16,7 @@ from ebm_hedis_etc.base_classes import QualityMeasure
 
 # pylint does not recognize many of the spark functions
 # pylint: disable=no-member
+# pragma: no cover
 
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
@@ -30,7 +31,7 @@ def _calc_simple_cis_measure(
         value_set_name: str,
         days_between_dob: int,
         vaccine_count: int
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     reference_values = reference_df.where(
         spark_funcs.col('value_set_name') == value_set_name
     )
@@ -90,7 +91,7 @@ def calc_dtap(
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Calculate DTaP Vaccine Measure"""
     return _calc_simple_cis_measure(
         member_df,
@@ -113,7 +114,7 @@ def calc_ipv(
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Calculate IPV Vaccine Measure"""
     return _calc_simple_cis_measure(
         member_df,
@@ -136,7 +137,7 @@ def calc_hib(
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Calculate HiB Vaccine Measure"""
     return _calc_simple_cis_measure(
         member_df,
@@ -159,7 +160,7 @@ def calc_pneumococcal(
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Calculate Pneumococcal Vaccine Measure"""
     return _calc_simple_cis_measure(
         member_df,
@@ -182,7 +183,7 @@ def calc_influenza(
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Calculate Influenza Vaccine Measure"""
     return _calc_simple_cis_measure(
         member_df,
@@ -205,7 +206,7 @@ def calc_hepatitis_b(
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Calculate Hepatitis B Vaccine Measure"""
     diags_explode_df = eligible_claims_df.select(
         'member_id',
@@ -336,7 +337,7 @@ def calc_hepatitis_a(
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Calculate Hepatitis A Vaccine Measure"""
     hep_a_vaccine_df = _calc_simple_cis_measure(
         member_df,
@@ -421,7 +422,7 @@ def calc_vzv(
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Calculate VZV Vaccine Measure"""
     vzv_vaccine_df = _calc_simple_cis_measure(
         member_df,
@@ -505,7 +506,7 @@ def calc_rotavirus(
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Calculate Rotavirus Vaccine Measure"""
     two_two_dose_df = _calc_simple_cis_measure(
         member_df,
@@ -644,7 +645,7 @@ def calc_mmr(
         eligible_members_df: DataFrame,
         eligible_claims_df: DataFrame,
         reference_df: DataFrame
-) -> DataFrame: # pragma: no cover
+) -> DataFrame:
     """Calculate MMR Vaccine Measure"""
     mmr_vaccine_df = _calc_simple_cis_measure(
         member_df,
@@ -858,7 +859,7 @@ class CIS(QualityMeasure):
             self,
             dfs_input: "typing.Mapping[str, DataFrame]",
             performance_yearstart=datetime.date,
-    ): # pragma: no cover
+    ):
         measure_start = performance_yearstart
         measure_end = datetime.date(performance_yearstart.year, 12, 31)
 
