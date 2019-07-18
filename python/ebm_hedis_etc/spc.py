@@ -20,7 +20,6 @@ LOGGER = logging.getLogger(__name__)
 
 # pylint does not recognize many of the spark functions
 # pylint: disable=no-member
-# pragma: no cover
 
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
@@ -32,7 +31,7 @@ def _identify_events(
         claims_df: DataFrame,
         reference_df: DataFrame,
         performance_yearstart: datetime.date
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Find claims that meet criteria for events to qualify members for denominator"""
     restricted_claims_df = claims_df.join(
         members_no_gaps_df,
@@ -172,7 +171,7 @@ def _identify_diagnosis(
         claims_df: DataFrame,
         reference_df: DataFrame,
         performance_yearstart: datetime.date
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Find claims that meet criteria for events to qualify members for denominator"""
     restricted_claims_df = claims_df.join(
         members_no_gaps_df,
@@ -289,7 +288,7 @@ def _exclude_elig_gaps(
         eligible_member_time: DataFrame,
         allowable_gaps: int=0,
         allowable_gap_length: int=0
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Find eligibility gaps and exclude members """
     decoupled_windows = decouple_common_windows(
         eligible_member_time,
@@ -344,7 +343,7 @@ def _measure_exclusions(
         reference_df: DataFrame,
         rx_reference_df: DataFrame,
         performance_yearstart: datetime.date
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Find members who should be excluded from measure based on certain diagnoses/procedures"""
     diag_explode_df = claims_df.select(
         'member_id',
@@ -565,7 +564,7 @@ def _calc_rate_one(
         eligible_members_df: DataFrame,
         rx_reference_df: DataFrame,
         performance_yearstart: datetime
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Find members in rx claims that qualify for rate one of the measure"""
     return rx_claims_df.join(
         eligible_members_df,
@@ -591,7 +590,7 @@ def _calc_rate_two(
         eligible_members_df: DataFrame,
         rx_reference_df: DataFrame,
         performance_yearstart
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Find members in the rx claims that qualify for rate two of the measure"""
     statin_claims_df = rx_claims_df.join(
         eligible_members_df,
@@ -735,7 +734,7 @@ def _calc_rate_two(
     return member_coverage_summ
 
 
-class SPC(QualityMeasure):
+class SPC(QualityMeasure): # pragma: no cover
     """Object to house logic to calculate statin therapy for patients with cardivascular disease"""
     def _calc_measure(
             self,

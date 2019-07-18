@@ -45,7 +45,7 @@ class QualityMeasure(metaclass=abc.ABCMeta):
     def _validate_schema(
             self,
             df_: DataFrame,
-    ) -> None:
+    ) -> None: # pragma: no cover
         """Ensure the results are in the correct schema"""
         LOGGER.info("Validating %s measure result %s", self.__class__.__name__, df_)
         assert isinstance(df_, DataFrame), "Results should be presented as dataframe"
@@ -68,7 +68,7 @@ class QualityMeasure(metaclass=abc.ABCMeta):
         measure_results = self._calc_measure(
             dfs_input,
             performance_yearstart,
-            **kwargs,
+            **kwargs
             )
         self._validate_schema(measure_results)
         return measure_results
