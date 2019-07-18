@@ -287,7 +287,7 @@ def _initial_filtering(dfs_input, measurement_date_end): # pragma: no cover
     members_df = dfs_input['member'].where(
         F.abs(
             F.year(F.col('dob')) - F.year(F.lit(measurement_date_end))
-        ).between(5,64)
+        ).between(5, 64)
     ).join(
         dfs_input['member_time'].select(
             F.col('member_id'),
@@ -465,7 +465,7 @@ def _event_filtering(
 
     out_obs_event_med_df = med_eventmask_any_df.where(
         (F.col('visit_valueset_name').rlike(r'Outpatient') |
-        F.col('visit_valueset_name').rlike(r'Observation'))
+         F.col('visit_valueset_name').rlike(r'Observation'))
     ).groupBy('member_id', 'fromdate').agg(
         F.max('count').alias('obs_out_visit')
     ).groupBy('member_id').agg(
@@ -516,7 +516,7 @@ def _event_filtering(
         'is_included',
         F.when(
             (F.array_contains(F.col('rx_types'), 'Leukotriene modifiers') &
-            F.array_contains(F.col('rx_types'), 'Antibody inhibitor')) &
+             F.array_contains(F.col('rx_types'), 'Antibody inhibitor')) &
             (F.size(F.col('rx_types')) == F.lit(2)),
             True
         ).otherwise(False)
@@ -540,7 +540,7 @@ def _event_filtering(
         'is_included',
         F.when(
             (F.array_contains(F.col('rx_types'), 'Leukotriene modifiers') &
-            F.array_contains(F.col('rx_types'), 'Antibody inhibitor')) &
+             F.array_contains(F.col('rx_types'), 'Antibody inhibitor')) &
             (F.size(F.col('rx_types')) == F.lit(2)),
             True
         ).otherwise(False)
@@ -807,7 +807,7 @@ class MMA(QualityMeasure):
             self,
             dfs_input: "typing.Mapping[str, DataFrame]",
             performance_yearstart: datetime.date,
-        ):
+        ):  # pragma: no cover
 
         measurement_date_end = datetime.date(
             performance_yearstart.year,

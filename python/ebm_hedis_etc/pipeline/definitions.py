@@ -20,9 +20,9 @@ from prm.execute.definitions import (
     hcg_grouper_validation
 )
 
-PATH_SCRIPTS = Path(os.environ['EBM_HEDIS_ETC_HOME']) / 'scripts'
-PATH_REFDATA = Path(os.environ['EBM_HEDIS_ETC_PATHREF'])
-PRM_META = prm.meta.project.parse_project_metadata()
+PATH_SCRIPTS = Path(os.environ['EBM_HEDIS_ETC_HOME']) / 'scripts' # pragma: no cover
+PATH_REFDATA = Path(os.environ['EBM_HEDIS_ETC_PATHREF']) # pragma: no cover
+PRM_META = prm.meta.project.parse_project_metadata() # pragma: no cover
 
 
 # =============================================================================

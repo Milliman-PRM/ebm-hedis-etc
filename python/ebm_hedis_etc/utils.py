@@ -22,9 +22,9 @@ LOGGER = logging.getLogger(__name__)
 
 
 def find_elig_gaps(
-    member_time: DataFrame,
-    ce_start_date: Column,
-    ce_end_date: Column
+        member_time: DataFrame,
+        ce_start_date: Column,
+        ce_end_date: Column
 ) -> DataFrame:
     """
     Find the number of gaps in enrollment and the longest length gap.  Additionally, check if
@@ -100,8 +100,8 @@ def find_elig_gaps(
 
 def flag_gap_exclusions(
         member_gap_df: DataFrame,
-        allowable_gap_length: int = 0,
-        allowable_gap_count: int = 0
+        allowable_gap_length: int=0,
+        allowable_gap_count: int=0
 ) -> DataFrame:
     """
     Add flag of member exclusion based on allowable gaps in enrollment

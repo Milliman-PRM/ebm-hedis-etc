@@ -24,13 +24,13 @@ LOGGER = logging.getLogger(__name__)
 class QualityMeasure(metaclass=abc.ABCMeta):
     """Base class to validate schema of various quality measure results"""
     @staticmethod
-    def validate_meausure_column_name(name: str) -> bool:
+    def validate_meausure_column_name(name: str) -> bool:  # pragma: no cover
         """Defines naming convention for columns"""
         return name.startswith('comp_quality')
 
     def __init__(
             self,
-    ) -> None:
+    ) -> None:  # pragma: no cover
         self.key_fields = ['member_id']
 
     @abc.abstractmethod
@@ -62,7 +62,7 @@ class QualityMeasure(metaclass=abc.ABCMeta):
             dfs_input: typing.Mapping[str, DataFrame],
             performance_yearstart: datetime.date,
             **kwargs
-    ) -> DataFrame:
+    ) -> DataFrame: # pragma: no cover
         """Calculate a measure"""
         LOGGER.info("Beginning %s measure calculation", self.__class__.__name__)
         measure_results = self._calc_measure(

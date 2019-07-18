@@ -741,7 +741,8 @@ def _calc_rate_two(
         'member_id',
         'drug_id',
     ).agg(
-        spark_funcs.collect_list(spark_funcs.col('map_coverage_window')).alias('array_coverage_windows'),
+        spark_funcs.collect_list(
+            spark_funcs.col('map_coverage_window')).alias('array_coverage_windows'),
     )
 
     def adjust_date_windows(

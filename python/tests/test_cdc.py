@@ -8,7 +8,8 @@
     Currently a stub to be expanded later
 """
 
-import pytest
+# pylint: disable=unused-import
+
 import ebm_hedis_etc.cdc
 
 def test_exclude_elig_gaps():
