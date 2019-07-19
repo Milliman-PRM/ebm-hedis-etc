@@ -11,10 +11,8 @@
 """
 import logging
 import datetime
-import typing
 
 import pyspark.sql.functions as spark_funcs
-import pyspark.sql.types as spark_types
 from pyspark.sql import DataFrame, Window
 from prm.dates.windows import decouple_common_windows
 from ebm_hedis_etc.base_classes import QualityMeasure
