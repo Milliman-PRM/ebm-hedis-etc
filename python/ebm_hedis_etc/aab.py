@@ -22,9 +22,6 @@ LOGGER = logging.getLogger(__name__)
 AGE_LOWER = 18
 AGE_UPPER = 64
 
-# pylint does not recognize many of the spark functions
-# pylint: disable=no-member
-
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 # =============================================================================
