@@ -1,0 +1,8 @@
+name,datatype,nullable
+member_id,string,false
+expected_comp_quality_short,string,false
+expected_comp_quality_numerator,double,false
+expected_comp_quality_denominator,double,false
+expected_comp_quality_date_last,date,true
+expected_comp_quality_date_actionable,date,true
+expected_comp_quality_comments,string,true
