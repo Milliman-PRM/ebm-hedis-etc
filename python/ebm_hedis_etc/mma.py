@@ -20,9 +20,6 @@ from ebm_hedis_etc.utils import find_elig_gaps
 
 LOGGER = logging.getLogger(__name__)
 
-# pylint does not recognize many of the spark functions
-# pylint: disable=no-member
-
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 # =============================================================================
