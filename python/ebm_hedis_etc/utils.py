@@ -25,7 +25,7 @@ def find_elig_gaps(
         member_time: DataFrame,
         ce_start_date: Column,
         ce_end_date: Column
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """
     Find the number of gaps in enrollment and the longest length gap.  Additionally, check if
     member had eligibility on anchor date.
@@ -102,7 +102,7 @@ def flag_gap_exclusions(
         member_gap_df: DataFrame,
         allowable_gap_length: int=0,
         allowable_gap_count: int=0
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """
     Add flag of member exclusion based on allowable gaps in enrollment
     Args:
