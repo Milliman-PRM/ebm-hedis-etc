@@ -65,9 +65,11 @@ def pytest_sessionstart():
     temp_path = Path(os.environ['TEMP'])
 
     params_input = prm_local / 'prm_params_Input.txt'
+    params_other = prm_local / 'prm_params_other.txt'
+    params_module = prm_local / 'prm_params_modules.txt'
     temp_dir = prm_local / 'mock_temp'
 
-    temp_dir.mkdir()
+    temp_dir.mkdir(exist_ok=True)
 
     output_rows = ['Parameter_Name|Parameter_Value_String|Parameter_Value_Int|' \
     'Parameter_Value_Date|Note']
@@ -84,6 +86,38 @@ def pytest_sessionstart():
 
     with params_input.open('w') as out:
         for row in output_rows:
+            out.write(row + '\n')
+
+    with params_other.open('w') as out:
+        out.write('Parameter_Name|Parameter_Value_String|Parameter_Value_Int|' \
+            'Parameter_Value_Date|Notes\n')
+
+    user_profile = Path(os.environ['USERPROFILE'])
+
+    data_mart = user_profile / '002_Data_Mart_Defs'
+    function_library = user_profile / '008_Function_Library'
+    risk_scores = user_profile / '090_Risk_Scores'
+    references_product = prm_local / 'temp_ref_product'
+    staging_claims = prm_local / 'temp_staging_claims'
+    staging_membership = prm_local / 'temp_staging_membership'
+    downloads = user_profile / 'Downloads'
+
+    module_output = ['Module_Name|Module_Number|Mod_Log|Mod_Error|Mod_Out|' \
+                        'Mod_Temp|Mod_Prior|Mod_Code',
+                     '002_Data_Mart_Defs|002||||||' + str(data_mart),
+                     '008_Function_Library|008||||||' + str(function_library),
+                     '090_Risk_Scores|090||||||' + str(risk_scores),
+                     '015_References_Product|015|||' + str(references_product)
+                     + '|||' + str(downloads),
+                     '030_Staging_Claims|030|||' + str(staging_claims) + '|||'
+                     + str(downloads),
+                     '035_Staging_Membership|035|||' + str(staging_membership)
+                     + '|||' + str(downloads)
+                    ]
+
+
+    with params_module.open('w') as out:
+        for row in module_output:
             out.write(row + '\n')
 
 def pytest_sessionfinish():
