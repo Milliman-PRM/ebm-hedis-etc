@@ -9,10 +9,11 @@
     Used below to define session-scoped fixtures
 """
 # pylint: disable=redefined-outer-name
-import pytest
 import os
 from pathlib import Path
 from shutil import rmtree
+import pytest
+
 
 import prm.spark.cluster
 from prm.spark.app import SparkApp
@@ -71,22 +72,23 @@ def pytest_sessionstart():
 
     temp_dir.mkdir(exist_ok=True)
 
-    output_rows = ['Parameter_Name|Parameter_Value_String|Parameter_Value_Int|' \
-    'Parameter_Value_Date|Note']
-    output_rows.append('project_id||||')
-    output_rows.append('M010_Cde||||')
-    output_rows.append('date_crediblestart||||')
-    output_rows.append('path_project_logs|' + str(temp_dir) + '|||')
-    output_rows.append('path_local_root|' + str(temp_path) + '|||')
-    output_rows.append('default_spark_sql_partitions|2|||')
-    output_rows.append('pipeline_signature|ref_unit_test|||')
-    output_rows.append('codegen_prca_model_format|model_name_short $32.' \
-        '        model_name_long $128.        modpathel_name_category $16.        ' \
-        'model_name_order best12.        model_name_format $16.|||')
+    output_rows = [
+        ('Parameter_Name|Parameter_Value_String|Parameter_Value_Int|'
+         'Parameter_Value_Date|Note'),
+        'project_id||||',
+        'M010_Cde||||',
+        'date_crediblestart||||',
+        'path_project_logs|{}|||'.format(temp_dir),
+        'path_local_root|{}|||'.format(temp_path),
+        'default_spark_sql_partitions|2|||',
+        'pipeline_signature|ref_unit_test|||',
+        ('codegen_prca_model_format|model_name_short $32.        '
+         'model_name_long $128.        modpathel_name_category $16.        '
+         'model_name_order best12.        model_name_format $16.|||'),
+    ]
 
     with params_input.open('w') as out:
-        for row in output_rows:
-            out.write(row + '\n')
+        out.write('\n'.join(output_rows))
 
     with params_other.open('w') as out:
         out.write('Parameter_Name|Parameter_Value_String|Parameter_Value_Int|' \
@@ -102,26 +104,22 @@ def pytest_sessionstart():
     staging_membership = prm_local / 'temp_staging_membership'
     downloads = user_profile / 'Downloads'
 
-    module_output = ['Module_Name|Module_Number|Mod_Log|Mod_Error|Mod_Out|' \
-                        'Mod_Temp|Mod_Prior|Mod_Code',
-                     '002_Data_Mart_Defs|002||||||' + str(data_mart),
-                     '008_Function_Library|008||||||' + str(function_library),
-                     '090_Risk_Scores|090||||||' + str(risk_scores),
-                     '015_References_Product|015|||' + str(references_product)
-                     + '|||' + str(downloads),
-                     '030_Staging_Claims|030|||' + str(staging_claims) + '|||'
-                     + str(downloads),
-                     '035_Staging_Membership|035|||' + str(staging_membership)
-                     + '|||' + str(downloads)
-                    ]
+    module_output = [
+        'Module_Name|Module_Number|Mod_Log|Mod_Error|Mod_Out|Mod_Temp|Mod_Prior|Mod_Code',
+        '002_Data_Mart_Defs|002||||||{}'.format(data_mart),
+        '008_Function_Library|008||||||{}'.format(function_library),
+        '090_Risk_Scores|090||||||{}'.format(risk_scores),
+        '015_References_Product|015|||{}|||{}'.format(references_product, downloads),
+        '030_Staging_Claims|030|||{}|||{}'.format(staging_claims, downloads),
+        '035_Staging_Membership|035|||{}|||{}'.format(staging_membership, downloads)
+    ]
 
 
     with params_module.open('w') as out:
-        for row in module_output:
-            out.write(row + '\n')
+        out.write('\n'.join(module_output))
+
 
 def pytest_sessionfinish():
     '''Remove temporary directory after tests complete'''
     temp_dir = Path(os.environ['USERPROFILE']) / 'prm_local'/ 'mock_temp'
     rmtree(str(temp_dir), ignore_errors=True)
-    
