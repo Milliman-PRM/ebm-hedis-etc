@@ -261,7 +261,8 @@ def calc_hepatitis_b(
         3
     ).select(
         'member_id',
-        'vaccine_count'
+        'vaccine_count',
+        'comp_quality_comments',
     )
 
     procs_explode_df = eligible_claims_df.select(
@@ -292,9 +293,11 @@ def calc_hepatitis_b(
             spark_funcs.col('fromdate'),
             spark_funcs.col('dob')
         ) < 8
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_newborn_vaccine'),
+    )
 
     combine_df = hep_b_vaccine_df.join(
         newborn_hepatitis_df.withColumn('newborn_vaccine', spark_funcs.lit(1)),
@@ -304,10 +307,24 @@ def calc_hepatitis_b(
         'vaccine_count': 0,
         'newborn_vaccine': 0
     }).withColumn(
+        'comp_quality_comments',
+        spark_funcs.when(
+            (spark_funcs.col('vaccine_count') == 0) & (spark_funcs.col('newborn_vaccine') == 1),
+            spark_funcs.concat_ws(
+                ': ',
+                spark_funcs.lit('Newborn Hepatitis B Vaccine Administered On'),
+                spark_funcs.col('latest_newborn_vaccine'),
+            )
+        ).otherwise(
+            spark_funcs.concat_ws(
+                ', ',
+                spark_funcs.col('comp_quality_comments'),
+                spark_funcs.col('latest_newborn_vaccine'),
+            )
+        )
+    ).withColumn(
         'vaccine_count',
         spark_funcs.col('vaccine_count') + spark_funcs.col('newborn_vaccine')
-    ).where(
-        spark_funcs.col('vaccine_count') >= 3
     )
 
     output_df = member_df.select(
@@ -328,7 +345,8 @@ def calc_hepatitis_b(
         spark_funcs.col('base_member_id').alias('member_id'),
         spark_funcs.lit('CIS - Hepatitis B').alias('comp_quality_short'),
         spark_funcs.when(
-            combine_df.member_id.isNotNull() | history_hepatitis_df.member_id.isNotNull(),
+            (combine_df.vaccine_count.isNotNull() & (combine_df.vaccine_count >= 3))
+            | history_hepatitis_df.member_id.isNotNull(),
             spark_funcs.lit(1)
         ).otherwise(
             spark_funcs.lit(0)
@@ -339,10 +357,12 @@ def calc_hepatitis_b(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_denominator'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+        spark_funcs.col('second_birthday').alias('comp_quality_date_actionable'),
         spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
-    )
+        'comp_quality_comments',
+    ).fillna({
+        'comp_quality_comments': 'No Hepatitis B Vaccine Administered',
+    })
 
     return output_df
 
