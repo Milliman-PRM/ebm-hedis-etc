@@ -231,8 +231,18 @@ class MPM3(QualityMeasure):
                 spark_funcs.lit(0)
             ).alias('comp_quality_denominator'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+        ).select(
+            '*',
+            spark_funcs.when(
+                (spark_funcs.col('comp_quality_denominator') == 1)
+                & (spark_funcs.col('comp_quality_numerator') == 0),
+                spark_funcs.lit(date_performanceyearend)
+            ).alias('comp_quality_date_actionable'),
+            spark_funcs.when(
+                (spark_funcs.col('comp_quality_denominator') == 1)
+                & (spark_funcs.col('comp_quality_numerator') == 0),
+                spark_funcs.lit('Required laboratory tests not given during the measurement year.'),
+            ).alias('comp_quality_comments'),
         )
 
         return results_df
