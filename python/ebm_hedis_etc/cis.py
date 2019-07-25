@@ -657,7 +657,9 @@ def calc_mmr(
     ).where(
         spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.col('comp_quality_comments').alias('mmr_comments'),
+        spark_funcs.col('vaccine_count').alias('mmr_count'),
     )
 
     measles_rubella_vaccine_df = _calc_simple_cis_measure(
@@ -671,7 +673,9 @@ def calc_mmr(
     ).where(
         spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.col('comp_quality_comments').alias('measles_rubella_comments'),
+        spark_funcs.col('vaccine_count').alias('measles_rubella_count'),
     )
 
     diags_explode_df = eligible_claims_df.select(
@@ -697,7 +701,8 @@ def calc_mmr(
         ],
         how='inner'
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.lit(1).alias('mumps_history'),
     ).distinct()
 
     mumps_vaccine_df = _calc_simple_cis_measure(
@@ -711,20 +716,10 @@ def calc_mmr(
     ).where(
         spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.col('comp_quality_comments').alias('mumps_comments'),
+        spark_funcs.col('vaccine_count').alias('mumps_count'),
     )
-
-    mumps_vaccine_or_history_df = mumps_history_df.union(
-        mumps_vaccine_df.select(
-            'member_id'
-        )
-    ).distinct()
-
-    measles_rubella_and_mumps_df = measles_rubella_vaccine_df.select(
-        'member_id'
-    ).intersect(
-        mumps_vaccine_or_history_df
-    ).distinct()
 
     measles_vaccine_df = _calc_simple_cis_measure(
         member_df,
@@ -737,7 +732,9 @@ def calc_mmr(
     ).where(
         spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.col('comp_quality_comments').alias('measles_comments'),
+        spark_funcs.col('vaccine_count').alias('measles_count'),
     )
 
     measles_history_df = diags_explode_df.join(
@@ -751,13 +748,8 @@ def calc_mmr(
         ],
         how='inner'
     ).select(
-        'member_id'
-    ).distinct()
-
-    measles_vaccine_or_history_df = measles_vaccine_df.select(
-        'member_id'
-    ).union(
-        measles_history_df
+        'member_id',
+        spark_funcs.lit(1).alias('measles_history'),
     ).distinct()
 
     rubella_vaccine_df = _calc_simple_cis_measure(
@@ -771,7 +763,9 @@ def calc_mmr(
     ).where(
         spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.col('comp_quality_comments').alias('rubella_comments'),
+        spark_funcs.col('vaccine_count').alias('rubella_count'),
     )
 
     rubella_history_df = diags_explode_df.join(
@@ -785,20 +779,9 @@ def calc_mmr(
         ],
         how='inner'
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.lit(1).alias('rubella_history'),
     ).distinct()
-
-    rubella_vaccine_or_history_df = rubella_vaccine_df.select(
-        'member_id'
-    ).union(
-        rubella_history_df
-    ).distinct()
-
-    measles_and_rubella_and_mumps_df = measles_vaccine_or_history_df.intersect(
-        mumps_vaccine_or_history_df
-    ).intersect(
-        rubella_vaccine_or_history_df
-    )
 
     output_df = member_df.select(
         spark_funcs.col('member_id').alias('base_member_id')
@@ -807,33 +790,52 @@ def calc_mmr(
         spark_funcs.col('base_member_id') == spark_funcs.col('member_id'),
         how='left_outer'
     ).join(
-        mmr_vaccine_df.withColumnRenamed(
-            'member_id',
-            'mmr_vaccine_member_id'
-        ),
-        spark_funcs.col('member_id') == spark_funcs.col('mmr_vaccine_member_id'),
+        mmr_vaccine_df,
+        'member_id',
         how='left_outer'
     ).join(
-        measles_rubella_and_mumps_df.withColumnRenamed(
-            'member_id',
-            'meas_rub_and_mumps_member_id'
-        ),
-        spark_funcs.col('member_id') == spark_funcs.col('meas_rub_and_mumps_member_id'),
+        measles_rubella_vaccine_df,
+        'member_id',
         how='left_outer'
     ).join(
-        measles_and_rubella_and_mumps_df.withColumnRenamed(
-            'member_id',
-            'meas_and_rub_and_mumps_member_id'
-        ),
-        spark_funcs.col('member_id') == spark_funcs.col('meas_and_rub_and_mumps_member_id'),
+        mumps_vaccine_df,
+        'member_id',
         how='left_outer'
-    ).select(
+    ).join(
+        measles_vaccine_df,
+        'member_id',
+        how='left_outer'
+    ).join(
+        rubella_vaccine_df,
+        'member_id',
+        how='left_outer'
+    ).join(
+        mumps_history_df,
+        'member_id',
+        how='left_outer'
+    ).join(
+        measles_history_df,
+        'member_id',
+        how='left_outer'
+    ).join(
+        rubella_history_df,
+        'member_id',
+        how='left_outer'
+    ).fillna({
+        'mmr_count': 0,
+        'measles_rubella_count': 0,
+        'mumps_count': 0,
+        'measles_count': 0,
+        'rubella_count': 0,
+        'mumps_history': 0,
+        'measles_history': 0,
+        'rubella_history': 0,
+    }).select(
         spark_funcs.col('base_member_id').alias('member_id'),
         spark_funcs.lit('CIS - MMR').alias('comp_quality_short'),
+        # MMR vaccine seems to be the only active one, so bypassing some complicated logic
         spark_funcs.when(
-            spark_funcs.col('mmr_vaccine_member_id').isNotNull()
-            | spark_funcs.col('meas_rub_and_mumps_member_id').isNotNull()
-            | spark_funcs.col('meas_and_rub_and_mumps_member_id').isNotNull(),
+            spark_funcs.col('mmr_count') > 0,
             spark_funcs.lit(1)
         ).otherwise(
             spark_funcs.lit(0)
@@ -844,10 +846,12 @@ def calc_mmr(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_denominator'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+        spark_funcs.col('second_birthday').cast('string').alias('comp_quality_date_actionable'),
         spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
-    )
+        spark_funcs.col('mmr_comments').alias('comp_quality_comments'),
+    ).fillna({
+        'comp_quality_comments': 'No Measles, Mumps, or Rubella Vaccine Administered',
+    })
 
     return output_df
 
