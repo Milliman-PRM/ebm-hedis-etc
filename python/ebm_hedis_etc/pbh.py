@@ -30,6 +30,11 @@ class PBH(QualityMeasure):
             performance_yearstart=datetime.date,
     ): # pragma: no cover
         measure_start = performance_yearstart
+        measure_end = datetime.date(
+            measure_start.year,
+            12,
+            31,
+        )
 
         reference_df = dfs_input['reference']
 
@@ -152,7 +157,7 @@ class PBH(QualityMeasure):
             'left_outer'
         ).where(
             spark_funcs.lit(spark_funcs.datediff(
-                spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31)),
+                spark_funcs.lit(measure_end),
                 spark_funcs.col('dob')
             ) / 365) >= 18
         ).join(
