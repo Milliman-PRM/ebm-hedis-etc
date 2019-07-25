@@ -297,17 +297,15 @@ def calc_hepatitis_b(
     ).distinct()
 
     combine_df = hep_b_vaccine_df.join(
-        newborn_hepatitis_df,
+        newborn_hepatitis_df.withColumn('newborn_vaccine', spark_funcs.lit(1)),
         'member_id',
         how='full_outer'
-    ).withColumn(
+    ).fillna({
+        'vaccine_count': 0,
+        'newborn_vaccine': 0
+    }).withColumn(
         'vaccine_count',
-        spark_funcs.when(
-            spark_funcs.col('vaccine_count').isNotNull(),
-            spark_funcs.col('vaccine_count') + 1
-        ).otherwise(
-            spark_funcs.lit(1)
-        )
+        spark_funcs.col('vaccine_count') + spark_funcs.col('newborn_vaccine')
     ).where(
         spark_funcs.col('vaccine_count') >= 3
     )
