@@ -339,7 +339,8 @@ class PBH(QualityMeasure):
                 (spark_funcs.col('comp_quality_denominator') == 1)
                 & (spark_funcs.col('comp_quality_numerator') == 0),
                 spark_funcs.lit('Patient received less than 135 days of treatment with beta-blockers'),
-            ).otherwise(
+            ).when(
+                spark_funcs.col('comp_quality_denominator') == 1,
                 spark_funcs.concat_ws(
                     ' ',
                     spark_funcs.lit('Patient hospitalized with AMI on'),
