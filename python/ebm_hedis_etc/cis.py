@@ -473,7 +473,8 @@ def calc_vzv(
     ).where(
         spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
+        'member_id',
+        'comp_quality_comments',
     )
 
     diags_explode_df = eligible_claims_df.select(
@@ -531,10 +532,12 @@ def calc_vzv(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_denominator'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+        spark_funcs.col('second_birthday').alias('comp_quality_date_actionable'),
         spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
-    )
+        'comp_quality_comments',
+    ).fillna({
+        'comp_quality_comments': 'No Varicella Zoster (VZV) Vaccine Administered',
+    })
 
     return output_df
 
@@ -554,10 +557,10 @@ def calc_rotavirus(
         'Rotavirus Vaccine (2 Dose Schedule) Administered',
         42,
         2
-    ).where(
-        spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.col('comp_quality_comments').alias('two_dose_comments'),
+        spark_funcs.col('vaccine_count').alias('two_dose_count'),
     )
 
     three_three_dose_df = _calc_simple_cis_measure(
@@ -568,62 +571,10 @@ def calc_rotavirus(
         'Rotavirus Vaccine (3 Dose Schedule) Administered',
         42,
         3
-    ).where(
-        spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
-    )
-
-    two_reference_values = reference_df.where(
-        spark_funcs.col('value_set_name') == 'Rotavirus Vaccine (2 Dose Schedule) Administered'
-    )
-
-    three_reference_values = reference_df.where(
-        spark_funcs.col('value_set_name') == 'Rotavirus Vaccine (3 Dose Schedule) Administered'
-    )
-
-    two_claims_df = eligible_claims_df.join(
-        two_reference_values,
-        eligible_claims_df.hcpcs == two_reference_values.code,
-        'inner'
-    ).where(
-        spark_funcs.datediff(
-            spark_funcs.col('fromdate'),
-            spark_funcs.col('dob')
-        ) >= 42
-    )
-
-    three_claims_df = eligible_claims_df.join(
-        three_reference_values,
-        eligible_claims_df.hcpcs == three_reference_values.code,
-        'inner'
-    ).where(
-        spark_funcs.datediff(
-            spark_funcs.col('fromdate'),
-            spark_funcs.col('dob')
-        ) >= 42
-    )
-
-    two_three_combination_df = two_claims_df.union(
-        three_claims_df
-    ).groupBy(
         'member_id',
-        'value_set_name'
-    ).agg(
-        spark_funcs.countDistinct('fromdate').alias('vaccine_count')
-    ).where(
-        (spark_funcs.col('value_set_name').isin(
-            'Rotavirus Vaccine (3 Dose Schedule) Administered')
-         & (spark_funcs.col('vaccine_count') >= 2))
-        | (spark_funcs.col('value_set_name').isin(
-            'Rotavirus Vaccine (2 Dose Schedule) Administered')
-           & (spark_funcs.col('vaccine_count') >= 1))
-    ).groupBy(
-        'member_id'
-    ).agg(
-        spark_funcs.countDistinct('value_set_name').alias('vaccine_type_count')
-    ).where(
-        spark_funcs.col('vaccine_type_count') > 1
+        spark_funcs.col('comp_quality_comments').alias('three_dose_comments'),
+        spark_funcs.col('vaccine_count').alias('three_dose_count'),
     )
 
     output_df = member_df.select(
@@ -633,33 +584,28 @@ def calc_rotavirus(
         spark_funcs.col('base_member_id') == spark_funcs.col('member_id'),
         how='left_outer'
     ).join(
-        two_two_dose_df.withColumnRenamed(
-            'member_id',
-            'two_two_member_id'
-        ),
-        spark_funcs.col('member_id') == spark_funcs.col('two_two_member_id'),
+        two_two_dose_df,
+        'member_id',
         how='left_outer'
     ).join(
-        three_three_dose_df.withColumnRenamed(
-            'member_id',
-            'three_three_member_id'
-        ),
-        spark_funcs.col('member_id') == spark_funcs.col('three_three_member_id'),
+        three_three_dose_df,
+        'member_id',
         how='left_outer'
-    ).join(
-        two_three_combination_df.withColumnRenamed(
-            'member_id',
-            'two_three_member_id'
-        ),
-        spark_funcs.col('member_id') == spark_funcs.col('two_three_member_id'),
-        how='left_outer'
-    ).select(
+    ).fillna({
+        'two_dose_count': 0,
+        'three_dose_count': 0,
+    }).select(
         spark_funcs.col('base_member_id').alias('member_id'),
         spark_funcs.lit('CIS - Rotavirus').alias('comp_quality_short'),
         spark_funcs.when(
-            spark_funcs.col('two_two_member_id').isNotNull()
-            | spark_funcs.col('three_three_member_id').isNotNull()
-            | spark_funcs.col('two_three_member_id').isNotNull(),
+            (
+                (spark_funcs.col('two_dose_count') >= 2)
+                | (spark_funcs.col('three_dose_count') >= 3)
+                | (
+                    (spark_funcs.col('two_dose_count') >= 1)
+                    & (spark_funcs.col('three_dose_count') >= 2)
+                )
+            ),
             spark_funcs.lit(1)
         ).otherwise(
             spark_funcs.lit(0)
@@ -670,9 +616,24 @@ def calc_rotavirus(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_denominator'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+        spark_funcs.col('second_birthday').alias('comp_quality_date_actionable'),
         spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+        spark_funcs.when(
+            (spark_funcs.col('two_dose_count') > 0) & (spark_funcs.col('three_dose_count') > 0),
+            spark_funcs.concat_ws(
+                '; ',
+                spark_funcs.col('two_dose_comments'),
+                spark_funcs.col('three_dose_comments'),
+            ),
+        ).when(
+            spark_funcs.col('two_dose_count') > 0,
+            spark_funcs.col('two_dose_comments'),
+        ).when(
+            spark_funcs.col('three_dose_count') > 0,
+            spark_funcs.col('three_dose_comments'),
+        ).otherwise(
+            spark_funcs.lit('No Rotavirus Vaccine Administered'),
+        ).alias('comp_quality_comments')
     )
 
     return output_df
