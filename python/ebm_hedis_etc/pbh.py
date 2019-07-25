@@ -287,7 +287,8 @@ class PBH(QualityMeasure):
         )
 
         coverage_count_df = decoupled_coverage_df.groupBy(
-            'member_id'
+            'member_id',
+            'dischdate',
         ).agg(
             spark_funcs.sum(
                 spark_funcs.datediff(
@@ -312,8 +313,7 @@ class PBH(QualityMeasure):
             dfs_input['member'].member_id == numer_df.member_id,
             how='left_outer'
         ).select(
-            dfs_input['member'].member_id,
-            spark_funcs.lit('PBH').alias('comp_quality_short'),
+            '*',
             spark_funcs.when(
                 numer_df.member_id.isNotNull(),
                 spark_funcs.lit(1)
@@ -326,9 +326,27 @@ class PBH(QualityMeasure):
             ).otherwise(
                 spark_funcs.lit(0)
             ).alias('comp_quality_denominator'),
+        ).select(
+            dfs_input['member'].member_id,
+            spark_funcs.lit('PBH').alias('comp_quality_short'),
+            'comp_quality_numerator',
+            'comp_quality_denominator',
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+            spark_funcs.date_add(
+                spark_funcs.col('dischdate'),
+                179,
+            ).alias('comp_quality_date_actionable'),
+            spark_funcs.when(
+                (spark_funcs.col('comp_quality_denominator') == 1)
+                & (spark_funcs.col('comp_quality_numerator') == 0),
+                spark_funcs.lit('Patient received less than 135 days of treatment with beta-blockers'),
+            ).otherwise(
+                spark_funcs.concat_ws(
+                    ' ',
+                    'Patient hospitalized with AMI on',
+                    spark_funcs.col('dischdate'),
+                )
+            ).alias('comp_quality_comments'),
         )
 
         return results_df
