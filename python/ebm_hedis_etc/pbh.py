@@ -288,7 +288,6 @@ class PBH(QualityMeasure):
 
         coverage_count_df = decoupled_coverage_df.groupBy(
             'member_id',
-            'dischdate',
         ).agg(
             spark_funcs.sum(
                 spark_funcs.datediff(
@@ -343,7 +342,7 @@ class PBH(QualityMeasure):
             ).otherwise(
                 spark_funcs.concat_ws(
                     ' ',
-                    'Patient hospitalized with AMI on',
+                    spark_funcs.lit('Patient hospitalized with AMI on'),
                     spark_funcs.col('dischdate'),
                 )
             ).alias('comp_quality_comments'),
