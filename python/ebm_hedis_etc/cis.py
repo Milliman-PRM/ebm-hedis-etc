@@ -49,7 +49,8 @@ def _calc_simple_cis_measure(
     vaccines_df = claims_df.groupBy(
         'member_id'
     ).agg(
-        spark_funcs.countDistinct('fromdate').alias('vaccine_count')
+        spark_funcs.countDistinct('fromdate').alias('vaccine_count'),
+        spark_funcs.collect_set('fromdate').alias('vaccine_dates'),
     )
 
     output_df = member_df.select(
@@ -63,7 +64,7 @@ def _calc_simple_cis_measure(
         'member_id',
         how='left_outer'
     ).select(
-        spark_funcs.col('base_member_id').alias('member_id'),
+        '*',
         spark_funcs.when(
             spark_funcs.col('vaccine_count') >= vaccine_count,
             spark_funcs.lit(1)
@@ -76,9 +77,26 @@ def _calc_simple_cis_measure(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_denominator'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+    ).select(
+        spark_funcs.col('base_member_id').alias('member_id'),
+        'comp_quality_numerator',
+        'comp_quality_denominator',
+        spark_funcs.col('second_birthday').alias('comp_quality_date_actionable'),
         spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_comments'),
+        spark_funcs.when(
+            (spark_funcs.col('comp_quality_denominator') == 1)
+            & spark_funcs.col('vaccine_dates').isNotNull(),
+            spark_funcs.concat(
+                spark_funcs.lit(value_set_name + ' On: '),
+                spark_funcs.concat_ws(
+                    ', ',
+                    spark_funcs.col('vaccine_dates'),
+                )
+            )
+        ).when(
+            spark_funcs.col('comp_quality_denominator') == 1,
+            spark_funcs.lit('No ' + value_set_name)
+        ).alias('comp_quality_comments'),
         'vaccine_count'
     )
 
