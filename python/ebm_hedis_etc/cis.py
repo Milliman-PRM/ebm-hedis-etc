@@ -386,7 +386,8 @@ def calc_hepatitis_a(
         spark_funcs.col('comp_quality_numerator') == 1
     ).select(
         'member_id',
-        'vaccine_count'
+        'vaccine_count',
+        'comp_quality_comments',
     )
 
     diags_explode_df = eligible_claims_df.select(
@@ -444,10 +445,12 @@ def calc_hepatitis_a(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_denominator'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+        spark_funcs.col('second_birthday').alias('comp_quality_date_actionable'),
         spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
-    )
+        'comp_quality_comments',
+    ).fillna({
+        'comp_quality_comments': 'No Hepatitis A Vaccine Administered',
+    })
 
     return output_df
 
