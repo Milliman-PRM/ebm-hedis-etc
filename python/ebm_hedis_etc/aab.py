@@ -29,7 +29,7 @@ AGE_UPPER = 64
 
 def _exclude_elig_gaps(
         denominator_events: DataFrame,
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Find eligibility gaps and exclude members """
     decoupled_windows = decouple_common_windows(
         denominator_events,
@@ -88,7 +88,7 @@ def _calculate_age_criteria(
         members: DataFrame,
         date_performanceyearstart: datetime.date,
         date_performanceyearend: datetime.date,
-    ) -> DataFrame:
+    ) -> DataFrame: # pragma: no cover
     """Determine which members meet the age criteria"""
 
     date_performanceyearstart_prior = datetime.date(
@@ -133,7 +133,7 @@ def _calculate_age_criteria(
 def _prep_reference_data(
         value_set_reference_df: DataFrame,
         ndc_reference_df: DataFrame,
-    ) -> "typing.Mapping[str, DataFrame]":
+    ) -> "typing.Mapping[str, DataFrame]": # pragma: no cover
     """Gather all of our reference data into a form that can be used easily"""
     map_med_reference_codesets = {
         'index_visit':  [
@@ -237,7 +237,7 @@ def _prep_reference_data(
 def _identify_aab_prescriptions(
         outpharmacy: DataFrame,
         map_references: "typing.Mapping[str, DataFrame]",
-    ) -> DataFrame:
+    ) -> DataFrame: # pragma: no cover
     """Find prescriptions of interest for the episode numerator calculation"""
 
     aab_rx = outpharmacy.join(
@@ -261,7 +261,7 @@ def _identify_acute_bronchitis_events(
         map_references: "typing.Mapping[str, DataFrame]",
         date_performanceyearstart: datetime.date,
         date_performanceyearend: datetime.date,
-    ) -> DataFrame:
+    ) -> DataFrame: # pragma: no cover
     """Find all qualifying visits with diagnosis of acute bronchitis"""
 
     index_cpt_hcpcs = map_references['index_visit'].filter(
@@ -363,7 +363,7 @@ def _identify_acute_bronchitis_events(
 def _identify_negative_condition_events(
         outclaims: DataFrame,
         map_references: "typing.Mapping[str, DataFrame]",
-    ):
+    ): # pragma: no cover
     """Find dates for all medical events that could disqualify an index episode"""
     assert map_references['negative_conditions'].filter(
         ~spark_funcs.col('code_system').isin('ICD10CM', 'ICD9CM')
@@ -400,7 +400,7 @@ def _identify_negative_condition_events(
 def _identify_competing_diagnoses(
         outclaims: DataFrame,
         map_references: "typing.Mapping[str, DataFrame]",
-    ) -> DataFrame:
+    ) -> DataFrame: # pragma: no cover
     """Find dates for all competing diagnosis events that could disqualify an index episode"""
     assert map_references['negative_comp_diag'].filter(
         ~spark_funcs.col('code_system').isin('ICD10CM', 'ICD9CM')
@@ -439,7 +439,7 @@ def _exclude_negative_history(
         negative_condition_events: DataFrame,
         aab_rx: DataFrame,
         negative_comp_diags: DataFrame,
-    ) -> DataFrame:
+    ) -> DataFrame: # pragma: no cover
     """Apply exclusions for index episodes from negative history events"""
 
     negative_rx_scripts = aab_rx.select(
@@ -536,7 +536,7 @@ def _exclude_negative_history(
 def _apply_elig_gap_exclusions(
         excluded_negative_history: DataFrame,
         member_time: DataFrame,
-    ) -> DataFrame:
+    ) -> DataFrame: # pragma: no cover
     """Apply exclusions for index episodes that don't meet continuous enrollment criteria"""
 
     index_stays_with_elig = excluded_negative_history.select(
@@ -592,7 +592,7 @@ def _apply_elig_gap_exclusions(
 def _apply_age_exclusions(
         elig_gap_exclusions: DataFrame,
         elig_members: DataFrame,
-    ) -> DataFrame:
+    ) -> DataFrame: # pragma: no cover
     """Apply exclusions for index episodes that don't meet continuous enrollment criteria"""
 
     age_exclusions = elig_gap_exclusions.join(
@@ -608,7 +608,7 @@ def _apply_age_exclusions(
 
 def _flag_index_eligible_events(
         age_exclusions: DataFrame,
-    ) -> DataFrame:
+    ) -> DataFrame: # pragma: no cover
     """Identify index events that meet all of the inclusion/exclusion criteria"""
 
     index_eligible_events = age_exclusions.withColumn(
@@ -632,7 +632,7 @@ def _flag_index_eligible_events(
 
 def _select_earliest_episode(
         index_eligible_events: DataFrame,
-    ) -> DataFrame:
+    ) -> DataFrame: # pragma: no cover
     """Limit to the earliest eligible episode per member"""
 
     earliest_window = Window().partitionBy(
@@ -654,7 +654,7 @@ def _select_earliest_episode(
 def _calculate_numerator(
         earliest_episode: DataFrame,
         aab_rx: DataFrame,
-    ):
+    ): # pragma: no cover
     """Apply AAB prescriptions to index episodes to determine numerator compliance"""
 
     numerator_flagged = earliest_episode.join(
@@ -690,7 +690,7 @@ def _calculate_numerator(
 
 def _format_measure_results(
         numerator_flagged: DataFrame,
-    ) -> DataFrame:
+    ) -> DataFrame: # pragma: no cover
     """Get our measure results in the format expected by the pipeline"""
 
     measure_formatted = numerator_flagged.select(
@@ -721,7 +721,7 @@ def _flag_denominator(
         map_references: "typing.Mapping[str, DataFrame]",
         date_performanceyearstart: datetime.date,
         date_performanceyearend: datetime.date,
-    ) -> DataFrame:
+    ) -> DataFrame: # pragma: no cover
     """Wrap execution of denominator flagging logic"""
     elig_members = _calculate_age_criteria(
         dfs_input['member'],
@@ -765,7 +765,7 @@ def _flag_denominator(
     return earliest_episode
 
 
-class AAB(QualityMeasure):
+class AAB(QualityMeasure): # pragma: no cover
     """Object to house the logic to calculate AAB measure"""
     def _calc_measure(
             self,
