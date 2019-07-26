@@ -29,7 +29,7 @@ LOGGER = logging.getLogger(__name__)
 
 def _filter_relevant_value_sets(
         reference_df: DataFrame,
-) -> "typing.Mapping[str, DataFrame]":
+) -> "typing.Mapping[str, DataFrame]": # pragma: no cover
     """Filter the reference dataset down to relevant dataframes"""
 
     relevant_value_sets = {
@@ -112,7 +112,7 @@ def _filter_relevant_value_sets(
 def _summ_claim_diag_value_sets(
         valid_dates_df: DataFrame,
         dfs_relevant_refs: "typing.Mapping[str, DataFrame]",
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Identify relevant diagnosis value sets at the claim level"""
     diag_explode = valid_dates_df.select(
         '*',
@@ -151,7 +151,7 @@ def _summ_claim_diag_value_sets(
 def _summ_claim_proc_value_sets(
         valid_dates_df: DataFrame,
         dfs_relevant_refs: "typing.Mapping[str, DataFrame]",
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Identify relevant diagnosis value sets at the claim level"""
     proc_explode = valid_dates_df.select(
         '*',
@@ -182,7 +182,7 @@ def _identify_claim_value_sets(
         claims_df: DataFrame,
         reference_df: DataFrame,
         performance_yearstart: datetime.date
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Find claims that meet criteria for events to qualify members for denominator"""
 
     dfs_relevant_refs = _filter_relevant_value_sets(reference_df)
@@ -267,7 +267,7 @@ def _identify_claim_value_sets(
 
 def _flag_calculation_steps(
         claim_value_sets: DataFrame,
-    ) -> DataFrame:
+    ) -> DataFrame: # pragma: no cover
     """Condense value sets into more meaningful categories for measure calculation"""
 
     claims_calc_flags = claim_value_sets.select(
@@ -422,7 +422,7 @@ def _flag_calculation_steps(
 
 def _exclude_elig_gaps(
         denominator_events: DataFrame,
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Find eligibility gaps and exclude members """
     decoupled_windows = decouple_common_windows(
         denominator_events,
@@ -506,8 +506,8 @@ def _exclude_elig_gaps(
 def _calc_elig_gap_exclusions(
         staging_calculation_steps: DataFrame,
         member_time: DataFrame,
-    ) -> DataFrame:
-
+    ) -> DataFrame: # pragma: no cover
+        
     index_with_elig_periods = staging_calculation_steps.select(
         '*',
         spark_funcs.explode(
@@ -572,7 +572,7 @@ def _flag_readmissions(
         index_stay_gap_exclusion: DataFrame,
         performance_yearstart: datetime.date,
         last_eligible_dischdate: datetime.date,
-    ) -> DataFrame:
+    ) -> DataFrame: # pragma: no cover
     """Calculate final readmissions dataframe"""
 
     acute_ip_index_stays = staging_calculation_steps.join(
@@ -634,7 +634,7 @@ def _flag_readmissions(
     )
     return readmissions_dedup
 
-class PCR(QualityMeasure):
+class PCR(QualityMeasure): # pragma: no cover
     """Object to house logic to calculate Plan All-cause Readmissions"""
     def _calc_measure(
             self,

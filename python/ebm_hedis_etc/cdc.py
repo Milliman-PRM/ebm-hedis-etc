@@ -26,7 +26,7 @@ def _exclude_elig_gaps(
         eligible_member_time: DataFrame,
         allowable_gaps: int=0,
         allowable_gap_length: int=0
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Find eligibility gaps and exclude members """
     decoupled_windows = decouple_common_windows(
         eligible_member_time,
@@ -79,7 +79,7 @@ def _rx_dispensed_event(
         rx_claims: DataFrame,
         rx_reference: DataFrame,
         performance_yearstart: datetime.date
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Identify members who were dispensed insulin or hypoglycemics/antihyperglycemics during the
     measurement year or the year prior"""
     return rx_claims.where(
@@ -102,7 +102,7 @@ def _identify_med_event(
         med_claims: DataFrame,
         reference_df: DataFrame,
         performance_yearstart: datetime.date
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Identify members who had diabetes diagnoses with either two outpatient visits or
     one inpatient encounter"""
     restricted_med_claims = med_claims.select(
@@ -233,7 +233,7 @@ def identify_a1c_tests(
         claims_df: DataFrame,
         reference_df: DataFrame,
         performance_yearstart: datetime.date
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Identify members with HbA1c testing during the performance year"""
     return claims_df.join(
         eligible_members,
@@ -263,7 +263,7 @@ def identify_nephropathy(
         reference_df: DataFrame,
         rx_reference_df: DataFrame,
         performance_yearstart: datetime.date
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Identify members with screening for or evidence of nephropathy during measurement year"""
     restricted_claims_df = claims_df.join(
         eligible_members,
@@ -419,7 +419,7 @@ def identify_eye_exam(
         claims_df: DataFrame,
         reference_df: DataFrame,
         performance_yearstart: datetime.date
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Identify screening/monitoring for diabetic retinal disease during measurement year"""
     restricted_claims_df = claims_df.join(
         eligible_members,
@@ -620,7 +620,7 @@ def create_output_table(
         denominator: DataFrame,
         numerator: DataFrame,
         measure_name: str
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Prep numerator and denominator information for appropriate output format"""
     return members.join(
         denominator,
@@ -646,7 +646,7 @@ def create_output_table(
     )
 
 
-class CDC(QualityMeasure):
+class CDC(QualityMeasure): # pragma: no cover
     """Object to house logic to calculate comprehensive diabetes care measures"""
     def _calc_measure(
             self,
