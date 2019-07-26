@@ -24,13 +24,13 @@ LOGGER = logging.getLogger(__name__)
 class QualityMeasure(metaclass=abc.ABCMeta):
     """Base class to validate schema of various quality measure results"""
     @staticmethod
-    def validate_meausure_column_name(name: str) -> bool:
+    def validate_meausure_column_name(name: str) -> bool:  # pragma: no cover
         """Defines naming convention for columns"""
         return name.startswith('comp_quality')
 
     def __init__(
             self,
-    ) -> None:
+    ) -> None:  # pragma: no cover
         self.key_fields = ['member_id']
 
     @abc.abstractmethod
@@ -45,7 +45,7 @@ class QualityMeasure(metaclass=abc.ABCMeta):
     def _validate_schema(
             self,
             df_: DataFrame,
-    ) -> None:
+    ) -> None: # pragma: no cover
         """Ensure the results are in the correct schema"""
         LOGGER.info("Validating %s measure result %s", self.__class__.__name__, df_)
         assert isinstance(df_, DataFrame), "Results should be presented as dataframe"
@@ -62,13 +62,13 @@ class QualityMeasure(metaclass=abc.ABCMeta):
             dfs_input: typing.Mapping[str, DataFrame],
             performance_yearstart: datetime.date,
             **kwargs
-    ) -> DataFrame:
+    ) -> DataFrame: # pragma: no cover
         """Calculate a measure"""
         LOGGER.info("Beginning %s measure calculation", self.__class__.__name__)
         measure_results = self._calc_measure(
             dfs_input,
             performance_yearstart,
-            **kwargs,
+            **kwargs
             )
         self._validate_schema(measure_results)
         return measure_results

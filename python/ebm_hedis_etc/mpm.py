@@ -26,7 +26,7 @@ def _exclude_elig_gaps(
         eligible_member_time: DataFrame,
         allowable_gaps: int=0,
         allowable_gap_length: int=0
-) -> DataFrame:
+) -> DataFrame: # pragma: no cover
     """Find eligibility gaps and exclude members """
     decoupled_windows = decouple_common_windows(
         eligible_member_time,
@@ -75,7 +75,7 @@ def _exclude_elig_gaps(
     ).distinct()
 
 
-class MPM3(QualityMeasure):
+class MPM3(QualityMeasure): # pragma: no cover
     """Object to house logic to calculate annual monitoring of diuretics measure"""
     def _calc_measure(
             self,

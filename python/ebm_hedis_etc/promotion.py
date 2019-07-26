@@ -23,7 +23,6 @@ LOGGER = logging.getLogger(__name__)
 _PATH_REL_RELEASE_NOTES = Path("docs") / "release-notes.md"
 PATH_PROMOTION = Path(r"S:\PRM\Pipeline_Components\ebm_hedis_etc")
 
-# pragma: no cover
 
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE

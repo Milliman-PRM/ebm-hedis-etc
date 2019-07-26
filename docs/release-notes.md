@@ -6,6 +6,7 @@ A non-exhaustive list of what has changed in a more readable form than a commit 
 
  - Added quality measure 'PCPFollowup'
    - Used to implement two non-HEDIS measures: 7-day and 14-day PCP followup rates
+ - Fixed coverage issues and some bugs for pytest and CI.
 
 ### v1.0.0
 
