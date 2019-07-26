@@ -77,7 +77,7 @@ class BetaBlockerHeartAttack(PRMPythonTask):  # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self):  # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'beta_blockers_after_heartattack.py'
         super().run(
@@ -105,7 +105,7 @@ class AllCauseReadmissions(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self):  # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'plan_allcause_readmissions.py'
         super().run(
@@ -133,7 +133,7 @@ class ChildhoodImmunization(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self):  # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'childhood_immunization_status.py'
         super().run(
@@ -161,7 +161,7 @@ class StatinTherapyCardiovascular(PRMPythonTask):  # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self):  # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'statin_therapy_with_cardiovascular.py'
         super().run(
@@ -189,7 +189,7 @@ class StatinTherapyDiabetes(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self):  # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'statin_therapy_with_diabetes.py'
         super().run(
@@ -217,7 +217,7 @@ class MonitoringDiuretics(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self):  # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'annual_monitoring_of_diuretics.py'
         super().run(
@@ -245,7 +245,7 @@ class ComprehensiveDiabetesCare(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self):  # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'comprehensive_diabetes_care.py'
         super().run(
@@ -273,7 +273,7 @@ class PersistentAsthmaAdherence(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self):  # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'persistent_asthma_adherence.py'
         super().run(
@@ -301,7 +301,7 @@ class AvoidanceAntibioticBronchitis(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self):  # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'avoidance_antibiotics_bronchitis.py'
         super().run(
@@ -338,7 +338,7 @@ class CombineAll(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self):  # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'combine_all.py'
         super().run(
