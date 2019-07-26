@@ -19,6 +19,9 @@ import prm.spark.cluster
 from prm.spark.app import SparkApp
 from prm.spark.shared import TESTING_APP_PARAMS
 
+USER_PROFILE = Path(os.environ['USERPROFILE'])
+PRM_LOCAL = USER_PROFILE / 'prm_local'
+
 #==============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 #==============================================================================
@@ -62,13 +65,12 @@ def spark_app(request, spark_cluster):
 
 def pytest_sessionstart():
     '''Mock prm_params_input.txt'''
-    prm_local = Path(os.environ['USERPROFILE']) / 'prm_local'
     temp_path = Path(os.environ['TEMP'])
 
-    params_input = prm_local / 'prm_params_Input.txt'
-    params_other = prm_local / 'prm_params_other.txt'
-    params_module = prm_local / 'prm_params_modules.txt'
-    temp_dir = prm_local / 'mock_temp'
+    params_input = PRM_LOCAL / 'prm_params_Input.txt'
+    params_other = PRM_LOCAL / 'prm_params_other.txt'
+    params_module = PRM_LOCAL / 'prm_params_modules.txt'
+    temp_dir = PRM_LOCAL / 'mock_temp'
 
     temp_dir.mkdir(exist_ok=True)
 
@@ -94,15 +96,13 @@ def pytest_sessionstart():
         out.write('Parameter_Name|Parameter_Value_String|Parameter_Value_Int|' \
             'Parameter_Value_Date|Notes\n')
 
-    user_profile = Path(os.environ['USERPROFILE'])
-
-    data_mart = user_profile / '002_Data_Mart_Defs'
-    function_library = user_profile / '008_Function_Library'
-    risk_scores = user_profile / '090_Risk_Scores'
-    references_product = prm_local / 'temp_ref_product'
-    staging_claims = prm_local / 'temp_staging_claims'
-    staging_membership = prm_local / 'temp_staging_membership'
-    downloads = user_profile / 'Downloads'
+    data_mart = USER_PROFILE / '002_Data_Mart_Defs'
+    function_library = USER_PROFILE / '008_Function_Library'
+    risk_scores = USER_PROFILE / '090_Risk_Scores'
+    references_product = PRM_LOCAL / 'temp_ref_product'
+    staging_claims = PRM_LOCAL / 'temp_staging_claims'
+    staging_membership = PRM_LOCAL / 'temp_staging_membership'
+    downloads = USER_PROFILE / 'Downloads'
 
     module_output = [
         'Module_Name|Module_Number|Mod_Log|Mod_Error|Mod_Out|Mod_Temp|Mod_Prior|Mod_Code',
@@ -114,12 +114,11 @@ def pytest_sessionstart():
         '035_Staging_Membership|035|||{}|||{}'.format(staging_membership, downloads)
     ]
 
-
     with params_module.open('w') as out:
         out.write('\n'.join(module_output))
 
 
 def pytest_sessionfinish():
     '''Remove temporary directory after tests complete'''
-    temp_dir = Path(os.environ['USERPROFILE']) / 'prm_local'/ 'mock_temp'
+    temp_dir = PRM_LOCAL / 'mock_temp'
     rmtree(str(temp_dir), ignore_errors=True)

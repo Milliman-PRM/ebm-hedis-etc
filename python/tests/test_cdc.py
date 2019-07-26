@@ -43,4 +43,3 @@ def test_create_output_table():
 def test_calc_measure():
     """Test calculation of diabetes care measures"""
     assert True
-    
