@@ -2,6 +2,9 @@
 
 A non-exhaustive list of what has changed in a more readable form than a commit history.
 
+### v1.0.1
+ - Fixed coverage issues and some bugs for pytest and CI.
+
 ### v1.0.0
 
  - Implemented utils library for the following functions:

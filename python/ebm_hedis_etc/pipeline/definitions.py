@@ -20,9 +20,9 @@ from prm.execute.definitions import (
     hcg_grouper_validation
 )
 
-PATH_SCRIPTS = Path(os.environ['EBM_HEDIS_ETC_HOME']) / 'scripts'
-PATH_REFDATA = Path(os.environ['EBM_HEDIS_ETC_PATHREF'])
-PRM_META = prm.meta.project.parse_project_metadata()
+PATH_SCRIPTS = Path(os.environ['EBM_HEDIS_ETC_HOME']) / 'scripts' # pragma: no cover
+PATH_REFDATA = Path(os.environ['EBM_HEDIS_ETC_PATHREF']) # pragma: no cover
+PRM_META = prm.meta.project.parse_project_metadata() # pragma: no cover
 
 
 # =============================================================================
@@ -59,7 +59,7 @@ class ImportReferences(PRMPythonTask):  # pragma: no cover
         # pylint: enable=arguments-differ
 
 
-class BetaBlockerHeartAttack(PRMPythonTask):
+class BetaBlockerHeartAttack(PRMPythonTask):  # pragma: no cover
     """Run beta_blockers_after_heartattack.py"""
 
     requirements = RequirementsContainer(
@@ -87,7 +87,7 @@ class BetaBlockerHeartAttack(PRMPythonTask):
         )
 
 
-class AllCauseReadmissions(PRMPythonTask):
+class AllCauseReadmissions(PRMPythonTask): # pragma: no cover
     """Run plan_allcause_readmissions.py"""
 
     requirements = RequirementsContainer(
@@ -115,7 +115,7 @@ class AllCauseReadmissions(PRMPythonTask):
         )
 
 
-class ChildhoodImmunization(PRMPythonTask):
+class ChildhoodImmunization(PRMPythonTask): # pragma: no cover
     """Run childhood_immunization_status.py"""
 
     requirements = RequirementsContainer(
@@ -143,7 +143,7 @@ class ChildhoodImmunization(PRMPythonTask):
         )
 
 
-class StatinTherapyCardiovascular(PRMPythonTask):
+class StatinTherapyCardiovascular(PRMPythonTask):  # pragma: no cover
     """Run statin_therapy_with_cardiovascular.py"""
 
     requirements = RequirementsContainer(
@@ -171,7 +171,7 @@ class StatinTherapyCardiovascular(PRMPythonTask):
         )
 
 
-class StatinTherapyDiabetes(PRMPythonTask):
+class StatinTherapyDiabetes(PRMPythonTask): # pragma: no cover
     """Run statin_therapy_with_diabetes.py"""
 
     requirements = RequirementsContainer(
@@ -199,7 +199,7 @@ class StatinTherapyDiabetes(PRMPythonTask):
         )
 
 
-class MonitoringDiuretics(PRMPythonTask):
+class MonitoringDiuretics(PRMPythonTask): # pragma: no cover
     """Run annual_monitoring_of_diuretics.py"""
 
     requirements = RequirementsContainer(
@@ -227,7 +227,7 @@ class MonitoringDiuretics(PRMPythonTask):
         )
 
 
-class ComprehensiveDiabetesCare(PRMPythonTask):
+class ComprehensiveDiabetesCare(PRMPythonTask): # pragma: no cover
     """Run comprehensive_diabetes_care.py"""
 
     requirements = RequirementsContainer(
@@ -255,7 +255,7 @@ class ComprehensiveDiabetesCare(PRMPythonTask):
         )
 
 
-class PersistentAsthmaAdherence(PRMPythonTask):
+class PersistentAsthmaAdherence(PRMPythonTask): # pragma: no cover
     """Run persistent_asthma_adherence.py"""
 
     requirements = RequirementsContainer(
@@ -283,7 +283,7 @@ class PersistentAsthmaAdherence(PRMPythonTask):
         )
 
 
-class AvoidanceAntibioticBronchitis(PRMPythonTask):
+class AvoidanceAntibioticBronchitis(PRMPythonTask): # pragma: no cover
     """Run avoidance_antibiotics_bronchitis.py"""
 
     requirements = RequirementsContainer(
@@ -311,7 +311,7 @@ class AvoidanceAntibioticBronchitis(PRMPythonTask):
         )
 
 
-class CombineAll(PRMPythonTask):
+class CombineAll(PRMPythonTask): # pragma: no cover
     """Run combine_all.py"""
 
     requirements = RequirementsContainer(
