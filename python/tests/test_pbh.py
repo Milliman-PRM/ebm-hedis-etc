@@ -23,17 +23,12 @@ except NameError:  # Likely interactive development
     _PATH_FILE = Path(ebm_hedis_etc.pbh.__file__).parents[1] / 'tests'  # pylint: disable=redefined-variable-type
 
 PATH_MOCK_SCHEMAS = _PATH_FILE / "mock_schemas"
+PATH_SPECIFIC_SCHEMAS = PATH_MOCK_SCHEMAS / "specific_schemas"
 PATH_MOCK_DATA = _PATH_FILE / "mock_data"
 
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 # =============================================================================
-
-
-def _get_name_from_path(path_):
-    """Get the data set name from the path"""
-    return path_.stem[path_.stem.find('_') + 1:]
-
 
 @pytest.fixture
 def mock_dataframes(spark_app):
@@ -46,19 +41,19 @@ def mock_dataframes(spark_app):
         header=True,
         mode='FAILFAST'
     )
-    for path_ in PATH_MOCK_SCHEMAS.glob('pbh*.csv'):
-        name = _get_name_from_path(path_)
-        if name != 'input':
-            specific_schema = build_structtype_from_csv(path_)
-            dataframes[name] = spark_app.session.read.csv(
-                str(PATH_MOCK_DATA / 'pbh_input.csv'),
-                schema=build_structtype_from_csv(PATH_MOCK_SCHEMAS / 'pbh_input.csv'),
-                sep=',',
-                header=True,
-                mode='FAILFAST'
-            ).select(*[col.name for col in specific_schema.fields])
-    return dataframes
 
+    pbh_input_schema = build_structtype_from_csv(PATH_MOCK_SCHEMAS / 'pbh.csv')
+    for path in PATH_SPECIFIC_SCHEMAS.glob('*.csv'):
+        specific_schema = build_structtype_from_csv(path)
+        dataframes[path.stem] = spark_app.session.read.csv(
+            str(PATH_MOCK_DATA / 'pbh.csv'),
+            schema=pbh_input_schema,
+            sep=',',
+            header=True,
+            mode='FAILFAST'
+        ).select(*[col.name for col in specific_schema.fields if col.name in pbh_input_schema.names])
+
+    return dataframes
 
 def compare_actual_expected(
         result_actual,
