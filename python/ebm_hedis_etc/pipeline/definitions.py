@@ -24,7 +24,6 @@ PATH_SCRIPTS = Path(os.environ['EBM_HEDIS_ETC_HOME']) / 'scripts' # pragma: no c
 PATH_REFDATA = Path(os.environ['EBM_HEDIS_ETC_PATHREF']) # pragma: no cover
 PRM_META = prm.meta.project.parse_project_metadata() # pragma: no cover
 
-
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 # =============================================================================
@@ -77,7 +76,7 @@ class BetaBlockerHeartAttack(PRMPythonTask):  # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self): # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'beta_blockers_after_heartattack.py'
         super().run(
@@ -85,6 +84,7 @@ class BetaBlockerHeartAttack(PRMPythonTask):  # pragma: no cover
             path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
             create_folder=True
         )
+        # pylint: enable=arguments-differ
 
 
 class AllCauseReadmissions(PRMPythonTask): # pragma: no cover
@@ -105,7 +105,7 @@ class AllCauseReadmissions(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self): # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'plan_allcause_readmissions.py'
         super().run(
@@ -113,6 +113,7 @@ class AllCauseReadmissions(PRMPythonTask): # pragma: no cover
             path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
             create_folder=True
         )
+        # pylint: enable=arguments-differ
 
 
 class ChildhoodImmunization(PRMPythonTask): # pragma: no cover
@@ -133,7 +134,7 @@ class ChildhoodImmunization(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self): # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'childhood_immunization_status.py'
         super().run(
@@ -141,6 +142,7 @@ class ChildhoodImmunization(PRMPythonTask): # pragma: no cover
             path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
             create_folder=True
         )
+        # pylint: enable=arguments-differ
 
 
 class StatinTherapyCardiovascular(PRMPythonTask):  # pragma: no cover
@@ -161,7 +163,7 @@ class StatinTherapyCardiovascular(PRMPythonTask):  # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self): # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'statin_therapy_with_cardiovascular.py'
         super().run(
@@ -169,6 +171,7 @@ class StatinTherapyCardiovascular(PRMPythonTask):  # pragma: no cover
             path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
             create_folder=True
         )
+        # pylint: enable=arguments-differ
 
 
 class StatinTherapyDiabetes(PRMPythonTask): # pragma: no cover
@@ -189,7 +192,7 @@ class StatinTherapyDiabetes(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self): # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'statin_therapy_with_diabetes.py'
         super().run(
@@ -197,6 +200,7 @@ class StatinTherapyDiabetes(PRMPythonTask): # pragma: no cover
             path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
             create_folder=True
         )
+        # pylint: enable=arguments-differ
 
 
 class MonitoringDiuretics(PRMPythonTask): # pragma: no cover
@@ -217,7 +221,7 @@ class MonitoringDiuretics(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self): # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'annual_monitoring_of_diuretics.py'
         super().run(
@@ -225,6 +229,7 @@ class MonitoringDiuretics(PRMPythonTask): # pragma: no cover
             path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
             create_folder=True
         )
+        # pylint: enable=arguments-differ
 
 
 class ComprehensiveDiabetesCare(PRMPythonTask): # pragma: no cover
@@ -245,7 +250,7 @@ class ComprehensiveDiabetesCare(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self): # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'comprehensive_diabetes_care.py'
         super().run(
@@ -253,6 +258,7 @@ class ComprehensiveDiabetesCare(PRMPythonTask): # pragma: no cover
             path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
             create_folder=True
         )
+        # pylint: enable=arguments-differ
 
 
 class PersistentAsthmaAdherence(PRMPythonTask): # pragma: no cover
@@ -273,7 +279,7 @@ class PersistentAsthmaAdherence(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self): # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'persistent_asthma_adherence.py'
         super().run(
@@ -281,6 +287,7 @@ class PersistentAsthmaAdherence(PRMPythonTask): # pragma: no cover
             path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
             create_folder=True
         )
+        # pylint: enable=arguments-differ
 
 
 class PCPFollowup(PRMPythonTask): # pragma: no cover
@@ -302,7 +309,7 @@ class PCPFollowup(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self): # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'calculate_followup_measures.py'
         super().run(
@@ -310,6 +317,7 @@ class PCPFollowup(PRMPythonTask): # pragma: no cover
             path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
             create_folder=True
         )
+        # pylint: enable=arguments-differ
 
 
 class CombineAll(PRMPythonTask): # pragma: no cover
@@ -339,7 +347,7 @@ class CombineAll(PRMPythonTask): # pragma: no cover
             for name in names_output
         ]
 
-    def run(self):
+    def run(self): # pylint: disable=arguments-differ
         """Run the Luigi job"""
         program = PATH_SCRIPTS / 'combine_all.py'
         super().run(
@@ -347,3 +355,8 @@ class CombineAll(PRMPythonTask): # pragma: no cover
             path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
             create_folder=True
         )
+        # pylint: enable=arguments-differ
+
+
+if __name__ == '__main__':
+    pass
