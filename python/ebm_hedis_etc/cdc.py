@@ -724,7 +724,8 @@ def create_output_table(
         members: DataFrame,
         denominator: DataFrame,
         numerator: DataFrame,
-        measure_name: str
+        measure_name: str,
+        performance_yearstart: datetime.date,
 ) -> DataFrame:
     """Prep numerator and denominator information for appropriate output format"""
     return members.join(
@@ -746,8 +747,17 @@ def create_output_table(
         ).alias('comp_quality_numerator'),
         spark_funcs.lit(1).alias('comp_quality_denominator'),
         spark_funcs.lit(None).cast('date').alias('comp_quality_date_last'),
-        spark_funcs.lit(None).cast('date').alias('comp_quality_date_actionable'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+        'comp_quality_comments',
+    ).fillna({
+        'comp_quality_comments': 'No relevant claim found during performance period',
+    }).select(
+        '*',
+        spark_funcs.when(
+            spark_funcs.col('comp_quality_numerator') == 0,
+            spark_funcs.lit(
+                datetime.date(performance_yearstart.year, 12, 31)
+            ),
+        ).alias('comp_quality_date_actionable'),
     )
 
 
@@ -856,21 +866,24 @@ class CDC(QualityMeasure):
             dfs_input['member'],
             eligible_members_no_gaps_df,
             hba1c_testing_df,
-            'CDC: HBA1C'
+            'CDC: HBA1C',
+            performance_yearstart,
         )
 
         eye_exam_output_df = create_output_table(
             dfs_input['member'],
             eligible_members_no_gaps_df,
             eye_exam_df,
-            'CDC: EYE'
+            'CDC: EYE',
+            performance_yearstart,
         )
 
         nephropathy_output_df = create_output_table(
             dfs_input['member'],
             eligible_members_no_gaps_df,
             nephropathy_df,
-            'CDC: NEP'
+            'CDC: NEP',
+            performance_yearstart,
         )
 
         return hba1c_output_df.union(
