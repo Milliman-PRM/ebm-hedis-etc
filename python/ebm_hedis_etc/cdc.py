@@ -251,9 +251,17 @@ def identify_a1c_tests(
         ),
         spark_funcs.col('hcpcs') == spark_funcs.col('code'),
         how='inner'
-    ).select(
-        'member_id'
-    ).distinct()
+    ).groupby(
+        'member_id',
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_hba1c_test'),
+    ).withColumn(
+        'comp_quality_comments',
+        spark_funcs.concat(
+            spark_funcs.lit('HbA1c test performed on '),
+            spark_funcs.col('latest_hba1c_test'),
+        )
+    )
 
 
 def identify_nephropathy(
