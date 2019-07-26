@@ -28,7 +28,7 @@ class PBH(QualityMeasure):
             self,
             dfs_input: "typing.Mapping[str, DataFrame]",
             performance_yearstart=datetime.date,
-    ):
+    ): # pragma: no cover
         measure_start = performance_yearstart
 
         reference_df = dfs_input['reference']

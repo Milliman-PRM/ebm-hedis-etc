@@ -28,7 +28,7 @@ except KeyError:  # pragma: no cover
 # =============================================================================
 
 
-def import_flatfile_references(sparkapp: SparkApp) -> "typing.Mapping[str, DataFrame]":
+def import_flatfile_references(sparkapp: SparkApp) -> "typing.Mapping[str, DataFrame]":  # pragma: no cover
     """Import the reference data into parquet"""
     refs = dict()
     for _file in (PATH_INPUT / '_data').iterdir():
