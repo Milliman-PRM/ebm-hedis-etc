@@ -1,3 +1,0 @@
-name,datatype,nullable
-member_id,string,false
-dob,date,false
