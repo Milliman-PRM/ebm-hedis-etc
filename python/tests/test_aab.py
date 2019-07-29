@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Ben Copeland
+### CODE OWNERS: Ben Copeland, Demerrick Moton
 
 ### OBJECTIVE:
     Test the methods that calculate Avoidance of Antiobiotics for Bronchitis HEDIS measures

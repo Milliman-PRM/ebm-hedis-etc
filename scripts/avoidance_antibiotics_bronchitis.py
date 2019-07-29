@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Ben Copeland
+### CODE OWNERS: Ben Copeland, Demerrick Moton
 
 ### OBJECTIVE:
     Calculate the Avoidance of Antibiotic Treatment in Adults With Acute Bronchitis HEDIS measure.
