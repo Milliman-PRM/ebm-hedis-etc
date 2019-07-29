@@ -24,5 +24,6 @@ comp_quality_dual,comp_quality_short,comp_quality,comp_quality_category,comp_qua
 23,CDC: NEP, Comprehensive Diabetes Care: Medical Attention for Nephropathy,Diabetes,Higher_Better,.9,"#,##0.0%",Binary
 24,CDC: EYE, Comprehensive Diabetes Care: Eye Exam,Diabetes,Higher_Better,.5,"#,##0.0%",Binary
 25,MMA,Persistent Asthma Patients with >75% Medication Adherence,Respiratory Conditions,Higher_Better,.4,"#,##0.0%",Binary
-26,PCP Followup: 7-Day, Ambulatory Follow-Up within 7 Days, Transitions of Care, Higher_Better, .5, "#,##0.0%",Rate
-27,PCP Followup: 14-Day, Ambulatory Follow-Up within 14 Days, Transitions of Care, Higher_Better, .5, "#,##0.0%",Rate
+26,AAB,Avoidance of Antibiotic Treatment in Adults With Acute Bronchitis,Overuse/Appropriateness,Higher_Better,0.9,"#,##0.0%",Binary
+27,PCP Followup: 7-Day, Ambulatory Follow-Up within 7 Days, Transitions of Care, Higher_Better, .5, "#,##0.0%",Rate
+28,PCP Followup: 14-Day, Ambulatory Follow-Up within 14 Days, Transitions of Care, Higher_Better, .5, "#,##0.0%",Rate

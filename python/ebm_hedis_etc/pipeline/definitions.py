@@ -320,6 +320,34 @@ class PCPFollowup(PRMPythonTask): # pragma: no cover
         # pylint: enable=arguments-differ
 
 
+class AvoidanceAntibioticBronchitis(PRMPythonTask): # pragma: no cover
+    """Run avoidance_antibiotics_bronchitis.py"""
+
+    requirements = RequirementsContainer(
+        ImportReferences,
+        staging_membership.DeriveParamsFromMembership,
+        hcg_grouper_validation.Validations,
+    )
+
+    def output(self):
+        names_output = {
+            'results_aab.parquet'
+        }
+        return [
+            IndyPyLocalTarget(PRM_META[150, 'out'] / name)
+            for name in names_output
+        ]
+
+    def run(self):  # pylint: disable=arguments-differ
+        """Run the Luigi job"""
+        program = PATH_SCRIPTS / 'avoidance_antibiotics_bronchitis.py'
+        super().run(
+            program,
+            path_log=build_logfile_name(program, PRM_META[150, 'log'] / 'EBM_HEDIS_ETC'),
+            create_folder=True
+        )
+
+
 class CombineAll(PRMPythonTask): # pragma: no cover
     """Run combine_all.py"""
 
@@ -332,7 +360,8 @@ class CombineAll(PRMPythonTask): # pragma: no cover
         AllCauseReadmissions,
         ComprehensiveDiabetesCare,
         PersistentAsthmaAdherence,
-        PCPFollowup
+        AvoidanceAntibioticBronchitis,
+        PCPFollowup,
     )
 
     def output(self):
