@@ -1,0 +1,29 @@
+test_note,prm_line,claimid,member_id,prm_pcp_followup_success_yn,prm_pcp_followup_potential_yn,prm_pcp_followup_days_since
+,I12,C1,A1,Y,Y,0
+duplicate claim,I12,C1,A1,Y,Y,0
+,I12,C2,A2,Y,Y,1
+wrong prm_line,I11b,C3,A3,Y,Y,2
+,I11a,C4,A3,Y,Y,2
+,I11a,C5,A3,Y,Y,2
+,I11a,C6,A3,N,Y,2
+,I11a,C7,A3,N,N,2
+,I11a,C8,A3,Y,Y,8
+,I11a,C9,A3,Y,Y,15
+,I11a,C10,A3,N,N,31
+,I11a,C11,A4,N,Y,3
+,I11a,C12,A4,N,Y,3
+,I11a,C13,A4,N,Y,3
+,I11a,C14,A4,N,Y,3
+,I11a,C15,A4,Y,Y,14
+,I11a,C16,A5,N,Y,4
+,I11a,C17,A6,N,Y,5
+,I13a,C18,A7,Y,Y,6
+,I14a,C19,A8,Y,Y,7
+,I14b,C20,A9,Y,Y,8
+,I12,C21,A10,N,Y,9
+,I12,C23,A11,N,N,11
+,I13b,C25,A12,Y,Y,13
+,I11a,C26,A13,Y,Y,14
+,I11a,C29,A14,Y,Y,17
+,I11a,C30,A15,N,N,18
+,I11a,C31,A16,N,Y,19
