@@ -496,6 +496,7 @@ def _exclude_negative_history(
                 negative_rx_active_supply.fromdate,
                 negative_rx_active_supply.todate,
             ),
+            excluded_negative_rx.fromdate > negative_rx_active_supply.fromdate
         ],
         how='left',
     ).select(
