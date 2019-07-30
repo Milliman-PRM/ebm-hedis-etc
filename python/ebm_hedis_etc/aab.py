@@ -728,7 +728,6 @@ def _format_measure_results(
                             'acute bronchitis diagnosis')
 
         ).alias('comp_quality_comments'),
-        spark_funcs.col('fromdate').alias('comp_quality_date_actionable')
 
     )
 
