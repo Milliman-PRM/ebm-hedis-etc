@@ -921,7 +921,7 @@ class SPC(QualityMeasure): # pragma: no cover
                 spark_funcs.concat(
                     spark_funcs.lit('Patient dispensed '),
                     spark_funcs.col('total_quantity_dispensed'),
-                    spark_funcs.lit('statin medications during the performance year.')
+                    spark_funcs.lit(' statin medications during the performance year.')
                 )
             ).otherwise(
                 spark_funcs.lit('No relevant claim found during the performance year.')
