@@ -988,14 +988,16 @@ class SPD(QualityMeasure): # pragma: no cover
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
 
             spark_funcs.when(
-                rate_one_numer_df.member_id.isNotNull(),
+                (rate_one_numer_df.member_id.isNotNull())
+                & (rate_one_denom_df.member_id.isNotNull()),
                 spark_funcs.concat_ws(
                     ' ',
                     spark_funcs.lit('Patient dispensed with'),
                     spark_funcs.col('generic_product_name'),
                     spark_funcs.lit('during the measurement year')
                 )
-            ).otherwise(
+            ).when(
+                rate_one_denom_df.member_id.isNotNull(),
                 spark_funcs.lit('No relevant claim found during the performance year')
             ).alias('comp_quality_comments'),
 
