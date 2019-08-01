@@ -691,7 +691,8 @@ def _calc_rate_one(
         spark_funcs.col('ndc') == spark_funcs.col('ndc_code'),
         how='inner'
     ).select(
-        'member_id'
+        'member_id',
+        'generic_product_name'
     ).distinct()
 
 
@@ -985,7 +986,19 @@ class SPD(QualityMeasure): # pragma: no cover
             ).alias('comp_quality_denominator'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+
+            spark_funcs.when(
+                rate_one_numer_df.member_id.isNotNull(),
+                spark_funcs.concat_ws(
+                    ' ',
+                    spark_funcs.lit('Patient dispensed with'),
+                    spark_funcs.col('generic_product_name'),
+                    spark_funcs.lit('during the measurement year')
+                )
+            ).otherwise(
+                spark_funcs.lit('No relevant claim found during the performance year')
+            ).alias('comp_quality_comments'),
+
         )
 
         rate_two_output_df = dfs_input['member'].select(
@@ -1015,7 +1028,18 @@ class SPD(QualityMeasure): # pragma: no cover
             ).alias('comp_quality_denominator'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+            spark_funcs.when(
+                spark_funcs.col('pdc') > .8,
+                spark_funcs.lit('Statin adherence at least 80% during the ' \
+                                    'treatment period.')
+                ).when(
+                    rate_one_numer_df.member_id.isNotNull(),
+                    spark_funcs.concat(
+                        spark_funcs.lit('Statin adherence '),
+                        spark_funcs.col('pdc')*100,
+                        spark_funcs.lit('% during the treatment period')
+                    )
+                ).alias('comp_quality_comments')
         )
 
         rate_one_numer_df.unpersist()
