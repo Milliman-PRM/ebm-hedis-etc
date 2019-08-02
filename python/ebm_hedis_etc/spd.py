@@ -19,9 +19,6 @@ from ebm_hedis_etc.base_classes import QualityMeasure
 
 LOGGER = logging.getLogger(__name__)
 
-# pylint does not recognize many of the spark functions
-# pylint: disable=no-member
-
 # =============================================================================
 # LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
 # =============================================================================
@@ -690,9 +687,14 @@ def _calc_rate_one(
         ),
         spark_funcs.col('ndc') == spark_funcs.col('ndc_code'),
         how='inner'
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
+    ).sum(
+        'quantitydispensed'
+    ).select(
+        'member_id',
+        spark_funcs.col('sum(quantitydispensed)').alias('total_quantity_dispensed')
+    )
 
 
 def _calc_rate_two(
@@ -985,7 +987,16 @@ class SPD(QualityMeasure): # pragma: no cover
             ).alias('comp_quality_denominator'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+            spark_funcs.when(
+                rate_one_numer_df.member_id.isNotNull(),
+                spark_funcs.concat(
+                    spark_funcs.lit('Patient dispensed '),
+                    spark_funcs.format_number(spark_funcs.col('total_quantity_dispensed'), 0),
+                    spark_funcs.lit(' statin medications during the performance year.')
+                )
+            ).otherwise(
+                spark_funcs.lit('No relevant claim found during the performance year.')
+            ).alias('comp_quality_comments')
         )
 
         rate_two_output_df = dfs_input['member'].select(
@@ -1002,7 +1013,7 @@ class SPD(QualityMeasure): # pragma: no cover
             dfs_input['member'].member_id,
             spark_funcs.lit('SPD: Rate Two').alias('comp_quality_short'),
             spark_funcs.when(
-                spark_funcs.col('pdc') > .8,
+                spark_funcs.col('pdc') >= .8,
                 spark_funcs.lit(1)
             ).otherwise(
                 spark_funcs.lit(0)
@@ -1015,7 +1026,21 @@ class SPD(QualityMeasure): # pragma: no cover
             ).alias('comp_quality_denominator'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+            spark_funcs.when(
+                spark_funcs.col('comp_quality_denominator') != 1,
+                spark_funcs.lit(None).cast('string')
+            ).otherwise(
+                spark_funcs.when(
+                    spark_funcs.col('pdc') < .8,
+                    spark_funcs.concat(
+                        spark_funcs.lit('Statin adherence '),
+                        spark_funcs.format_number(spark_funcs.col('pdc') * 100, 0),
+                        spark_funcs.lit('% during the treatment period.')
+                    )
+                ).otherwise(
+                    spark_funcs.lit('Statin adherence at least 80% during the treatment period.')
+                )
+            ).alias('comp_quality_comments')
         )
 
         rate_one_numer_df.unpersist()
