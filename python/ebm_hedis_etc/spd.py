@@ -1034,7 +1034,7 @@ class SPD(QualityMeasure): # pragma: no cover
                     spark_funcs.col('pdc') < .8,
                     spark_funcs.concat(
                         spark_funcs.lit('Statin adherence '),
-                        rate_two_numer_df.pdc * 100,
+                        spark_funcs.format_number(spark_funcs.col('pdc') * 100, 0),
                         spark_funcs.lit('% during the treatment period.')
                     )
                 ).otherwise(

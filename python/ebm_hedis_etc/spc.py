@@ -920,7 +920,7 @@ class SPC(QualityMeasure): # pragma: no cover
                 rate_one_numer_df.member_id.isNotNull(),
                 spark_funcs.concat(
                     spark_funcs.lit('Patient dispensed '),
-                    spark_funcs.col('total_quantity_dispensed'),
+                    spark_funcs.format_number(spark_funcs.col('total_quantity_dispensed'), 0),
                     spark_funcs.lit(' statin medications during the performance year.')
                 )
             ).otherwise(
@@ -971,7 +971,7 @@ class SPC(QualityMeasure): # pragma: no cover
                 rate_two_numer_df.pdc < .8,
                 spark_funcs.concat(
                     spark_funcs.lit('Statin adherence '),
-                    rate_two_numer_df.pdc * 100,
+                    spark_funcs.format_number(rate_two_numer_df.pdc * 100, 0),
                     spark_funcs.lit('% during the treatment period.')
                 )
             ).otherwise(
