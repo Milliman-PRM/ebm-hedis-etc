@@ -675,7 +675,7 @@ def _calc_rate_one(
         performance_yearstart: datetime
 ) -> DataFrame: # pragma: no cover
     """Find members in rx claims that qualify for rate one of the measure"""
-    return rx_claims_df.join(
+    output_df = rx_claims_df.join(
         eligible_members_df,
         'member_id',
         how='inner'
@@ -691,10 +691,10 @@ def _calc_rate_one(
         spark_funcs.col('ndc') == spark_funcs.col('ndc_code'),
         how='inner'
     ).select(
-        'member_id',
-        'generic_product_name'
+        'member_id'
     ).distinct()
 
+    return output_df.cube('member_id').count()
 
 def _calc_rate_two(
         rx_claims_df: DataFrame,
@@ -990,11 +990,10 @@ class SPD(QualityMeasure): # pragma: no cover
             spark_funcs.when(
                 (rate_one_numer_df.member_id.isNotNull())
                 & (rate_one_denom_df.member_id.isNotNull()),
-                spark_funcs.concat_ws(
-                    ' ',
-                    spark_funcs.lit('Patient dispensed with'),
-                    spark_funcs.col('generic_product_name'),
-                    spark_funcs.lit('during the measurement year')
+                spark_funcs.concat(
+                    spark_funcs.lit('Patient dispensed with '),
+                    spark_funcs.col('count'),
+                    spark_funcs.lit(' statin(s) during the measurement year')
                 )
             ).when(
                 rate_one_denom_df.member_id.isNotNull(),
