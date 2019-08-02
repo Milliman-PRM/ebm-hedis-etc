@@ -1013,7 +1013,7 @@ class SPD(QualityMeasure): # pragma: no cover
             dfs_input['member'].member_id,
             spark_funcs.lit('SPD: Rate Two').alias('comp_quality_short'),
             spark_funcs.when(
-                spark_funcs.col('pdc') > .8,
+                spark_funcs.col('pdc') >= .8,
                 spark_funcs.lit(1)
             ).otherwise(
                 spark_funcs.lit(0)
@@ -1027,14 +1027,19 @@ class SPD(QualityMeasure): # pragma: no cover
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
             spark_funcs.when(
-                rate_two_numer_df.pdc <= .8,
-                spark_funcs.concat(
-                    spark_funcs.lit('Statin adherence '),
-                    rate_two_numer_df.pdc * 100,
-                    spark_funcs.lit('% during the treatment period.')
-                )
+                spark_funcs.col('comp_quality_denominator') != 1,
+                spark_funcs.lit(None).cast('string')
             ).otherwise(
-                spark_funcs.lit('Statin adherence at least 80% during the treatment period.')
+                spark_funcs.when(
+                    spark_funcs.col('pdc') < .8,
+                    spark_funcs.concat(
+                        spark_funcs.lit('Statin adherence '),
+                        rate_two_numer_df.pdc * 100,
+                        spark_funcs.lit('% during the treatment period.')
+                    )
+                ).otherwise(
+                    spark_funcs.lit('Statin adherence at least 80% during the treatment period.')
+                )
             ).alias('comp_quality_comments')
         )
 
