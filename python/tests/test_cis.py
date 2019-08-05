@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: James Holland
+### CODE OWNERS: James Holland, Ben Copeland
 
 ### OBJECTIVE:
     Test Childhood Immunization Status module
