@@ -2,6 +2,13 @@
 
 A non-exhaustive list of what has changed in a more readable form than a commit history.
 
+### v1.1.0
+
+ - Added quality measure 'PCPFollowup'
+   - Used to implement two non-HEDIS measures: 7-day and 14-day PCP followup rates
+ - Added quality measure `Avoidance of Antibiotic Treatment in Adults With Acute Bronchitis` (AAB)
+ - Fixed coverage issues and some bugs for pytest and CI.
+
 ### v1.0.0
 
  - Implemented utils library for the following functions:

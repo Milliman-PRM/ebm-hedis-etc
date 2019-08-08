@@ -15,11 +15,12 @@ import pytest
 
 import ebm_hedis_etc.mma
 from prm.spark.io_txt import build_structtype_from_csv
+import pyspark.sql.functions as F
 
 try:
     _PATH_FILE = Path(__file__).parent
 except NameError:  # Likely interactive development
-    _PATH_FILE = Path(ebm_hedis_etc.pbh.__file__).parents[1] / 'tests'  # pylint: disable=redefined-variable-type
+    _PATH_FILE = Path(ebm_hedis_etc.mma.__file__).parents[1] / 'tests'  # pylint: disable=redefined-variable-type
 
 PATH_MOCK_SCHEMAS = _PATH_FILE / "mock_schemas"
 PATH_SPECIFIC_SCHEMAS = PATH_MOCK_SCHEMAS / "specific_schemas"
@@ -88,7 +89,9 @@ def test_mma(mock_dataframes):
     test_instance = ebm_hedis_etc.mma.MMA()
     result_actual = test_instance.calc_measure(mock_dataframes, datetime.date(2018, 1, 1))
     result_actual.cache()
-    result_expected = mock_dataframes['expected'].cache()
+    result_expected = mock_dataframes['expected'].where(
+        F.col('expected_comp_quality_denominator') > 0
+    ).cache()
     compare_actual_expected(
         result_actual,
         result_expected

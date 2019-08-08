@@ -1,0 +1,809 @@
+"""
+### CODE OWNERS: Ben Copeland, Demerrick Moton
+
+### OBJECTIVE:
+    Calculate the Avoidance of Antibiotic Treatment in Adults With
+    Acute Bronchitis (AAB) measure.
+
+### DEVELOPER NOTES:
+  <none>
+
+"""
+import logging
+import datetime
+
+import pyspark.sql.functions as spark_funcs
+from pyspark.sql import DataFrame, Window
+from prm.dates.windows import decouple_common_windows
+from ebm_hedis_etc.base_classes import QualityMeasure
+
+LOGGER = logging.getLogger(__name__)
+
+AGE_LOWER = 18
+AGE_UPPER = 64
+
+# =============================================================================
+# LIBRARIES, LOCATIONS, LITERALS, ETC. GO ABOVE HERE
+# =============================================================================
+
+
+def _exclude_elig_gaps(
+        denominator_events: DataFrame,
+) -> DataFrame: # pragma: no cover
+    """Find eligibility gaps and exclude members """
+    decoupled_windows = decouple_common_windows(
+        denominator_events,
+        ['member_id', 'fromdate'],
+        'date_start',
+        'date_end',
+        create_windows_for_gaps=True
+    )
+    cover_medical_windows = denominator_events.select(
+        'member_id',
+        'fromdate',
+        'date_start',
+        'date_end',
+        'cover_medical',
+        )
+
+    gaps_df = decoupled_windows.join(
+        cover_medical_windows,
+        ['member_id', 'fromdate', 'date_start', 'date_end'],
+        how='left_outer'
+    ).fillna({
+        'cover_medical': 'N',
+    }).select(
+        'member_id',
+        'fromdate',
+        'date_start',
+        'date_end',
+        'cover_medical',
+        (spark_funcs.datediff(
+            spark_funcs.col('date_end'),
+            spark_funcs.col('date_start')
+        ) + 1).alias('date_diff')
+    )
+
+    summ_gaps = gaps_df.groupby(
+        'member_id',
+        'fromdate',
+    ).agg(
+        spark_funcs.sum(
+            spark_funcs.when(
+                spark_funcs.col('cover_medical') == 'N',
+                spark_funcs.lit(1)
+            ).otherwise(spark_funcs.lit(0))
+        ).alias('count_gaps'),
+        spark_funcs.sum(
+            spark_funcs.when(
+                spark_funcs.col('cover_medical') == 'N',
+                spark_funcs.col('date_diff')
+            ).otherwise(spark_funcs.lit(0))
+        ).alias('count_gap_days'),
+    )
+    return summ_gaps
+
+
+def _calculate_age_criteria(
+        members: DataFrame,
+        date_performanceyearstart: datetime.date,
+        date_performanceyearend: datetime.date,
+    ) -> DataFrame: # pragma: no cover
+    """Determine which members meet the age criteria"""
+
+    date_performanceyearstart_prior = datetime.date(
+        date_performanceyearstart.year - 1,
+        date_performanceyearstart.month,
+        date_performanceyearstart.day,
+    )
+
+    elig_members = members.select(
+        '*',
+        (
+            spark_funcs.datediff(
+                spark_funcs.lit(date_performanceyearstart_prior),
+                spark_funcs.col('dob'),
+            )
+            / 365.25
+        ).alias('age_py_start_prior'),
+        (
+            spark_funcs.datediff(
+                spark_funcs.lit(date_performanceyearend),
+                spark_funcs.col('dob'),
+            )
+            / 365.25
+        ).alias('age_py_end'),
+    ).select(
+        'member_id',
+        'dob',
+        'age_py_start_prior',
+        'age_py_end',
+        spark_funcs.when(
+            (spark_funcs.col('age_py_start_prior') < AGE_LOWER)
+            | (spark_funcs.col('age_py_end') > AGE_UPPER),
+            spark_funcs.lit(0),
+        ).otherwise(
+            spark_funcs.lit(1),
+        ).alias('meets_age_criteria'),
+    )
+
+    return elig_members
+
+
+def _prep_reference_data(
+        value_set_reference_df: DataFrame,
+        ndc_reference_df: DataFrame,
+    ) -> "typing.Mapping[str, DataFrame]": # pragma: no cover
+    """Gather all of our reference data into a form that can be used easily"""
+    map_med_reference_codesets = {
+        'index_visit':  [
+            'Outpatient',
+            'Observation',
+            'ED',
+        ],
+        'index_diag': [
+            'Acute Bronchitis',
+        ],
+        'index_ip_excl': [
+            'Inpatient Stay',
+        ],
+        'negative_conditions': [
+            'HIV',
+            'HIV Type 2',
+            'Malignant Neoplasms',
+            'Emphysema',
+            'COPD',
+            'Cystic Fibrosis',
+            'Comorbid Conditions',
+            'Disorders of the Immune System',
+        ],
+        'negative_comp_diag': [
+            'Pharyngitis',
+            'Competing Diagnosis',
+        ]
+    }
+    map_rx_reference_codesets = {
+        'aab_rx': [
+            'Aminoglycosides',
+            'Aminopenicillins',
+            #'Antipseudomonal penicillins', # Listed in specs but not found in reference
+            'Beta-lactamase inhibitors',
+            'First generation cephalosporins',
+            'Fourth generation cephalosporins',
+            'Ketolides',
+            'Lincomycin derivatives',
+            'Macrolides',
+            'Miscellaneous antibiotics',
+            'Natural penicillins',
+            'Penicillinase-resistant penicillins',
+            'Quinolones',
+            'Rifamycin derivatives',
+            'Second generation cephalosporins',
+            'Sulfonamides',
+            'Tetracyclines',
+            'Third generation cephalosporins',
+            'Urinary anti-infectives',
+        ],
+    }
+    value_set_munge = value_set_reference_df.withColumn(
+        'code',
+        spark_funcs.regexp_replace(spark_funcs.col('code'), r'\.', '')
+    ).withColumn(
+        'icdversion',
+        spark_funcs.when(
+            spark_funcs.col('code_system').contains('ICD'),
+            spark_funcs.regexp_extract(
+                spark_funcs.col('code_system'),
+                r'\d+',
+                0)
+        )
+    )
+
+    map_references = dict()
+    for key_reference, iter_code_sets in map_med_reference_codesets.items():
+        map_references[key_reference] = value_set_munge.filter(
+            spark_funcs.col('value_set_name').isin(iter_code_sets)
+        ).cache()
+
+        found_value_sets = {
+            row['value_set_name']
+            for row in map_references[key_reference].select('value_set_name').distinct().collect()
+            }
+        missing_value_sets = set(iter_code_sets) - found_value_sets
+        assert not(missing_value_sets), 'Did not find {} value sets in {} grouping'.format(
+            missing_value_sets,
+            key_reference,
+        )
+
+    for key_reference, iter_code_sets in map_rx_reference_codesets.items():
+        map_references[key_reference] = ndc_reference_df.filter(
+            (spark_funcs.col('medication_list') == 'AAB Antibiotic Medications')
+            & spark_funcs.col('description').isin(iter_code_sets)
+        ).cache()
+
+        found_value_sets = {
+            row['description']
+            for row in map_references[key_reference].select('description').distinct().collect()
+            }
+        missing_value_sets = set(iter_code_sets) - found_value_sets
+        assert not(missing_value_sets), 'Did not find {} value sets in {} grouping'.format(
+            missing_value_sets,
+            key_reference,
+        )
+
+    return map_references
+
+
+def _identify_aab_prescriptions(
+        outpharmacy: DataFrame,
+        map_references: "typing.Mapping[str, DataFrame]",
+    ) -> DataFrame: # pragma: no cover
+    """Find prescriptions of interest for the episode numerator calculation"""
+
+    aab_rx = outpharmacy.join(
+        spark_funcs.broadcast(
+            map_references['aab_rx'].select(spark_funcs.col('ndc_code').alias('ndc'))
+        ),
+        on='ndc',
+        how='inner',
+    ).groupby(
+        'member_id',
+        'fromdate',
+    ).agg(
+        spark_funcs.max('dayssupply').alias('dayssupply'),
+    )
+
+    return aab_rx
+
+
+def _identify_acute_bronchitis_events(
+        outclaims: DataFrame,
+        map_references: "typing.Mapping[str, DataFrame]",
+        date_performanceyearstart: datetime.date,
+        date_performanceyearend: datetime.date,
+    ) -> DataFrame: # pragma: no cover
+    """Find all qualifying visits with diagnosis of acute bronchitis"""
+
+    index_cpt_hcpcs = map_references['index_visit'].filter(
+        spark_funcs.col('code_system').isin('HCPCS', 'CPT')
+    ).select(
+        spark_funcs.col('code').alias('hcpcs'),
+        spark_funcs.lit(1).alias('index_cpt')
+    )
+    index_rev = map_references['index_visit'].filter(
+        spark_funcs.col('code_system') == 'UBREV'
+    ).select(
+        spark_funcs.col('code').alias('revcode'),
+        spark_funcs.lit(1).alias('index_rev')
+    )
+    assert (
+        (index_cpt_hcpcs.count() + index_rev.count())
+        == map_references['index_visit'].count()
+        ), 'Some "index_visit" code systems have not been accounted for'
+
+    assert map_references['index_diag'].select('code_system').distinct().count() == 1, \
+        'Some "index_diag" code systems have not been accounted for'
+    assert map_references['index_ip_excl'].select('code_system').distinct().count() == 1, \
+        'Some "index_ip_excl" code systems have not been accounted for'
+
+    index_events = outclaims.join(
+        spark_funcs.broadcast(index_cpt_hcpcs),
+        on='hcpcs',
+        how='left',
+    ).join(
+        spark_funcs.broadcast(index_rev),
+        on='revcode',
+        how='left',
+    ).filter(
+        (spark_funcs.col('index_cpt') == 1)
+        | (spark_funcs.col('index_rev') == 1)
+    ).select(
+        '*',
+        spark_funcs.explode(
+            spark_funcs.array([
+                spark_funcs.col(colname)
+                for colname in outclaims.columns
+                if colname.startswith('icddiag')
+            ])
+        ).alias('icddiag')
+    ).join(
+        spark_funcs.broadcast(
+            map_references['index_diag'].select(
+                spark_funcs.col('code').alias('icddiag'),
+                spark_funcs.lit(1).alias('index_diag')
+            )
+        ),
+        on='icddiag',
+        how='inner',
+    ).select(
+        'member_id',
+        'fromdate',
+    ).distinct().alias('index')
+
+    ip_excl_dates = outclaims.join(
+        spark_funcs.broadcast(
+            map_references['index_ip_excl'].select(
+                spark_funcs.col('code').alias('revcode'),
+                spark_funcs.lit(1).alias('ip_excl')
+            )
+        ),
+        on='revcode',
+        how='inner',
+    ).select(
+        'member_id',
+        'admitdate',
+        'ip_excl',
+    ).distinct().alias('ip_excl')
+
+    acute_bronchitis_events = index_events.join(
+        ip_excl_dates,
+        on=[
+            spark_funcs.col('index.member_id') == spark_funcs.col('ip_excl.member_id'),
+            spark_funcs.col('ip_excl.admitdate').between(
+                spark_funcs.col('index.fromdate'),
+                spark_funcs.date_add(spark_funcs.col('index.fromdate'), 1),
+            ),
+        ],
+        how='left',
+    ).filter(
+        spark_funcs.col('ip_excl').isNull()
+    ).select(
+        'index.member_id',
+        'index.fromdate',
+    ).distinct().filter(
+        spark_funcs.col('fromdate').between(
+            spark_funcs.lit(date_performanceyearstart),
+            spark_funcs.lit(date_performanceyearend),
+        )
+    )
+
+    return acute_bronchitis_events
+
+
+def _identify_negative_condition_events(
+        outclaims: DataFrame,
+        map_references: "typing.Mapping[str, DataFrame]",
+    ): # pragma: no cover
+    """Find dates for all medical events that could disqualify an index episode"""
+    assert map_references['negative_conditions'].filter(
+        ~spark_funcs.col('code_system').isin('ICD10CM', 'ICD9CM')
+    ).count() == 0, \
+        'Some "negative_conditions" code systems have not been accounted for'
+
+    negative_condition_events = outclaims.select(
+        '*',
+        spark_funcs.explode(
+            spark_funcs.array([
+                spark_funcs.col(colname)
+                for colname in outclaims.columns
+                if colname.startswith('icddiag')
+            ])
+        ).alias('icddiag'),
+    ).join(
+        spark_funcs.broadcast(
+            map_references['negative_conditions'].select(
+                spark_funcs.col('code').alias('icddiag'),
+                spark_funcs.lit(1).alias('negative_conditions')
+            )
+        ),
+        on='icddiag',
+        how='inner',
+    ).select(
+        'member_id',
+        'fromdate',
+        'negative_conditions',
+    ).distinct()
+
+    return negative_condition_events
+
+
+def _identify_competing_diagnoses(
+        outclaims: DataFrame,
+        map_references: "typing.Mapping[str, DataFrame]",
+    ) -> DataFrame: # pragma: no cover
+    """Find dates for all competing diagnosis events that could disqualify an index episode"""
+    assert map_references['negative_comp_diag'].filter(
+        ~spark_funcs.col('code_system').isin('ICD10CM', 'ICD9CM')
+    ).count() == 0, \
+        'Some "negative_conditions" code systems have not been accounted for'
+
+    negative_comp_diags = outclaims.select(
+        '*',
+        spark_funcs.explode(
+            spark_funcs.array([
+                spark_funcs.col(colname)
+                for colname in outclaims.columns
+                if colname.startswith('icddiag')
+            ])
+        ).alias('icddiag'),
+    ).join(
+        spark_funcs.broadcast(
+            map_references['negative_comp_diag'].select(
+                spark_funcs.col('code').alias('icddiag'),
+                spark_funcs.lit(1).alias('negative_comp_diag')
+            )
+        ),
+        on='icddiag',
+        how='inner',
+    ).select(
+        'member_id',
+        'fromdate',
+        'negative_comp_diag',
+    ).distinct()
+
+    return negative_comp_diags
+
+
+def _exclude_negative_history(
+        acute_bronchitis_events: DataFrame,
+        negative_condition_events: DataFrame,
+        aab_rx: DataFrame,
+        negative_comp_diags: DataFrame,
+    ) -> DataFrame: # pragma: no cover
+    """Apply exclusions for index episodes from negative history events"""
+
+    negative_rx_scripts = aab_rx.select(
+        'member_id',
+        'fromdate',
+        spark_funcs.lit(1).alias('negative_rx_script'),
+    )
+
+    negative_rx_active_supply = aab_rx.select(
+        'member_id',
+        'fromdate',
+        spark_funcs.expr('date_add(fromdate, dayssupply)').alias('todate'),
+        spark_funcs.lit(1).alias('negative_rx_active_supply'),
+    )
+
+    excluded_negative_conds = acute_bronchitis_events.join(
+        negative_condition_events,
+        on=[
+            acute_bronchitis_events.member_id == negative_condition_events.member_id,
+            negative_condition_events.fromdate.between(
+                spark_funcs.date_sub(acute_bronchitis_events.fromdate, 365),
+                acute_bronchitis_events.fromdate,
+            ),
+        ],
+        how='left',
+    ).select(
+        acute_bronchitis_events.member_id,
+        acute_bronchitis_events.fromdate,
+        negative_condition_events.negative_conditions,
+    ).distinct()
+
+    excluded_negative_rx = excluded_negative_conds.join(
+        negative_rx_scripts,
+        on=[
+            excluded_negative_conds.member_id == negative_rx_scripts.member_id,
+            negative_rx_scripts.fromdate.between(
+                spark_funcs.date_sub(excluded_negative_conds.fromdate, 30),
+                spark_funcs.date_sub(excluded_negative_conds.fromdate, 1),
+            ),
+        ],
+        how='left',
+    ).select(
+        excluded_negative_conds.member_id,
+        excluded_negative_conds.fromdate,
+        excluded_negative_conds.negative_conditions,
+        negative_rx_scripts.negative_rx_script,
+    ).distinct()
+
+    excluded_negative_rx_active = excluded_negative_rx.join(
+        negative_rx_active_supply,
+        on=[
+            excluded_negative_rx.member_id == negative_rx_scripts.member_id,
+            excluded_negative_rx.fromdate.between(
+                negative_rx_active_supply.fromdate,
+                negative_rx_active_supply.todate,
+            ),
+            excluded_negative_rx.fromdate > negative_rx_active_supply.fromdate
+        ],
+        how='left',
+    ).select(
+        excluded_negative_rx.member_id,
+        excluded_negative_rx.fromdate,
+        excluded_negative_rx.negative_conditions,
+        excluded_negative_rx.negative_rx_script,
+        negative_rx_active_supply.negative_rx_active_supply,
+    ).distinct()
+
+    excluded_negative_history = excluded_negative_rx_active.join(
+        negative_comp_diags,
+        on=[
+            excluded_negative_rx_active.member_id == negative_comp_diags.member_id,
+            negative_comp_diags.fromdate.between(
+                spark_funcs.date_sub(excluded_negative_rx_active.fromdate, 30),
+                spark_funcs.date_add(excluded_negative_rx_active.fromdate, 7),
+            ),
+        ],
+        how='left',
+    ).select(
+        excluded_negative_rx_active.member_id,
+        excluded_negative_rx_active.fromdate,
+        excluded_negative_rx_active.negative_conditions,
+        excluded_negative_rx_active.negative_rx_script,
+        excluded_negative_rx_active.negative_rx_active_supply,
+        negative_comp_diags.negative_comp_diag,
+    ).distinct().fillna({
+        'negative_conditions': 0,
+        'negative_rx_script': 0,
+        'negative_rx_active_supply': 0,
+        'negative_comp_diag': 0,
+    })
+
+    return excluded_negative_history
+
+
+def _apply_elig_gap_exclusions(
+        excluded_negative_history: DataFrame,
+        member_time: DataFrame,
+    ) -> DataFrame: # pragma: no cover
+    """Apply exclusions for index episodes that don't meet continuous enrollment criteria"""
+
+    index_stays_with_elig = excluded_negative_history.select(
+        '*',
+        spark_funcs.date_sub('fromdate', 365).alias('elig_date_start'),
+        spark_funcs.date_add('fromdate', 7).alias('elig_date_end'),
+    ).join(
+        member_time.select(
+            'member_id',
+            'cover_medical',
+            'date_start',
+            'date_end',
+            ),
+        on='member_id',
+        how='left',
+    ).where(
+        (spark_funcs.col('date_end') >= spark_funcs.col('elig_date_start'))
+        & (spark_funcs.col('date_start') <= spark_funcs.col('elig_date_end'))
+    ).withColumn(
+        'date_start',
+        spark_funcs.greatest(
+            spark_funcs.col('date_start'),
+            spark_funcs.col('elig_date_start'),
+            )
+    ).withColumn(
+        'date_end',
+        spark_funcs.least(
+            spark_funcs.col('date_end'),
+            spark_funcs.col('elig_date_end'),
+            )
+    )
+
+    summ_gaps = _exclude_elig_gaps(
+        index_stays_with_elig,
+    )
+    elig_gap_exclusions = excluded_negative_history.join(
+        summ_gaps,
+        on=['member_id', 'fromdate'],
+    ).withColumn(
+        'elig_exclusion',
+        spark_funcs.when(
+            (spark_funcs.col('count_gaps') > 1)
+            | (spark_funcs.col('count_gap_days') > 45),
+            spark_funcs.lit(1),
+        ).otherwise(
+            spark_funcs.lit(0)
+        )
+    )
+
+    return elig_gap_exclusions
+
+
+def _apply_age_exclusions(
+        elig_gap_exclusions: DataFrame,
+        elig_members: DataFrame,
+    ) -> DataFrame: # pragma: no cover
+    """Apply exclusions for index episodes that don't meet continuous enrollment criteria"""
+
+    age_exclusions = elig_gap_exclusions.join(
+        elig_members.select(
+            'member_id',
+            'meets_age_criteria',
+        ),
+        on='member_id',
+    )
+
+    return age_exclusions
+
+
+def _flag_index_eligible_events(
+        age_exclusions: DataFrame,
+    ) -> DataFrame: # pragma: no cover
+    """Identify index events that meet all of the inclusion/exclusion criteria"""
+
+    index_eligible_events = age_exclusions.withColumn(
+        'denominator',
+        spark_funcs.when(
+            (
+                (spark_funcs.col('negative_conditions') == 0)
+                & (spark_funcs.col('negative_rx_script') == 0)
+                & (spark_funcs.col('negative_rx_active_supply') == 0)
+                & (spark_funcs.col('negative_comp_diag') == 0)
+                & (spark_funcs.col('elig_exclusion') == 0)
+                & (spark_funcs.col('meets_age_criteria') == 1)
+            ),
+            spark_funcs.lit(1),
+        ).otherwise(
+            spark_funcs.lit(0),
+        )
+    )
+    return index_eligible_events
+
+
+def _select_earliest_episode(
+        index_eligible_events: DataFrame,
+    ) -> DataFrame: # pragma: no cover
+    """Limit to the earliest eligible episode per member"""
+
+    earliest_window = Window().partitionBy(
+        'member_id',
+    ).orderBy(
+        spark_funcs.desc('denominator'),
+        'fromdate',
+    )
+    earliest_episode = index_eligible_events.withColumn(
+        'row_order',
+        spark_funcs.row_number().over(earliest_window)
+    ).filter(
+        spark_funcs.col('row_order') == 1
+    )
+
+    return earliest_episode
+
+
+def _calculate_numerator(
+        earliest_episode: DataFrame,
+        aab_rx: DataFrame,
+    ): # pragma: no cover
+    """Apply AAB prescriptions to index episodes to determine numerator compliance"""
+
+    numerator_flagged = earliest_episode.join(
+        aab_rx.select(
+            'member_id',
+            'fromdate',
+        ),
+        on=[
+            earliest_episode.member_id == aab_rx.member_id,
+            aab_rx.fromdate.between(
+                earliest_episode.fromdate,
+                spark_funcs.date_add(earliest_episode.fromdate, 3),
+            ),
+        ],
+        how='left',
+    ).withColumn(
+        'numerator',
+        spark_funcs.when(
+            (spark_funcs.col('denominator') == 1)
+            & aab_rx.fromdate.isNotNull(),
+            spark_funcs.lit(1),
+        ).otherwise(
+            spark_funcs.lit(0),
+        )
+    ).drop(
+        aab_rx.member_id,
+    ).drop(
+        aab_rx.fromdate,
+    ).distinct()
+
+    return numerator_flagged
+
+
+def _format_measure_results(
+        numerator_flagged: DataFrame,
+    ) -> DataFrame: # pragma: no cover
+    """Get our measure results in the format expected by the pipeline"""
+
+    measure_formatted = numerator_flagged.select(
+        'member_id',
+        spark_funcs.lit('AAB').alias('comp_quality_short'),
+        spark_funcs.col('denominator').alias('comp_quality_denominator'),
+        spark_funcs.when(
+            (spark_funcs.col('denominator') == 1)
+            & (spark_funcs.col('numerator') == 1), # Inverse measure (antibiotic scripts are bad)
+            spark_funcs.lit(0),
+        ).when(
+            spark_funcs.col('denominator') == 1,
+            spark_funcs.lit(1),
+        ).otherwise(
+            spark_funcs.lit(0),
+        ).alias('comp_quality_numerator'),
+        spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
+        spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+        spark_funcs.lit(None).cast('string').alias('comp_quality_comments'),
+    )
+
+    return measure_formatted
+
+
+def _flag_denominator(
+        dfs_input: "typing.Mapping[str, DataFrame]",
+        aab_rx: DataFrame,
+        map_references: "typing.Mapping[str, DataFrame]",
+        date_performanceyearstart: datetime.date,
+        date_performanceyearend: datetime.date,
+    ) -> DataFrame: # pragma: no cover
+    """Wrap execution of denominator flagging logic"""
+    elig_members = _calculate_age_criteria(
+        dfs_input['member'],
+        date_performanceyearstart,
+        date_performanceyearend,
+    )
+    acute_bronchitis_events = _identify_acute_bronchitis_events(
+        dfs_input['outclaims'],
+        map_references,
+        date_performanceyearstart,
+        date_performanceyearend,
+    )
+    negative_condition_events = _identify_negative_condition_events(
+        dfs_input['outclaims'],
+        map_references,
+    )
+    negative_comp_diags = _identify_competing_diagnoses(
+        dfs_input['outclaims'],
+        map_references,
+    )
+    excluded_negative_history = _exclude_negative_history(
+        acute_bronchitis_events,
+        negative_condition_events,
+        aab_rx,
+        negative_comp_diags,
+    )
+    elig_gap_exclusions = _apply_elig_gap_exclusions(
+        excluded_negative_history,
+        dfs_input['member_time'],
+    )
+    age_exclusions = _apply_age_exclusions(
+        elig_gap_exclusions,
+        elig_members,
+    )
+    index_eligible_events = _flag_index_eligible_events(
+        age_exclusions,
+    )
+    earliest_episode = _select_earliest_episode(
+        index_eligible_events,
+    )
+    return earliest_episode
+
+
+class AAB(QualityMeasure): # pragma: no cover
+    """Object to house the logic to calculate AAB measure"""
+    def _calc_measure(
+            self,
+            dfs_input: 'typing.Mapping[str, DataFrame]',
+            performance_yearstart=datetime.date,
+            **kwargs
+    ):
+        date_performanceyearstart = performance_yearstart
+        date_performanceyearend = datetime.date(
+            performance_yearstart.year + 1,
+            performance_yearstart.month,
+            performance_yearstart.day,
+        ) - datetime.timedelta(days=8)
+
+        map_references = _prep_reference_data(
+            dfs_input['reference'],
+            dfs_input['ndc'],
+        )
+        aab_rx = _identify_aab_prescriptions(
+            dfs_input['outpharmacy'],
+            map_references,
+        )
+        denominator = _flag_denominator(
+            dfs_input,
+            aab_rx,
+            map_references,
+            date_performanceyearstart,
+            date_performanceyearend,
+        )
+        numerator_flagged = _calculate_numerator(
+            denominator,
+            aab_rx,
+        )
+        measure_results = _format_measure_results(
+            numerator_flagged,
+        )
+        for _df_ref in map_references.values():
+            _df_ref.unpersist()
+
+        return measure_results
