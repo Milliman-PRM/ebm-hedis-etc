@@ -293,7 +293,7 @@ def _initial_filtering(dfs_input, measurement_date_end): # pragma: no cover
             F.col('cover_medical') == 'Y'
             ),
         ['member_id'],
-        'left_outer'
+        'inner'
     )
 
     return {
