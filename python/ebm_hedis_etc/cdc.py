@@ -251,9 +251,17 @@ def identify_a1c_tests(
         ),
         spark_funcs.col('hcpcs') == spark_funcs.col('code'),
         how='inner'
-    ).select(
-        'member_id'
-    ).distinct()
+    ).groupby(
+        'member_id',
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_hba1c_test'),
+    ).withColumn(
+        'comp_quality_comments',
+        spark_funcs.concat(
+            spark_funcs.lit('HbA1c test performed on '),
+            spark_funcs.col('latest_hba1c_test'),
+        )
+    )
 
 
 def identify_nephropathy(
@@ -278,6 +286,7 @@ def identify_nephropathy(
 
     diag_explode_df = restricted_claims_df.select(
         'member_id',
+        'fromdate',
         restricted_claims_df.icdversion,
         spark_funcs.explode(
             spark_funcs.array(
@@ -289,6 +298,7 @@ def identify_nephropathy(
 
     proc_explode_df = restricted_claims_df.select(
         'member_id',
+        'fromdate',
         restricted_claims_df.icdversion,
         spark_funcs.explode(
             spark_funcs.array(
@@ -309,9 +319,11 @@ def identify_nephropathy(
         ),
         spark_funcs.col('hcpcs') == spark_funcs.col('code'),
         how='inner'
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_fromdate')
+    )
 
     rev_df = restricted_claims_df.join(
         spark_funcs.broadcast(
@@ -322,9 +334,11 @@ def identify_nephropathy(
         ),
         spark_funcs.col('revcode') == spark_funcs.col('code'),
         how='inner'
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_fromdate')
+    )
 
     pos_df = restricted_claims_df.join(
         spark_funcs.broadcast(
@@ -335,9 +349,11 @@ def identify_nephropathy(
         ),
         spark_funcs.col('pos') == spark_funcs.col('code'),
         how='inner'
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_fromdate')
+    )
 
     diag_df = diag_explode_df.join(
         spark_funcs.broadcast(
@@ -352,9 +368,11 @@ def identify_nephropathy(
             spark_funcs.col('diag') == spark_funcs.col('code')
         ],
         how='inner'
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_fromdate')
+    )
 
     proc_df = proc_explode_df.join(
         spark_funcs.broadcast(
@@ -368,9 +386,11 @@ def identify_nephropathy(
             spark_funcs.col('proc') == spark_funcs.col('code')
         ],
         how='inner'
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_fromdate')
+    )
 
     ace_inhibitor_df = rx_claims_df.join(
         eligible_members,
@@ -389,17 +409,21 @@ def identify_nephropathy(
         ),
         spark_funcs.col('ndc') == spark_funcs.col('ndc_code'),
         how='inner'
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_fromdate')
+    )
 
     nephrologist_df = restricted_claims_df.where(
         spark_funcs.col('specialty') == '39'
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_fromdate')
+    )
 
-    return cpt_df.union(
+    numerator_compliant = cpt_df.union(
         pos_df
     ).union(
         rev_df
@@ -411,7 +435,19 @@ def identify_nephropathy(
         ace_inhibitor_df
     ).union(
         nephrologist_df
-    ).distinct()
+    ).groupby(
+        'member_id',
+    ).agg(
+        spark_funcs.max('latest_fromdate').alias('latest_fromdate'),
+    )
+    numerator_comments = numerator_compliant.withColumn(
+        'comp_quality_comments',
+        spark_funcs.concat(
+            spark_funcs.lit('Nephropathy screening, diagnosis, or treatment on '),
+            spark_funcs.col('latest_fromdate'),
+        )
+    )
+    return numerator_comments
 
 
 def identify_eye_exam(
@@ -451,9 +487,11 @@ def identify_eye_exam(
         how='inner'
     ).where(
         spark_funcs.col('specialty').isin('18', '41')
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_eye_screening')
+    )
 
     screening_diag_prior_df = restricted_claims_prior_df.join(
         spark_funcs.broadcast(
@@ -465,6 +503,7 @@ def identify_eye_exam(
         spark_funcs.col('specialty').isin('18', '41')
     ).select(
         'member_id',
+        'fromdate',
         restricted_claims_prior_df.icdversion,
         spark_funcs.explode(
             spark_funcs.array(
@@ -483,9 +522,11 @@ def identify_eye_exam(
             spark_funcs.col('diag') == spark_funcs.col('code')
         ],
         how='inner'
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_no_complication_eye_screening')
+    )
 
     screening_prof_df = restricted_claims_df.join(
         spark_funcs.broadcast(
@@ -497,10 +538,11 @@ def identify_eye_exam(
         ),
         spark_funcs.col('hcpcs') == spark_funcs.col('code'),
         how='inner'
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
-
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_eye_screening_professional')
+    )
     negative_result_df = restricted_claims_df.join(
         spark_funcs.broadcast(
             reference_df.where(
@@ -509,9 +551,11 @@ def identify_eye_exam(
         ),
         spark_funcs.col('hcpcs') == spark_funcs.col('code'),
         how='inner'
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_negative_eye_screening')
+    )
 
     bilateral_df = restricted_claims_df.join(
         spark_funcs.broadcast(
@@ -523,9 +567,11 @@ def identify_eye_exam(
         how='inner'
     ).where(
         spark_funcs.col('modifier').isin('50')| spark_funcs.col('modifier2').isin('50')
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_bilateral_date')
+    )
 
     two_unilateral_pre_df = restricted_claims_df.select(
         'member_id',
@@ -565,12 +611,15 @@ def identify_eye_exam(
             ) >= 14
         ],
         how='inner'
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_two_unilateral_date')
+    )
 
     left_and_right_df = restricted_claims_df.select(
         'member_id',
+        'fromdate',
         restricted_claims_df.icdversion,
         spark_funcs.explode(
             spark_funcs.array(
@@ -593,33 +642,90 @@ def identify_eye_exam(
     ).groupBy(
         'member_id'
     ).agg(
-        spark_funcs.countDistinct('value_set_name').alias('left_or_right_count')
+        spark_funcs.countDistinct('value_set_name').alias('left_or_right_count'),
+        spark_funcs.max('fromdate').alias('latest_left_or_right_date')
     ).where(
         spark_funcs.col('left_or_right_count') >= 2
     ).select(
-        'member_id'
-    ).distinct()
+        'member_id',
+        'latest_left_or_right_date',
+    )
 
-    return screening_df.union(
-        screening_diag_prior_df
-    ).union(
-        screening_prof_df
-    ).union(
-        negative_result_df
-    ).union(
-        bilateral_df
-    ).union(
-        two_unilateral_df
-    ).union(
-        left_and_right_df
-    ).distinct()
-
+    numerator_compliant = screening_df.join(
+        screening_diag_prior_df,
+        on='member_id',
+        how='full_outer',
+    ).join(
+        screening_prof_df,
+        on='member_id',
+        how='full_outer',
+    ).join(
+        negative_result_df,
+        on='member_id',
+        how='full_outer',
+    ).join(
+        bilateral_df,
+        on='member_id',
+        how='full_outer',
+    ).join(
+        two_unilateral_df,
+        on='member_id',
+        how='full_outer',
+    ).join(
+        left_and_right_df,
+        on='member_id',
+        how='full_outer',
+    )
+    numerator_comments = numerator_compliant.withColumn(
+        'comp_quality_comments',
+        spark_funcs.when(
+            (
+                spark_funcs.col('latest_eye_screening').isNotNull()
+                | spark_funcs.col('latest_eye_screening_professional').isNotNull()
+            ),
+            spark_funcs.concat(
+                spark_funcs.lit('Eye exam given on '),
+                spark_funcs.greatest(
+                    spark_funcs.col('latest_eye_screening'),
+                    spark_funcs.col('latest_eye_screening_professional'),
+                ),
+            )
+        ).when(
+            (
+                spark_funcs.col('latest_bilateral_date').isNotNull()
+                | spark_funcs.col('latest_two_unilateral_date').isNotNull()
+                | spark_funcs.col('latest_left_or_right_date').isNotNull()
+            ),
+            spark_funcs.concat(
+                spark_funcs.lit('Eye nucleation performed on '),
+                spark_funcs.greatest(
+                    spark_funcs.col('latest_bilateral_date'),
+                    spark_funcs.col('latest_two_unilateral_date'),
+                    spark_funcs.col('latest_left_or_right_date'),
+                ),
+            )
+        ).when(
+            spark_funcs.col('latest_no_complication_eye_screening').isNotNull(),
+            spark_funcs.concat(
+                spark_funcs.lit('Previous eye exam for diabetes without complications given on '),
+                spark_funcs.col('latest_no_complication_eye_screening'),
+            )
+        ).when(
+            spark_funcs.col('latest_negative_eye_screening').isNotNull(),
+            spark_funcs.concat(
+                spark_funcs.lit('Previous eye exam negative for retinopathy given on '),
+                spark_funcs.col('latest_negative_eye_screening'),
+            )
+        )
+    )
+    return numerator_comments
 
 def create_output_table(
         members: DataFrame,
         denominator: DataFrame,
         numerator: DataFrame,
-        measure_name: str
+        measure_name: str,
+        performance_yearstart: datetime.date,
 ) -> DataFrame: # pragma: no cover
     """Prep numerator and denominator information for appropriate output format"""
     return members.join(
@@ -641,8 +747,17 @@ def create_output_table(
         ).alias('comp_quality_numerator'),
         spark_funcs.lit(1).alias('comp_quality_denominator'),
         spark_funcs.lit(None).cast('date').alias('comp_quality_date_last'),
-        spark_funcs.lit(None).cast('date').alias('comp_quality_date_actionable'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+        'comp_quality_comments',
+    ).fillna({
+        'comp_quality_comments': 'No relevant claim found during performance period',
+    }).select(
+        '*',
+        spark_funcs.when(
+            spark_funcs.col('comp_quality_numerator') == 0,
+            spark_funcs.lit(
+                datetime.date(performance_yearstart.year, 12, 31)
+            ),
+        ).alias('comp_quality_date_actionable'),
     )
 
 
@@ -751,21 +866,24 @@ class CDC(QualityMeasure): # pragma: no cover
             dfs_input['member'],
             eligible_members_no_gaps_df,
             hba1c_testing_df,
-            'CDC: HBA1C'
+            'CDC: HBA1C',
+            performance_yearstart,
         )
 
         eye_exam_output_df = create_output_table(
             dfs_input['member'],
             eligible_members_no_gaps_df,
             eye_exam_df,
-            'CDC: EYE'
+            'CDC: EYE',
+            performance_yearstart,
         )
 
         nephropathy_output_df = create_output_table(
             dfs_input['member'],
             eligible_members_no_gaps_df,
             nephropathy_df,
-            'CDC: NEP'
+            'CDC: NEP',
+            performance_yearstart,
         )
 
         return hba1c_output_df.union(
