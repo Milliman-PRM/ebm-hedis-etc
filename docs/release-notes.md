@@ -2,6 +2,9 @@
 
 A non-exhaustive list of what has changed in a more readable form than a commit history.
 
+### v1.1.1
+ - Updated member join in the Persistent Asthma Patients Medication Adherence measure to exclude patients without coverage in their member span
+
 ### v1.1.0
 
  - Added quality measure 'PCPFollowup'
@@ -16,9 +19,9 @@ A non-exhaustive list of what has changed in a more readable form than a commit 
    - `flag_gap_exclusions`
  - Implemented Comprehensive Diabetes Care Measure
  - Implemented Persistent Asthma Patients Medication Adherence Measure
- 
+
 ### v0.9.1
- - Updated targets to be the most recent HEDIS average result rounded to the nearest 5. 
+ - Updated targets to be the most recent HEDIS average result rounded to the nearest 5.
 
 ### v0.9.0
 
@@ -28,4 +31,3 @@ A non-exhaustive list of what has changed in a more readable form than a commit 
  - Implemented Annual Monitoring for Patients on Diuretics Measure
  - Implemented Statin Therapy with Cardiovascular Disease Measure
  - Implemented Statin Therapy with Diabetes Measure
- 
