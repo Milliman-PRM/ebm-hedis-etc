@@ -242,13 +242,16 @@ def _identify_aab_prescriptions(
 
     aab_rx = outpharmacy.join(
         spark_funcs.broadcast(
-            map_references['aab_rx'].select(spark_funcs.col('ndc_code').alias('ndc'))
+            map_references['aab_rx'].select(spark_funcs.col('ndc_code').alias('ndc'),
+                                            spark_funcs.col('generic_product_name')
+                                           )
         ),
         on='ndc',
         how='inner',
     ).groupby(
         'member_id',
         'fromdate',
+        'generic_product_name'
     ).agg(
         spark_funcs.max('dayssupply').alias('dayssupply'),
     )
@@ -662,6 +665,7 @@ def _calculate_numerator(
         aab_rx.select(
             'member_id',
             'fromdate',
+            'generic_product_name',
         ),
         on=[
             earliest_episode.member_id == aab_rx.member_id,
@@ -680,11 +684,12 @@ def _calculate_numerator(
         ).otherwise(
             spark_funcs.lit(0),
         )
-    ).drop(
-        aab_rx.member_id,
-    ).drop(
-        aab_rx.fromdate,
-    ).distinct()
+    ).withColumn('generic_product_name', aab_rx.generic_product_name
+                ).drop(
+                    aab_rx.member_id,
+                ).drop(
+                    aab_rx.fromdate,
+                ).distinct()
 
     return numerator_flagged
 
@@ -709,8 +714,21 @@ def _format_measure_results(
             spark_funcs.lit(0),
         ).alias('comp_quality_numerator'),
         spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_comments'),
+        spark_funcs.when(
+            (spark_funcs.col('denominator') == 1)
+            & (spark_funcs.col('numerator') == 1),
+            spark_funcs.concat_ws(
+                ' ',
+                spark_funcs.lit('Patient dispensed with'),
+                spark_funcs.col('generic_product_name'),
+                spark_funcs.lit('within three days of the acute bronchitis diagnosis')
+                )
+        ).otherwise(
+            spark_funcs.lit('No antibiotic dispensed within three days of' \
+                            'acute bronchitis diagnosis')
+
+        ).alias('comp_quality_comments'),
+
     )
 
     return measure_formatted

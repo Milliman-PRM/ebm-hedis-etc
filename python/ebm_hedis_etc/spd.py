@@ -675,7 +675,7 @@ def _calc_rate_one(
         performance_yearstart: datetime
 ) -> DataFrame: # pragma: no cover
     """Find members in rx claims that qualify for rate one of the measure"""
-    return rx_claims_df.join(
+    output_df = rx_claims_df.join(
         eligible_members_df,
         'member_id',
         how='inner'
@@ -694,6 +694,7 @@ def _calc_rate_one(
         'member_id'
     ).distinct()
 
+    return output_df.cube('member_id').count()
 
 def _calc_rate_two(
         rx_claims_df: DataFrame,
@@ -985,7 +986,20 @@ class SPD(QualityMeasure): # pragma: no cover
             ).alias('comp_quality_denominator'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+
+            spark_funcs.when(
+                (rate_one_numer_df.member_id.isNotNull())
+                & (rate_one_denom_df.member_id.isNotNull()),
+                spark_funcs.concat(
+                    spark_funcs.lit('Patient dispensed with '),
+                    spark_funcs.col('count'),
+                    spark_funcs.lit(' statin(s) during the measurement year')
+                )
+            ).when(
+                rate_one_denom_df.member_id.isNotNull(),
+                spark_funcs.lit('No relevant claim found during the performance year')
+            ).alias('comp_quality_comments'),
+
         )
 
         rate_two_output_df = dfs_input['member'].select(
@@ -1015,7 +1029,18 @@ class SPD(QualityMeasure): # pragma: no cover
             ).alias('comp_quality_denominator'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+            spark_funcs.when(
+                spark_funcs.col('pdc') > .8,
+                spark_funcs.lit('Statin adherence at least 80% during the ' \
+                                    'treatment period.')
+                ).when(
+                    rate_one_numer_df.member_id.isNotNull(),
+                    spark_funcs.concat(
+                        spark_funcs.lit('Statin adherence '),
+                        spark_funcs.col('pdc')*100,
+                        spark_funcs.lit('% during the treatment period')
+                    )
+                ).alias('comp_quality_comments')
         )
 
         rate_one_numer_df.unpersist()

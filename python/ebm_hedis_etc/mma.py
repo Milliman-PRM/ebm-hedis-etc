@@ -879,7 +879,15 @@ class MMA(QualityMeasure):
             F.lit(None).cast('string').alias('comp_quality_date_last'),
             F.lit(None).cast('string').alias('comp_quality_date_actionable'),
             F.lit('MMA').alias('comp_quality_short'),
-            F.lit(None).cast('string').alias('comp_quality_comments')
+            F.when(
+                (F.col('comp_quality_denominator') == 1)
+                & (F.col('comp_quality_numerator') == 1),
+                F.lit('Patient on one or more asthma controller medications' \
+                      'for at least 75% of the treatment period'),
+            ).otherwise('Patient not on asthma controller medication for at' \
+                        'least 75% of the treatment period'
+                       ).alias('comp_quality_comments'),
+
         )
 
         return result_df
