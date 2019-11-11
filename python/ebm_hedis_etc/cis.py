@@ -49,7 +49,8 @@ def _calc_simple_cis_measure(
     vaccines_df = claims_df.groupBy(
         'member_id'
     ).agg(
-        spark_funcs.countDistinct('fromdate').alias('vaccine_count')
+        spark_funcs.countDistinct('fromdate').alias('vaccine_count'),
+        spark_funcs.collect_set('fromdate').alias('vaccine_dates'),
     )
 
     output_df = member_df.select(
@@ -63,7 +64,7 @@ def _calc_simple_cis_measure(
         'member_id',
         how='left_outer'
     ).select(
-        spark_funcs.col('base_member_id').alias('member_id'),
+        '*',
         spark_funcs.when(
             spark_funcs.col('vaccine_count') >= vaccine_count,
             spark_funcs.lit(1)
@@ -76,9 +77,26 @@ def _calc_simple_cis_measure(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_denominator'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+    ).select(
+        spark_funcs.col('base_member_id').alias('member_id'),
+        'comp_quality_numerator',
+        'comp_quality_denominator',
+        spark_funcs.col('second_birthday').alias('comp_quality_date_actionable'),
         spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_comments'),
+        spark_funcs.when(
+            (spark_funcs.col('comp_quality_denominator') == 1)
+            & spark_funcs.col('vaccine_dates').isNotNull(),
+            spark_funcs.concat(
+                spark_funcs.lit(value_set_name + ' On: '),
+                spark_funcs.concat_ws(
+                    ', ',
+                    spark_funcs.col('vaccine_dates'),
+                )
+            )
+        ).when(
+            spark_funcs.col('comp_quality_denominator') == 1,
+            spark_funcs.lit('No ' + value_set_name)
+        ).alias('comp_quality_comments'),
         'vaccine_count'
     )
 
@@ -243,7 +261,8 @@ def calc_hepatitis_b(
         3
     ).select(
         'member_id',
-        'vaccine_count'
+        'vaccine_count',
+        'comp_quality_comments',
     )
 
     procs_explode_df = eligible_claims_df.select(
@@ -274,24 +293,38 @@ def calc_hepatitis_b(
             spark_funcs.col('fromdate'),
             spark_funcs.col('dob')
         ) < 8
-    ).select(
+    ).groupby(
         'member_id'
-    ).distinct()
+    ).agg(
+        spark_funcs.max('fromdate').alias('latest_newborn_vaccine'),
+    )
 
     combine_df = hep_b_vaccine_df.join(
-        newborn_hepatitis_df,
+        newborn_hepatitis_df.withColumn('newborn_vaccine', spark_funcs.lit(1)),
         'member_id',
         how='full_outer'
+    ).fillna({
+        'vaccine_count': 0,
+        'newborn_vaccine': 0
+    }).withColumn(
+        'comp_quality_comments',
+        spark_funcs.when(
+            (spark_funcs.col('vaccine_count') == 0) & (spark_funcs.col('newborn_vaccine') == 1),
+            spark_funcs.concat_ws(
+                ': ',
+                spark_funcs.lit('Newborn Hepatitis B Vaccine Administered On'),
+                spark_funcs.col('latest_newborn_vaccine'),
+            )
+        ).otherwise(
+            spark_funcs.concat_ws(
+                ', ',
+                spark_funcs.col('comp_quality_comments'),
+                spark_funcs.col('latest_newborn_vaccine'),
+            )
+        )
     ).withColumn(
         'vaccine_count',
-        spark_funcs.when(
-            spark_funcs.col('vaccine_count').isNotNull(),
-            spark_funcs.col('vaccine_count') + 1
-        ).otherwise(
-            spark_funcs.lit(1)
-        )
-    ).where(
-        spark_funcs.col('vaccine_count') >= 3
+        spark_funcs.col('vaccine_count') + spark_funcs.col('newborn_vaccine')
     )
 
     output_df = member_df.select(
@@ -312,7 +345,8 @@ def calc_hepatitis_b(
         spark_funcs.col('base_member_id').alias('member_id'),
         spark_funcs.lit('CIS - Hepatitis B').alias('comp_quality_short'),
         spark_funcs.when(
-            combine_df.member_id.isNotNull() | history_hepatitis_df.member_id.isNotNull(),
+            (combine_df.vaccine_count.isNotNull() & (combine_df.vaccine_count >= 3))
+            | history_hepatitis_df.member_id.isNotNull(),
             spark_funcs.lit(1)
         ).otherwise(
             spark_funcs.lit(0)
@@ -323,10 +357,12 @@ def calc_hepatitis_b(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_denominator'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+        spark_funcs.col('second_birthday').alias('comp_quality_date_actionable'),
         spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
-    )
+        'comp_quality_comments',
+    ).fillna({
+        'comp_quality_comments': 'No Hepatitis B Vaccine Administered',
+    })
 
     return output_df
 
@@ -350,7 +386,8 @@ def calc_hepatitis_a(
         spark_funcs.col('comp_quality_numerator') == 1
     ).select(
         'member_id',
-        'vaccine_count'
+        'vaccine_count',
+        'comp_quality_comments',
     )
 
     diags_explode_df = eligible_claims_df.select(
@@ -408,10 +445,12 @@ def calc_hepatitis_a(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_denominator'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+        spark_funcs.col('second_birthday').alias('comp_quality_date_actionable'),
         spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
-    )
+        'comp_quality_comments',
+    ).fillna({
+        'comp_quality_comments': 'No Hepatitis A Vaccine Administered',
+    })
 
     return output_df
 
@@ -434,7 +473,8 @@ def calc_vzv(
     ).where(
         spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
+        'member_id',
+        'comp_quality_comments',
     )
 
     diags_explode_df = eligible_claims_df.select(
@@ -492,10 +532,12 @@ def calc_vzv(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_denominator'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+        spark_funcs.col('second_birthday').alias('comp_quality_date_actionable'),
         spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
-    )
+        'comp_quality_comments',
+    ).fillna({
+        'comp_quality_comments': 'No Varicella Zoster (VZV) Vaccine Administered',
+    })
 
     return output_df
 
@@ -515,10 +557,10 @@ def calc_rotavirus(
         'Rotavirus Vaccine (2 Dose Schedule) Administered',
         42,
         2
-    ).where(
-        spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.col('comp_quality_comments').alias('two_dose_comments'),
+        spark_funcs.col('vaccine_count').alias('two_dose_count'),
     )
 
     three_three_dose_df = _calc_simple_cis_measure(
@@ -529,62 +571,10 @@ def calc_rotavirus(
         'Rotavirus Vaccine (3 Dose Schedule) Administered',
         42,
         3
-    ).where(
-        spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
-    )
-
-    two_reference_values = reference_df.where(
-        spark_funcs.col('value_set_name') == 'Rotavirus Vaccine (2 Dose Schedule) Administered'
-    )
-
-    three_reference_values = reference_df.where(
-        spark_funcs.col('value_set_name') == 'Rotavirus Vaccine (3 Dose Schedule) Administered'
-    )
-
-    two_claims_df = eligible_claims_df.join(
-        two_reference_values,
-        eligible_claims_df.hcpcs == two_reference_values.code,
-        'inner'
-    ).where(
-        spark_funcs.datediff(
-            spark_funcs.col('fromdate'),
-            spark_funcs.col('dob')
-        ) >= 42
-    )
-
-    three_claims_df = eligible_claims_df.join(
-        three_reference_values,
-        eligible_claims_df.hcpcs == three_reference_values.code,
-        'inner'
-    ).where(
-        spark_funcs.datediff(
-            spark_funcs.col('fromdate'),
-            spark_funcs.col('dob')
-        ) >= 42
-    )
-
-    two_three_combination_df = two_claims_df.union(
-        three_claims_df
-    ).groupBy(
         'member_id',
-        'value_set_name'
-    ).agg(
-        spark_funcs.countDistinct('fromdate').alias('vaccine_count')
-    ).where(
-        (spark_funcs.col('value_set_name').isin(
-            'Rotavirus Vaccine (3 Dose Schedule) Administered')
-         & (spark_funcs.col('vaccine_count') >= 2))
-        | (spark_funcs.col('value_set_name').isin(
-            'Rotavirus Vaccine (2 Dose Schedule) Administered')
-           & (spark_funcs.col('vaccine_count') >= 1))
-    ).groupBy(
-        'member_id'
-    ).agg(
-        spark_funcs.countDistinct('value_set_name').alias('vaccine_type_count')
-    ).where(
-        spark_funcs.col('vaccine_type_count') > 1
+        spark_funcs.col('comp_quality_comments').alias('three_dose_comments'),
+        spark_funcs.col('vaccine_count').alias('three_dose_count'),
     )
 
     output_df = member_df.select(
@@ -594,33 +584,28 @@ def calc_rotavirus(
         spark_funcs.col('base_member_id') == spark_funcs.col('member_id'),
         how='left_outer'
     ).join(
-        two_two_dose_df.withColumnRenamed(
-            'member_id',
-            'two_two_member_id'
-        ),
-        spark_funcs.col('member_id') == spark_funcs.col('two_two_member_id'),
+        two_two_dose_df,
+        'member_id',
         how='left_outer'
     ).join(
-        three_three_dose_df.withColumnRenamed(
-            'member_id',
-            'three_three_member_id'
-        ),
-        spark_funcs.col('member_id') == spark_funcs.col('three_three_member_id'),
+        three_three_dose_df,
+        'member_id',
         how='left_outer'
-    ).join(
-        two_three_combination_df.withColumnRenamed(
-            'member_id',
-            'two_three_member_id'
-        ),
-        spark_funcs.col('member_id') == spark_funcs.col('two_three_member_id'),
-        how='left_outer'
-    ).select(
+    ).fillna({
+        'two_dose_count': 0,
+        'three_dose_count': 0,
+    }).select(
         spark_funcs.col('base_member_id').alias('member_id'),
         spark_funcs.lit('CIS - Rotavirus').alias('comp_quality_short'),
         spark_funcs.when(
-            spark_funcs.col('two_two_member_id').isNotNull()
-            | spark_funcs.col('three_three_member_id').isNotNull()
-            | spark_funcs.col('two_three_member_id').isNotNull(),
+            (
+                (spark_funcs.col('two_dose_count') >= 2)
+                | (spark_funcs.col('three_dose_count') >= 3)
+                | (
+                    (spark_funcs.col('two_dose_count') >= 1)
+                    & (spark_funcs.col('three_dose_count') >= 2)
+                )
+            ),
             spark_funcs.lit(1)
         ).otherwise(
             spark_funcs.lit(0)
@@ -631,9 +616,24 @@ def calc_rotavirus(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_denominator'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+        spark_funcs.col('second_birthday').alias('comp_quality_date_actionable'),
         spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+        spark_funcs.when(
+            (spark_funcs.col('two_dose_count') > 0) & (spark_funcs.col('three_dose_count') > 0),
+            spark_funcs.concat_ws(
+                '; ',
+                spark_funcs.col('two_dose_comments'),
+                spark_funcs.col('three_dose_comments'),
+            ),
+        ).when(
+            spark_funcs.col('two_dose_count') > 0,
+            spark_funcs.col('two_dose_comments'),
+        ).when(
+            spark_funcs.col('three_dose_count') > 0,
+            spark_funcs.col('three_dose_comments'),
+        ).otherwise(
+            spark_funcs.lit('No Rotavirus Vaccine Administered'),
+        ).alias('comp_quality_comments')
     )
 
     return output_df
@@ -657,7 +657,9 @@ def calc_mmr(
     ).where(
         spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.col('comp_quality_comments').alias('mmr_comments'),
+        spark_funcs.col('vaccine_count').alias('mmr_count'),
     )
 
     measles_rubella_vaccine_df = _calc_simple_cis_measure(
@@ -671,7 +673,9 @@ def calc_mmr(
     ).where(
         spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.col('comp_quality_comments').alias('measles_rubella_comments'),
+        spark_funcs.col('vaccine_count').alias('measles_rubella_count'),
     )
 
     diags_explode_df = eligible_claims_df.select(
@@ -697,7 +701,8 @@ def calc_mmr(
         ],
         how='inner'
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.lit(1).alias('mumps_history'),
     ).distinct()
 
     mumps_vaccine_df = _calc_simple_cis_measure(
@@ -711,20 +716,10 @@ def calc_mmr(
     ).where(
         spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.col('comp_quality_comments').alias('mumps_comments'),
+        spark_funcs.col('vaccine_count').alias('mumps_count'),
     )
-
-    mumps_vaccine_or_history_df = mumps_history_df.union(
-        mumps_vaccine_df.select(
-            'member_id'
-        )
-    ).distinct()
-
-    measles_rubella_and_mumps_df = measles_rubella_vaccine_df.select(
-        'member_id'
-    ).intersect(
-        mumps_vaccine_or_history_df
-    ).distinct()
 
     measles_vaccine_df = _calc_simple_cis_measure(
         member_df,
@@ -737,7 +732,9 @@ def calc_mmr(
     ).where(
         spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.col('comp_quality_comments').alias('measles_comments'),
+        spark_funcs.col('vaccine_count').alias('measles_count'),
     )
 
     measles_history_df = diags_explode_df.join(
@@ -751,13 +748,8 @@ def calc_mmr(
         ],
         how='inner'
     ).select(
-        'member_id'
-    ).distinct()
-
-    measles_vaccine_or_history_df = measles_vaccine_df.select(
-        'member_id'
-    ).union(
-        measles_history_df
+        'member_id',
+        spark_funcs.lit(1).alias('measles_history'),
     ).distinct()
 
     rubella_vaccine_df = _calc_simple_cis_measure(
@@ -771,7 +763,9 @@ def calc_mmr(
     ).where(
         spark_funcs.col('comp_quality_numerator') == 1
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.col('comp_quality_comments').alias('rubella_comments'),
+        spark_funcs.col('vaccine_count').alias('rubella_count'),
     )
 
     rubella_history_df = diags_explode_df.join(
@@ -785,20 +779,9 @@ def calc_mmr(
         ],
         how='inner'
     ).select(
-        'member_id'
+        'member_id',
+        spark_funcs.lit(1).alias('rubella_history'),
     ).distinct()
-
-    rubella_vaccine_or_history_df = rubella_vaccine_df.select(
-        'member_id'
-    ).union(
-        rubella_history_df
-    ).distinct()
-
-    measles_and_rubella_and_mumps_df = measles_vaccine_or_history_df.intersect(
-        mumps_vaccine_or_history_df
-    ).intersect(
-        rubella_vaccine_or_history_df
-    )
 
     output_df = member_df.select(
         spark_funcs.col('member_id').alias('base_member_id')
@@ -807,33 +790,52 @@ def calc_mmr(
         spark_funcs.col('base_member_id') == spark_funcs.col('member_id'),
         how='left_outer'
     ).join(
-        mmr_vaccine_df.withColumnRenamed(
-            'member_id',
-            'mmr_vaccine_member_id'
-        ),
-        spark_funcs.col('member_id') == spark_funcs.col('mmr_vaccine_member_id'),
+        mmr_vaccine_df,
+        'member_id',
         how='left_outer'
     ).join(
-        measles_rubella_and_mumps_df.withColumnRenamed(
-            'member_id',
-            'meas_rub_and_mumps_member_id'
-        ),
-        spark_funcs.col('member_id') == spark_funcs.col('meas_rub_and_mumps_member_id'),
+        measles_rubella_vaccine_df,
+        'member_id',
         how='left_outer'
     ).join(
-        measles_and_rubella_and_mumps_df.withColumnRenamed(
-            'member_id',
-            'meas_and_rub_and_mumps_member_id'
-        ),
-        spark_funcs.col('member_id') == spark_funcs.col('meas_and_rub_and_mumps_member_id'),
+        mumps_vaccine_df,
+        'member_id',
         how='left_outer'
-    ).select(
+    ).join(
+        measles_vaccine_df,
+        'member_id',
+        how='left_outer'
+    ).join(
+        rubella_vaccine_df,
+        'member_id',
+        how='left_outer'
+    ).join(
+        mumps_history_df,
+        'member_id',
+        how='left_outer'
+    ).join(
+        measles_history_df,
+        'member_id',
+        how='left_outer'
+    ).join(
+        rubella_history_df,
+        'member_id',
+        how='left_outer'
+    ).fillna({
+        'mmr_count': 0,
+        'measles_rubella_count': 0,
+        'mumps_count': 0,
+        'measles_count': 0,
+        'rubella_count': 0,
+        'mumps_history': 0,
+        'measles_history': 0,
+        'rubella_history': 0,
+    }).select(
         spark_funcs.col('base_member_id').alias('member_id'),
         spark_funcs.lit('CIS - MMR').alias('comp_quality_short'),
+        # MMR vaccine seems to be the only active one, so bypassing some complicated logic
         spark_funcs.when(
-            spark_funcs.col('mmr_vaccine_member_id').isNotNull()
-            | spark_funcs.col('meas_rub_and_mumps_member_id').isNotNull()
-            | spark_funcs.col('meas_and_rub_and_mumps_member_id').isNotNull(),
+            spark_funcs.col('mmr_count') > 0,
             spark_funcs.lit(1)
         ).otherwise(
             spark_funcs.lit(0)
@@ -844,10 +846,12 @@ def calc_mmr(
         ).otherwise(
             spark_funcs.lit(0)
         ).alias('comp_quality_denominator'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
+        spark_funcs.col('second_birthday').cast('string').alias('comp_quality_date_actionable'),
         spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-        spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
-    )
+        spark_funcs.col('mmr_comments').alias('comp_quality_comments'),
+    ).fillna({
+        'comp_quality_comments': 'No Measles, Mumps, or Rubella Vaccine Administered',
+    })
 
     return output_df
 

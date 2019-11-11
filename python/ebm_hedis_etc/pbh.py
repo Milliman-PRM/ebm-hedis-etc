@@ -30,6 +30,11 @@ class PBH(QualityMeasure):
             performance_yearstart=datetime.date,
     ): # pragma: no cover
         measure_start = performance_yearstart
+        measure_end = datetime.date(
+            measure_start.year,
+            12,
+            31,
+        )
 
         reference_df = dfs_input['reference']
 
@@ -152,7 +157,7 @@ class PBH(QualityMeasure):
             'left_outer'
         ).where(
             spark_funcs.lit(spark_funcs.datediff(
-                spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31)),
+                spark_funcs.lit(measure_end),
                 spark_funcs.col('dob')
             ) / 365) >= 18
         ).join(
@@ -282,7 +287,7 @@ class PBH(QualityMeasure):
         )
 
         coverage_count_df = decoupled_coverage_df.groupBy(
-            'member_id'
+            'member_id',
         ).agg(
             spark_funcs.sum(
                 spark_funcs.datediff(
@@ -307,8 +312,7 @@ class PBH(QualityMeasure):
             dfs_input['member'].member_id == numer_df.member_id,
             how='left_outer'
         ).select(
-            dfs_input['member'].member_id,
-            spark_funcs.lit('PBH').alias('comp_quality_short'),
+            '*',
             spark_funcs.when(
                 numer_df.member_id.isNotNull(),
                 spark_funcs.lit(1)
@@ -321,9 +325,28 @@ class PBH(QualityMeasure):
             ).otherwise(
                 spark_funcs.lit(0)
             ).alias('comp_quality_denominator'),
+        ).select(
+            dfs_input['member'].member_id,
+            spark_funcs.lit('PBH').alias('comp_quality_short'),
+            'comp_quality_numerator',
+            'comp_quality_denominator',
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+            spark_funcs.date_add(
+                spark_funcs.col('dischdate'),
+                179,
+            ).alias('comp_quality_date_actionable'),
+            spark_funcs.when(
+                (spark_funcs.col('comp_quality_denominator') == 1)
+                & (spark_funcs.col('comp_quality_numerator') == 0),
+                spark_funcs.lit('Patient received less than 135 days of treatment with beta-blockers'),
+            ).when(
+                spark_funcs.col('comp_quality_denominator') == 1,
+                spark_funcs.concat_ws(
+                    ' ',
+                    spark_funcs.lit('Patient hospitalized with AMI on'),
+                    spark_funcs.col('dischdate'),
+                )
+            ).alias('comp_quality_comments'),
         )
 
         return results_df

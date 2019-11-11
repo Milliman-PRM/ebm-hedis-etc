@@ -82,10 +82,15 @@ class MPM3(QualityMeasure): # pragma: no cover
             dfs_input: "typing.Mapping[str, DataFrame]",
             performance_yearstart=datetime.date,
     ):
+        date_performanceyearend = datetime.date(
+            performance_yearstart.year,
+            12,
+            31,
+        )
         diuretic_claims_df = dfs_input['rx_claims'].where(
             spark_funcs.col('fromdate').between(
                 spark_funcs.lit(performance_yearstart),
-                spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31))
+                spark_funcs.lit(date_performanceyearend)
             )
         ).join(
             dfs_input['ndc'].where(
@@ -99,7 +104,7 @@ class MPM3(QualityMeasure): # pragma: no cover
             'fromdate_to_dayssupply',
             spark_funcs.least(
                 spark_funcs.expr('date_add(fromdate, dayssupply)'),
-                spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31))
+                spark_funcs.lit(date_performanceyearend)
             )
         )
 
@@ -125,7 +130,7 @@ class MPM3(QualityMeasure): # pragma: no cover
         ).where(
             (spark_funcs.col('date_start') >= performance_yearstart)
             & (spark_funcs.col('date_end')
-               <= spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31)))
+               <= spark_funcs.lit(date_performanceyearend))
             & (spark_funcs.col('cover_medical') == 'Y')
             & (spark_funcs.col('cover_rx') == 'Y')
         ).join(
@@ -134,7 +139,7 @@ class MPM3(QualityMeasure): # pragma: no cover
             how='left_outer'
         ).where(
             spark_funcs.lit(spark_funcs.datediff(
-                spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31)),
+                spark_funcs.lit(date_performanceyearend),
                 spark_funcs.col('dob')
             ) / 365) >= 18
         )
@@ -160,7 +165,7 @@ class MPM3(QualityMeasure): # pragma: no cover
         ).where(
             (spark_funcs.col('fromdate') >= performance_yearstart)
             & (spark_funcs.col('fromdate')
-               <= spark_funcs.lit(datetime.date(performance_yearstart.year, 12, 31)))
+               <= spark_funcs.lit(date_performanceyearend))
         )
 
         lab_panel_df = eligible_pop_claims_df.join(
@@ -226,8 +231,18 @@ class MPM3(QualityMeasure): # pragma: no cover
                 spark_funcs.lit(0)
             ).alias('comp_quality_denominator'),
             spark_funcs.lit(None).cast('string').alias('comp_quality_date_last'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_date_actionable'),
-            spark_funcs.lit(None).cast('string').alias('comp_quality_comments')
+        ).select(
+            '*',
+            spark_funcs.when(
+                (spark_funcs.col('comp_quality_denominator') == 1)
+                & (spark_funcs.col('comp_quality_numerator') == 0),
+                spark_funcs.lit(date_performanceyearend)
+            ).alias('comp_quality_date_actionable'),
+            spark_funcs.when(
+                (spark_funcs.col('comp_quality_denominator') == 1)
+                & (spark_funcs.col('comp_quality_numerator') == 0),
+                spark_funcs.lit('Required laboratory tests not given during the measurement year.'),
+            ).alias('comp_quality_comments'),
         )
 
         return results_df
