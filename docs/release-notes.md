@@ -2,6 +2,9 @@
 
 A non-exhaustive list of what has changed in a more readable form than a commit history.
 
+### v1.1.2
+ - Correct typo in output definition for `CombineAll` for successful luigi pipeline
+
 ### v1.1.1
  - Updated member join in the Persistent Asthma Patients Medication Adherence measure to exclude patients without coverage in their member span
 

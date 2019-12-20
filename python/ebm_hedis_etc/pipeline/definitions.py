@@ -367,7 +367,7 @@ class CombineAll(PRMPythonTask): # pragma: no cover
     def output(self):
         names_output = {
             'quality_measures.parquet',
-            'quality_measures.sass7bdat',
+            'quality_measures.sas7bdat',
             'ref_quality_measures.parquet',
             'ref_quality_measures.sas7bdat',
         }
