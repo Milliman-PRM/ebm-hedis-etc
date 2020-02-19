@@ -28,7 +28,7 @@ def main() -> int:
     dfs_input = {
         "member_time": sparkapp.load_df(PRM_META[35, "out"] / "member_time.parquet"),
         "member": sparkapp.load_df(PRM_META[35, "out"] / "member.parquet"),
-        "med_claims": sparkapp.load_df(PRM_META[35, "out"] / "outclaims.parquet"),
+        "med_claims": sparkapp.load_df(PRM_META[40, "out"] / "outclaims.parquet"),
         "reference": sparkapp.load_df(PATH_REF / "hedis_codes.parquet"),
     }
 
