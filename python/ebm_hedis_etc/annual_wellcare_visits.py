@@ -8,16 +8,45 @@
   <none>
 """
 import datetime
+import os
 import typing
+from pathlib import Path
 
 import pyspark.sql.functions as spark_funcs
 from ebm_hedis_etc.base_classes import QualityMeasure
+from ebm_hedis_etc.reference import import_single_file
 from pyspark.sql import DataFrame
-from pyspark.sql import Row
+
+PATH_REF = Path(os.environ["EBM_HEDIS_ETC_PATHREF"])
 
 
 class AWV(QualityMeasure):  # pragma: no cover
     """ Object to house the logic to calculate AAB measure """
+
+    def __init__(self, sparkapp):
+        self.sparkapp = sparkapp
+
+    def _get_reference_file(self, file_name: str):
+        try:
+            df = self.sparkapp.load_df(PATH_REF / "{}.parquet".format(file_name))
+        except AssertionError:
+            df = import_single_file(file_name)
+
+        return df
+
+    def get_reference_files(self):
+
+        dict_references = {
+            "reference": "hedis_codes",
+            "reference_awv": "reference_awv",
+            "ndc": "hedis_ndc_codes",
+        }
+        dict_dfs_references = {
+            name: self._get_reference_file(file_name)
+            for name, file_name in dict_references.items()
+        }
+
+        return dict_dfs_references
 
     def _filter_claims_by_date(
         med_claims: DataFrame, performance_yearstart: datetime.date
@@ -53,4 +82,5 @@ class AWV(QualityMeasure):  # pragma: no cover
         performance_yearstart: datetime.date,
         **kwargs
     ) -> DataFrame:
+
         ...

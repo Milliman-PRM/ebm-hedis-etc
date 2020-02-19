@@ -32,7 +32,7 @@ def main() -> int:
         "reference": sparkapp.load_df(PATH_REF / "hedis_codes.parquet"),
     }
 
-    measure = AWV()
+    measure = AWV(sparkapp)
 
     results_df = measure.calc_measure(dfs_input, PRM_META["date_performanceyearstart"])
 

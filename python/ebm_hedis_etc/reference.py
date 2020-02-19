@@ -14,6 +14,7 @@ from pathlib import Path
 
 from prm.spark.app import SparkApp
 from prm.spark.io_txt import build_structtype_from_csv
+from pyspark.sql import DataFrame
 
 LOGGER = logging.getLogger(__name__)
 try:
@@ -28,15 +29,20 @@ except KeyError:  # pragma: no cover
 # =============================================================================
 
 
-def import_single_file(path_file: Path) -> DataFrame:
+def import_single_file(file_name: str) -> DataFrame:
     """ Imports a singular file to a dataframe"""
-    name = path_file.stem.lower()
-    LOGGER.info("Loading %s and saving as '%s'", _file, name)
+
+    path_data = PATH_INPUT / "_data" / (file_name + ".csv")
+    path_schema = PATH_INPUT / "_schema" / (file_name + "csv")
+
+    LOGGER.info("Loading %s and saving as '%s'", path_data, file_name)
+
     schema_temp = build_structtype_from_csv(
-        PATH_INPUT / "_schemas" / (path_file.stem + ".csv")
+        PATH_INPUT / "_schemas" / (file_name + ".csv")
     )
+
     return sparkapp.session.read.csv(
-        str(path_file),
+        str(path_data),
         schema=schema_temp,
         sep=",",
         mode="FAILFAST",
@@ -52,7 +58,8 @@ def import_flatfile_references(
     """Import the reference data into parquet"""
     refs = dict()
     for _file in (PATH_INPUT / "_data").iterdir():
-        refs[path_file.stem.lower()] = import_single_file(_file)
+        name = _file.stem.lower()
+        refs[name] = import_single_file(name)
 
     return refs
 
