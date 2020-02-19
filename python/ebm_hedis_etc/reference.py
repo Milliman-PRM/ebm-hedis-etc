@@ -28,26 +28,31 @@ except KeyError:  # pragma: no cover
 # =============================================================================
 
 
+def import_single_file(path_file: Path) -> DataFrame:
+    """ Imports a singular file to a dataframe"""
+    name = path_file.stem.lower()
+    LOGGER.info("Loading %s and saving as '%s'", _file, name)
+    schema_temp = build_structtype_from_csv(
+        PATH_INPUT / "_schemas" / (path_file.stem + ".csv")
+    )
+    return sparkapp.session.read.csv(
+        str(path_file),
+        schema=schema_temp,
+        sep=",",
+        mode="FAILFAST",
+        header=True,
+        ignoreLeadingWhiteSpace=True,
+        ignoreTrailingWhiteSpace=True,
+    )
+
+
 def import_flatfile_references(
     sparkapp: SparkApp
 ) -> "typing.Mapping[str, DataFrame]":  # pragma: no cover
     """Import the reference data into parquet"""
     refs = dict()
     for _file in (PATH_INPUT / "_data").iterdir():
-        name = _file.stem.lower()
-        LOGGER.info("Loading %s and saving as '%s'", _file, name)
-        schema_temp = build_structtype_from_csv(
-            PATH_INPUT / "_schemas" / (_file.stem + ".csv")
-        )
-        refs[name] = sparkapp.session.read.csv(
-            str(_file),
-            schema=schema_temp,
-            sep=",",
-            mode="FAILFAST",
-            header=True,
-            ignoreLeadingWhiteSpace=True,
-            ignoreTrailingWhiteSpace=True,
-        )
+        refs[path_file.stem.lower()] = import_single_file(_file)
 
     return refs
 
