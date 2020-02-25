@@ -19,6 +19,12 @@ from pyspark.sql import DataFrame
 
 PATH_REF = Path(os.environ["EBM_HEDIS_ETC_PATHREF"])
 
+DICT_REFERENCES = {
+    "reference": "hedis_codes",
+    "reference_awv": "reference_awv",
+    "ndc": "hedis_ndc_codes",
+}
+
 
 class AWV(QualityMeasure):  # pragma: no cover
     """ Object to house the logic to calculate AAB measure """
@@ -35,18 +41,16 @@ class AWV(QualityMeasure):  # pragma: no cover
         return df
 
     def get_reference_files(self):
+        try:
+            return self._references
 
-        dict_references = {
-            "reference": "hedis_codes",
-            "reference_awv": "reference_awv",
-            "ndc": "hedis_ndc_codes",
-        }
-        dict_dfs_references = {
-            name: self._get_reference_file(file_name)
-            for name, file_name in dict_references.items()
-        }
+        except AttributeError:
+            self._references = {
+                name: self._get_reference_file(file_name)
+                for name, file_name in DICT_REFERENCES.items()
+            }
 
-        return dict_dfs_references
+            return self._references
 
     def _filter_claims_by_date(
         med_claims: DataFrame, performance_yearstart: datetime.date
