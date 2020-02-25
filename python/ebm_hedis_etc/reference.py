@@ -29,7 +29,7 @@ except KeyError:  # pragma: no cover
 # =============================================================================
 
 
-def import_single_file(file_name: str) -> DataFrame:
+def import_single_file(sparkapp: SparkApp, file_name: str) -> DataFrame:
     """ Imports a singular file to a dataframe"""
 
     path_data = PATH_INPUT / "_data" / (file_name + ".csv")
@@ -59,7 +59,7 @@ def import_flatfile_references(
     refs = dict()
     for _file in (PATH_INPUT / "_data").iterdir():
         name = _file.stem.lower()
-        refs[name] = import_single_file(name)
+        refs[name] = import_single_file(sparkapp, name)
 
     return refs
 

@@ -1,0 +1,4 @@
+value_set_name,code,definition,code_system,code_system_oid
+"Well-Care-Custom","G0402","Welcome to Medicare Initial Visit",HCPCS,"PRM Custom Addition"
+"Well-Care-Custom","G0348",,HCPCS,"PRM Custom Addition"
+"Well-Care-Custom","G0349",,HCPCS,"PRM Custom Addition"

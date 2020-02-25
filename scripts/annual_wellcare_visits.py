@@ -2,7 +2,8 @@
 ### CODE OWNERS: Chas Busenburg
 
 ### OBJECTIVE:
-    Calculate the percentage of patients who have had their Annual Wellness visit in the current plan year.
+    Calculate the percentage of patients who have 
+    had their Annual Wellness visit in the current plan year.
 
 ### DEVELOPER NOTES:
   <none>
