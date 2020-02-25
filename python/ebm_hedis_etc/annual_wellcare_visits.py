@@ -59,24 +59,27 @@ class AWV(QualityMeasure):  # pragma: no cover
         ...
 
     def _identify_eligible_events(
-        med_claims: DataFrame, df_reference: DataFrame, df_reference_awv: DataFrame
+        self,
+        med_claims: DataFrame,
+        df_reference: DataFrame,
+        df_reference_awv: DataFrame,
     ) -> DataFrame:
         """ Should identify all eligible claims that are part of the desired value-set defn"""
         ...
 
-    def _calc_numerator_flag() -> DataFrame:
+    def _calc_numerator_flag(self) -> DataFrame:
         """ Should output a df with member_id and numerator_flag """
         ...
 
-    def _calc_denominator_flag():
+    def _calc_denominator_flag(self):
         """ Should output a df with a member_id and numerator_flag"""
         ...
 
-    def _calc_eligible_membership():
+    def _calc_eligible_membership(self):
         """ Should output eligible membership to filter upon """
         ...
 
-    def _identify_excluded_members():
+    def _identify_excluded_members(self):
         """ Exclude appropriate members"""
         ...
 
