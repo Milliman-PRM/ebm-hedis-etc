@@ -10,9 +10,9 @@
 import datetime
 
 import pyspark.sql.functions as spark_funcs
-from pyspark.sql import DataFrame
-from prm.dates.windows import decouple_common_windows
 from ebm_hedis_etc.base_classes import QualityMeasure
+from prm.dates.windows import decouple_common_windows
+from pyspark.sql import DataFrame
 
 # pylint does not recognize many of the spark functions
 # pylint: disable=no-member

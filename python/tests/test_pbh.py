@@ -11,10 +11,9 @@
 # pylint: disable=redefined-outer-name
 import datetime
 from pathlib import Path
-import pytest
-
 
 import ebm_hedis_etc.pbh
+import pytest
 from prm.spark.io_txt import build_structtype_from_csv
 
 try:

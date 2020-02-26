@@ -12,11 +12,10 @@ import os
 import subprocess
 from pathlib import Path
 
-from indypy.nonstandard.ghapi_tools import repo
-from indypy.nonstandard.ghapi_tools import conf
-from indypy.nonstandard import promotion_tools
-
 import ebm_hedis_etc.reference
+from indypy.nonstandard import promotion_tools
+from indypy.nonstandard.ghapi_tools import conf
+from indypy.nonstandard.ghapi_tools import repo
 
 LOGGER = logging.getLogger(__name__)
 

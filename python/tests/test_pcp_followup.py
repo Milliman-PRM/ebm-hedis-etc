@@ -10,13 +10,12 @@
 # pragma: no cover
 # pylint: disable=redefined-outer-name
 # pylint: disable=no-member
-
 import datetime
 from pathlib import Path
-import pytest
 
 import ebm_hedis_etc.pcp_followup
 import pyspark.sql.functions as spark_funcs
+import pytest
 
 try:
     _PATH_FILE = Path(__file__).parent

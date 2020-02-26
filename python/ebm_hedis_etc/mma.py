@@ -5,18 +5,17 @@
 ### DEVELOPER NOTES:
   Remove "no cover" flag after unit testing is added.
 """
-import logging
 import datetime
+import logging
 import re
 
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
-from pyspark.sql.window import Window
-from pyspark.sql.dataframe import DataFrame
-
-from prm.dates.windows import decouple_common_windows
 from ebm_hedis_etc.base_classes import QualityMeasure
 from ebm_hedis_etc.utils import find_elig_gaps
+from prm.dates.windows import decouple_common_windows
+from pyspark.sql.dataframe import DataFrame
+from pyspark.sql.window import Window
 
 LOGGER = logging.getLogger(__name__)
 

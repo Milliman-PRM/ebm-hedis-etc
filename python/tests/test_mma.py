@@ -11,11 +11,11 @@
 # pylint: disable=redefined-outer-name
 import datetime
 from pathlib import Path
-import pytest
 
 import ebm_hedis_etc.mma
-from prm.spark.io_txt import build_structtype_from_csv
 import pyspark.sql.functions as F
+import pytest
+from prm.spark.io_txt import build_structtype_from_csv
 
 try:
     _PATH_FILE = Path(__file__).parent

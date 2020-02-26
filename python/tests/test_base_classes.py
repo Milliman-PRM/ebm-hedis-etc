@@ -9,13 +9,11 @@
 """
 # pylint: disable=abstract-class-instantiated
 # pylint: disable=abstract-method
-
 import datetime
+
 import pytest
-
-from pyspark.sql import Row
-
 from ebm_hedis_etc.base_classes import QualityMeasure
+from pyspark.sql import Row
 
 # pylint: disable=unused-variable
 
