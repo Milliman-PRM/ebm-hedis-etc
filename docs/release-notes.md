@@ -2,6 +2,9 @@
 
 A non-exhaustive list of what has changed in a more readable form than a commit history.
 
+### v#.#.#
+ - Enact and enforce automated formatting via `black`
+
 ### v1.1.2
  - Correct typo in output definition for `CombineAll` for successful luigi pipeline
 
