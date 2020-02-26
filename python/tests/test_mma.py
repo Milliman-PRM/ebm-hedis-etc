@@ -20,9 +20,7 @@ from prm.spark.io_txt import build_structtype_from_csv
 try:
     _PATH_FILE = Path(__file__).parent
 except NameError:  # Likely interactive development
-    _PATH_FILE = (
-        Path(ebm_hedis_etc.mma.__file__).parents[1] / "tests"
-    )  # pylint: disable=redefined-variable-type
+    _PATH_FILE = Path(ebm_hedis_etc.mma.__file__).parents[1] / "tests"
 
 PATH_MOCK_SCHEMAS = _PATH_FILE / "mock_schemas"
 PATH_SPECIFIC_SCHEMAS = PATH_MOCK_SCHEMAS / "specific_schemas"

@@ -42,7 +42,7 @@ def _build_dx_array(df_columns, dx_field_name):  # pragma: no cover
 
 def _rx_route_events(rx_data, route):  # pragma: no cover
     med_route_event_df = None
-    if route is "oral":
+    if route == "oral":
         oral_events_df = (
             rx_data.where(F.col("route") == "oral")
             .groupBy(["member_id", "fromdate", "dayssupply", "drug_id", "claimid"])
@@ -90,7 +90,7 @@ def _rx_route_events(rx_data, route):  # pragma: no cover
             ["member_id", "fromdate", "dayssupply", "drug_id", "claimid"],
             "left_outer",
         )
-    elif route is "inhaler":
+    elif route == "inhaler":
         inhaler_events_df = (
             rx_data.where(F.col("route") == "inhalation")
             .groupBy(["member_id", "fromdate", "drug_id"])
@@ -108,7 +108,7 @@ def _rx_route_events(rx_data, route):  # pragma: no cover
         med_route_event_df = inhaler_events_df.join(
             rx_data, ["member_id", "fromdate", "drug_id"], "left_outer"
         )
-    elif route is "injected":
+    elif route == "injected":
         med_route_event_df = (
             rx_data.distinct()
             .where(F.col("route") == "subcutaneous")
@@ -140,10 +140,10 @@ def _initial_filtering(dfs_input, measurement_date_end):  # pragma: no cover
         .where(F.col("value_set_name").rlike("Asthma"))
         .select(
             F.col("value_set_name").alias("diagnosis_valueset_name"),
-            F.regexp_extract(F.col("code_system"), "\d+", 0).alias(
+            F.regexp_extract(F.col("code_system"), r"\d+", 0).alias(
                 "diagnosis_codesystem"
             ),
-            F.regexp_replace(F.col("code"), "\.", "").alias("diagnosis_code"),
+            F.regexp_replace(F.col("code"), r"\.", "").alias("diagnosis_code"),
         )
     )
     diagnosis_valueset_list = [
@@ -308,10 +308,10 @@ def _exclusionary_filtering(
         )
         .select(
             F.col("value_set_name").alias("diagnosis_valueset_name"),
-            F.regexp_extract(F.col("code_system"), "\d+", 0).alias(
+            F.regexp_extract(F.col("code_system"), r"\d+", 0).alias(
                 "excluded_codesystem"
             ),
-            F.regexp_replace(F.col("code"), "\.", "").alias("excluded_code"),
+            F.regexp_replace(F.col("code"), r"\.", "").alias("excluded_code"),
         )
     )
     excluded_diags_list = [
