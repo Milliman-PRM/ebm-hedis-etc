@@ -12,10 +12,9 @@
 import os
 from pathlib import Path
 from shutil import rmtree
-import pytest
-
 
 import prm.spark.cluster
+import pytest
 from prm.spark.app import SparkApp
 from prm.spark.shared import TESTING_APP_PARAMS
 

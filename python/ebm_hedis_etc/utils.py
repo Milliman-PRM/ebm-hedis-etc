@@ -10,9 +10,9 @@
 import logging
 
 import pyspark.sql.functions as spark_funcs
-from pyspark.sql import Column, DataFrame
-
 from prm.dates.windows import decouple_common_windows
+from pyspark.sql import Column
+from pyspark.sql import DataFrame
 
 LOGGER = logging.getLogger(__name__)
 

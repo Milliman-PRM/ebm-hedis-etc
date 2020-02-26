@@ -11,8 +11,8 @@ import logging
 from pathlib import Path
 
 import pyspark.sql.functions as spark_funcs
-
-from ebm_hedis_etc.utils import find_elig_gaps, flag_gap_exclusions
+from ebm_hedis_etc.utils import find_elig_gaps
+from ebm_hedis_etc.utils import flag_gap_exclusions
 
 LOGGER = logging.getLogger(__name__)
 

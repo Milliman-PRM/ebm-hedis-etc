@@ -11,9 +11,9 @@ import logging
 import os
 from pathlib import Path
 
-from prm.spark.app import SparkApp
-from prm.meta.project import parse_project_metadata
 from ebm_hedis_etc.spc import SPC
+from prm.meta.project import parse_project_metadata
+from prm.spark.app import SparkApp
 
 PRM_META = parse_project_metadata()
 LOGGER = logging.getLogger(__name__)

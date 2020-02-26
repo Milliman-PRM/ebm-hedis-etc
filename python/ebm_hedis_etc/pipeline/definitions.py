@@ -11,14 +11,13 @@ import os
 from pathlib import Path
 
 import ebm_hedis_etc.reference
-from indypy.nonstandard.ext_luigi import IndyPyLocalTarget, build_logfile_name
 import prm.meta.project
-from prm.ext_luigi.base_tasks import PRMPythonTask, RequirementsContainer
-
-from prm.execute.definitions import (
-    staging_membership,
-    hcg_grouper_validation
-)
+from indypy.nonstandard.ext_luigi import build_logfile_name
+from indypy.nonstandard.ext_luigi import IndyPyLocalTarget
+from prm.execute.definitions import hcg_grouper_validation
+from prm.execute.definitions import staging_membership
+from prm.ext_luigi.base_tasks import PRMPythonTask
+from prm.ext_luigi.base_tasks import RequirementsContainer
 
 PATH_SCRIPTS = Path(os.environ['EBM_HEDIS_ETC_HOME']) / 'scripts' # pragma: no cover
 PATH_REFDATA = Path(os.environ['EBM_HEDIS_ETC_PATHREF']) # pragma: no cover
