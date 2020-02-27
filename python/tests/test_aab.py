@@ -7,10 +7,8 @@
 ### DEVELOPER NOTES:
     Currently a stub to be expanded later
 """
-
 # pylint: disable=unused-import
-
 import ebm_hedis_etc.aab
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
