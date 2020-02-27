@@ -76,6 +76,32 @@ class AWV(QualityMeasure):  # pragma: no cover
 
             return self._references
 
+    def _split_refs_wellcare(self, refs_well_care) -> typing.Mapping[str, DataFrame]:
+        dict_split_wellcare = dict()
+        dict_split_wellcare["hcpcs"] = refs_well_care.where(
+            spark_funcs.col("code_system").isin("CPT", "HCPCS")
+        ).select(
+            spark_funcs.col("value_set_name").alias("value_set_name_hcpcs"),
+            spark_funcs.col("code").alias("hcpcs"),
+        )
+
+        dict_split_wellcare["icdproc"] = refs_well_care.where(
+            spark_funcs.col("code_system").isin("ICD9CM", "ICD10CM")
+        ).select(
+            spark_funcs.col("value_set_name").alias("value_set_name_icddiag"),
+            spark_funcs.regexp_replace(spark_funcs.col("code"), r"\.", "").alias(
+                "icddiag"
+            ),
+            spark_funcs.when(
+                spark_funcs.col("code_system") == spark_funcs.lit("ICD9CM"),
+                spark_funcs.lit("09"),
+            )
+            .otherwise(spark_funcs.lit("10"))
+            .alias("icdversion"),
+        )
+
+        return dict_split_wellcare
+
     @property
     def refs_well_care(self):
         return self.get_reference_files()["refs_well_care"]
