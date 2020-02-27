@@ -76,6 +76,10 @@ class AWV(QualityMeasure):  # pragma: no cover
 
             return self._references
 
+    @property
+    def refs_well_care(self):
+        return self.get_reference_files()["refs_well_care"]
+
     def _filter_claims_by_date(
         med_claims: DataFrame, performance_yearstart: datetime.date
     ) -> DataFrame:
