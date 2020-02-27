@@ -80,7 +80,11 @@ class AWV(QualityMeasure):  # pragma: no cover
         med_claims: DataFrame, performance_yearstart: datetime.date
     ) -> DataFrame:
         """ filter claims to only include in elig year"""
-        ...
+        filtered_med_claims = med_claims.where(
+            spark_funcs.col("fromdate") >= performance_yearstart
+        )
+
+        return filtered_med_claims
 
     def _identify_eligible_events(
         self,
