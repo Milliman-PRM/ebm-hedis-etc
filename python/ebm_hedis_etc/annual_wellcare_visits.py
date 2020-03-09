@@ -81,14 +81,13 @@ class AWV(QualityMeasure):  # pragma: no cover
         dict_split_wellcare["hcpcs"] = refs_well_care.where(
             spark_funcs.col("code_system").isin("CPT", "HCPCS")
         ).select(
-            spark_funcs.col("value_set_name").alias("value_set_name_hcpcs"),
-            spark_funcs.col("code").alias("hcpcs"),
+            spark_funcs.col("value_set_name"), spark_funcs.col("code").alias("hcpcs")
         )
 
-        dict_split_wellcare["icdproc"] = refs_well_care.where(
+        dict_split_wellcare["icd"] = refs_well_care.where(
             spark_funcs.col("code_system").isin("ICD9CM", "ICD10CM")
         ).select(
-            spark_funcs.col("value_set_name").alias("value_set_name_icddiag"),
+            spark_funcs.col("value_set_name"),
             spark_funcs.regexp_replace(spark_funcs.col("code"), r"\.", "").alias(
                 "icddiag"
             ),
@@ -107,7 +106,7 @@ class AWV(QualityMeasure):  # pragma: no cover
         return self.get_reference_files()["refs_well_care"]
 
     def _filter_claims_by_date(
-        med_claims: DataFrame, performance_yearstart: datetime.date
+        self, med_claims: DataFrame, performance_yearstart: datetime.date
     ) -> DataFrame:
         """ filter claims to only include in elig year"""
         filtered_med_claims = med_claims.where(
@@ -117,13 +116,48 @@ class AWV(QualityMeasure):  # pragma: no cover
         return filtered_med_claims
 
     def _identify_eligible_events(
-        self,
-        med_claims: DataFrame,
-        df_reference: DataFrame,
-        df_reference_awv: DataFrame,
+        self, med_claims: DataFrame, dict_refs_wellcare: typing.Mapping[str, DataFrame]
     ) -> DataFrame:
         """ Should identify all eligible claims that are part of the desired value-set defn"""
-        ...
+        exploded_claims = (
+            med_claims.select(
+                "member_id",
+                "claimid",
+                "fromdate",
+                "revcode",
+                "hcpcs",
+                "icdversion",
+                spark_funcs.array(
+                    [
+                        spark_funcs.col(col)
+                        for col in med_claims.columns
+                        if col.find("icddiag") > -1
+                    ]
+                ).alias("diag_explode"),
+            )
+            .distinct()
+            .withColumn("icddiag", spark_funcs.explode(spark_funcs.col("diag_explode")))
+            .drop("diag_explode")
+            .distinct()
+        )
+
+        df_eligible_claims_hcpcs = exploded_claims.join(
+            # spark_funcs.broadcast(dict_refs_wellcare["hcpcs"]), on="hcpcs", how="inner"
+            dict_refs_wellcare["hcpcs"],
+            on="hcpcs",
+            how="inner",
+        )
+
+        df_eligible_claims_procs = exploded_claims.join(
+            # spark_funcs.broadcast(dict_refs_wellcare["icd"]), on="icddiag", how="inner"
+            dict_refs_wellcare["icd"],
+            on=["icddiag", "icdversion"],
+            how="inner",
+        )
+
+        eligible_claims = df_eligible_claims_hcpcs.union(df_eligible_claims_procs)
+
+        return eligible_claims
 
     def _calc_numerator_flag(self) -> DataFrame:
         """ Should output a df with member_id and numerator_flag """
@@ -148,4 +182,9 @@ class AWV(QualityMeasure):  # pragma: no cover
         **kwargs
     ) -> DataFrame:
 
-        ...
+        df_med_claims_py = self._filter_claims_by_date(
+            dfs_input["med_claims"], performance_yearstart
+        )
+        df_eligible_claims = self._identify_eligible_events(
+            df_med_claims_py, self._split_refs_wellcare(self.refs_well_care)
+        )
