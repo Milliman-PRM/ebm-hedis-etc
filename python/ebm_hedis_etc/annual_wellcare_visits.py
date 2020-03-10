@@ -16,6 +16,7 @@ from pathlib import Path
 import pyspark.sql.functions as spark_funcs
 from ebm_hedis_etc.base_classes import QualityMeasure
 from ebm_hedis_etc.reference import import_single_file
+from prm.dates.windows import decouple_common_windows
 from pyspark.sql import DataFrame
 
 PATH_REF = Path(os.environ["EBM_HEDIS_ETC_PATHREF"])
@@ -105,12 +106,15 @@ class AWV(QualityMeasure):  # pragma: no cover
     def refs_well_care(self):
         return self.get_reference_files()["refs_well_care"]
 
-    def _filter_claims_by_date(
-        self, med_claims: DataFrame, performance_yearstart: datetime.date
+    def _filter_df_by_date(
+        self,
+        df: DataFrame,
+        performance_yearstart: datetime.date,
+        str_date_col="fromdate",
     ) -> DataFrame:
         """ filter claims to only include in elig year"""
-        filtered_med_claims = med_claims.where(
-            spark_funcs.col("fromdate") >= performance_yearstart
+        filtered_med_claims = df.where(
+            spark_funcs.col(str_date_col) >= performance_yearstart
         )
 
         return filtered_med_claims
@@ -155,6 +159,55 @@ class AWV(QualityMeasure):  # pragma: no cover
 
         return eligible_claims
 
+    def _exclude_elig_gaps(
+        self,
+        eligible_member_time: DataFrame,
+        allowable_gaps: int = 0,
+        allowable_gap_length: int = 0,
+    ) -> DataFrame:  # pragma: no cover
+        """Find eligibility gaps and exclude members """
+        decoupled_windows = decouple_common_windows(
+            eligible_member_time,
+            "member_id",
+            "date_start",
+            "date_end",
+            create_windows_for_gaps=True,
+        )
+
+        gaps_df = (
+            decoupled_windows.join(
+                eligible_member_time,
+                ["member_id", "date_start", "date_end"],
+                how="left_outer",
+            )
+            .where(spark_funcs.col("cover_medical").isNull())
+            .select(
+                "member_id",
+                "date_start",
+                "date_end",
+                spark_funcs.datediff(
+                    spark_funcs.col("date_end"), spark_funcs.col("date_start")
+                ).alias("date_diff"),
+            )
+        )
+
+        long_gaps_df = gaps_df.where(
+            spark_funcs.col("date_diff") > allowable_gap_length
+        ).select("member_id")
+
+        gap_count_df = (
+            gaps_df.groupBy("member_id")
+            .agg(spark_funcs.count("*").alias("num_of_gaps"))
+            .where(spark_funcs.col("num_of_gaps") > allowable_gaps)
+            .select("member_id")
+        )
+
+        return (
+            long_gaps_df.union(gap_count_df)
+            .select(spark_funcs.col("member_id").alias("exclude_member_id"))
+            .distinct()
+        )
+
     def _calc_numerator_flag(self) -> DataFrame:
         """ Should output a df with member_id and numerator_flag """
         ...
@@ -167,9 +220,18 @@ class AWV(QualityMeasure):  # pragma: no cover
         """ Should output eligible membership to filter upon """
         ...
 
-    def _identify_excluded_members(self):
+    def _identify_excluded_members(self, med_claims, df_excluded_members):
         """ Exclude appropriate members"""
-        ...
+        filtered_med_claims = (
+            med_claims.join(
+                df_excluded_members.withColumn("flag", spark_funcs.lit(1)),
+                med_claims.member_id == df_excluded_members.exclude_member_id,
+                how="left_outer",
+            )
+            .where(spark_funcs.col("flag").isNull())
+            .select(*med_claims.columns)
+        )
+        return filtered_med_claims
 
     def _calc_measure(
         self,
@@ -178,9 +240,26 @@ class AWV(QualityMeasure):  # pragma: no cover
         **kwargs
     ) -> DataFrame:
 
-        df_med_claims_py = self._filter_claims_by_date(
+        df_member_time_start = self._filter_df_by_date(
+            dfs_input["member_time"], performance_yearstart, "date_start"
+        )
+
+        df_member_time_end = self._filter_df_by_date(
+            dfs_input["member_time"], performance_yearstart, "date_end"
+        )
+
+        df_member_time_py = df_member_time_start.union(df_member_time_end).distinct()
+
+        df_excluded_members = self._exclude_elig_gaps(
+            df_member_time_py, allowable_gaps=1, allowable_gap_length=45
+        )
+
+        df_med_claims_py = self._filter_df_by_date(
             dfs_input["med_claims"], performance_yearstart
         )
+        df_member_claims_py = self._identify_excluded_members(
+            df_med_claims_py, df_excluded_members
+        )
         df_eligible_claims = self._identify_eligible_events(
-            df_med_claims_py, self._split_refs_wellcare(self.refs_well_care)
+            df_member_claims_py, self._split_refs_wellcare(self.refs_well_care)
         )
