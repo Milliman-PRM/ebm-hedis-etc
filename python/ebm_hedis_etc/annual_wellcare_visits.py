@@ -142,15 +142,11 @@ class AWV(QualityMeasure):  # pragma: no cover
         )
 
         df_eligible_claims_hcpcs = exploded_claims.join(
-            # spark_funcs.broadcast(dict_refs_wellcare["hcpcs"]), on="hcpcs", how="inner"
-            dict_refs_wellcare["hcpcs"],
-            on="hcpcs",
-            how="inner",
+            spark_funcs.broadcast(dict_refs_wellcare["hcpcs"]), on="hcpcs", how="inner"
         )
 
         df_eligible_claims_procs = exploded_claims.join(
-            # spark_funcs.broadcast(dict_refs_wellcare["icd"]), on="icddiag", how="inner"
-            dict_refs_wellcare["icd"],
+            spark_funcs.broadcast(dict_refs_wellcare["icd"]),
             on=["icddiag", "icdversion"],
             how="inner",
         )
