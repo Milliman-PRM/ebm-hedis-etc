@@ -216,9 +216,8 @@ class AWV(QualityMeasure):  # pragma: no cover
         """ Should output a df with a member_id and numerator_flag"""
         ...
 
-    def _calc_eligible_membership(self):
+    def _calc_eligible_membership(self, member_months, performance_yearstart):
         """ Should output eligible membership to filter upon """
-        ...
 
     def _identify_excluded_members(self, med_claims, df_excluded_members):
         """ Exclude appropriate members"""
@@ -250,16 +249,46 @@ class AWV(QualityMeasure):  # pragma: no cover
 
         df_member_time_py = df_member_time_start.union(df_member_time_end).distinct()
 
+        df_member_eligible = df_member_time_py.where(
+            df_member_time_py.cover_medical == "Y"
+        ).distinct()
+
         df_excluded_members = self._exclude_elig_gaps(
-            df_member_time_py, allowable_gaps=1, allowable_gap_length=45
+            df_member_eligible, allowable_gaps=1, allowable_gap_length=45
         )
+        df_member_months_w_excl = self._identify_excluded_members(
+            df_member_eligible, df_excluded_members
+        )
+
+        df_member_denom_final = (
+            df_member_months_w_excl.select("member_id")
+            .distinct()
+            .join(dfs_input["member"], on="member_id", how="inner")
+        )
+        df_member_denom_final.cache()
 
         df_med_claims_py = self._filter_df_by_date(
             dfs_input["med_claims"], performance_yearstart
         )
-        df_member_claims_py = self._identify_excluded_members(
-            df_med_claims_py, df_excluded_members
+
+        df_member_claims_py = df_member_denom_final.join(
+            df_med_claims_py, on="member_id", how="inner"
         )
         df_eligible_claims = self._identify_eligible_events(
             df_member_claims_py, self._split_refs_wellcare(self.refs_well_care)
+        )
+
+        df_numerator = (
+            df_eligible_claims.groupBy("member_id")
+            .agg({"member_id": "count"})
+            .withColumn("numerator_AWV", spark_funcs.col("count(member_id)") >= 1)
+        )
+
+        df_final = (
+            df_member_denom_final.join(df_numerator, on="member_id", how="left")
+            .select(*df_member_denom_final.columns, "numerator_AWV")
+            .withColumn(
+                "numerator_AWV", spark_funcs.col("numerator_AWV").cast("integer")
+            )
+            .fillna({"numerator_AWV": 0})
         )
