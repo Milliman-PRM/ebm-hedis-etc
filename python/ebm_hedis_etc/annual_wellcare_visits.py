@@ -218,6 +218,7 @@ class AWV(QualityMeasure):  # pragma: no cover
 
     def _calc_eligible_membership(self, member_months, performance_yearstart):
         """ Should output eligible membership to filter upon """
+        ...
 
     def _identify_excluded_members(self, med_claims, df_excluded_members):
         """ Exclude appropriate members"""
@@ -265,7 +266,6 @@ class AWV(QualityMeasure):  # pragma: no cover
             .distinct()
             .join(dfs_input["member"], on="member_id", how="inner")
         )
-        df_member_denom_final.cache()
 
         df_med_claims_py = self._filter_df_by_date(
             dfs_input["med_claims"], performance_yearstart
@@ -280,15 +280,51 @@ class AWV(QualityMeasure):  # pragma: no cover
 
         df_numerator = (
             df_eligible_claims.groupBy("member_id")
-            .agg({"member_id": "count"})
-            .withColumn("numerator_AWV", spark_funcs.col("count(member_id)") >= 1)
+            .agg({"member_id": "count", "fromdate": "max"})
+            .withColumn(
+                "comp_quality_numerator", spark_funcs.col("count(member_id)") >= 1
+            )
+            .withColumnRenamed("max(fromdate)", "comp_quality_date_last")
         )
 
         df_final = (
             df_member_denom_final.join(df_numerator, on="member_id", how="left")
-            .select(*df_member_denom_final.columns, "numerator_AWV")
             .withColumn(
-                "numerator_AWV", spark_funcs.col("numerator_AWV").cast("integer")
+                "comp_quality_numerator",
+                spark_funcs.col("comp_quality_numerator").cast("integer"),
             )
-            .fillna({"numerator_AWV": 0})
+            .withColumn("comp_quality_denominator", spark_funcs.lit(1))
+            .withColumn(
+                "comp_quality_date_actionable",
+                spark_funcs.when(
+                    spark_funcs.col("comp_quality_numerator").isNull(),
+                    datetime.date(performance_yearstart.year, 12, 31),
+                ).otherwise(None),
+            )
+            .withColumn(
+                "comp_quality_comments",
+                spark_funcs.when(
+                    spark_funcs.col("comp_quality_date_last").isNotNull(),
+                    spark_funcs.concat(
+                        spark_funcs.lit("Most Recent Service: "),
+                        spark_funcs.col("comp_quality_date_last").cast("string"),
+                    ),
+                ).otherwise(
+                    spark_funcs.concat(
+                        spark_funcs.lit("No related services observed since: "),
+                        spark_funcs.lit(performance_yearstart),
+                    )
+                ),
+            )
+            .fillna({"comp_quality_numerator": 0})
+            .select(
+                "member_id",
+                "comp_quality_numerator",
+                "comp_quality_denominator",
+                "comp_quality_date_last",
+                "comp_quality_date_actionable",
+                "comp_quality_comments",
+            )
         )
+
+        return df_final
