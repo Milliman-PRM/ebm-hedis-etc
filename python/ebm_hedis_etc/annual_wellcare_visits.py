@@ -32,17 +32,18 @@ class AWV(QualityMeasure):  # pragma: no cover
     """ Object to house the logic to calculate AAB measure """
 
     def __init__(self, sparkapp):
+        super().__init__()
         self.sparkapp = sparkapp
 
     def _get_core_reference_file(self, file_name: str):
         """Gets the core reference files from a compiled state or from the directory structure"""
 
         try:
-            df = self.sparkapp.load_df(PATH_REF / "{}.parquet".format(file_name))
+            df_loaded = self.sparkapp.load_df(PATH_REF / "{}.parquet".format(file_name))
         except AssertionError:
-            df = import_single_file(self.sparkapp, file_name)
+            df_loaded = import_single_file(self.sparkapp, file_name)
 
-        return df
+        return df_loaded
 
     def _create_extra_reference_files(self, _core_references):
         """Combines core reference files and AWV specific reference files"""
@@ -104,16 +105,17 @@ class AWV(QualityMeasure):  # pragma: no cover
 
     @property
     def refs_well_care(self):
+        """creates get_reference_files for refs_well_care as a property"""
         return self.get_reference_files()["refs_well_care"]
 
     def _filter_df_by_date(
         self,
-        df: DataFrame,
+        df_in: DataFrame,
         performance_yearstart: datetime.date,
         str_date_col="fromdate",
     ) -> DataFrame:
         """ filter claims to only include in elig year"""
-        filtered_med_claims = df.where(
+        filtered_med_claims = df_in.where(
             spark_funcs.col(str_date_col) >= performance_yearstart
         )
 
@@ -207,18 +209,6 @@ class AWV(QualityMeasure):  # pragma: no cover
             .select(spark_funcs.col("member_id").alias("exclude_member_id"))
             .distinct()
         )
-
-    def _calc_numerator_flag(self) -> DataFrame:
-        """ Should output a df with member_id and numerator_flag """
-        ...
-
-    def _calc_denominator_flag(self):
-        """ Should output a df with a member_id and numerator_flag"""
-        ...
-
-    def _calc_eligible_membership(self, member_months, performance_yearstart):
-        """ Should output eligible membership to filter upon """
-        ...
 
     def _identify_excluded_members(self, med_claims, df_excluded_members):
         """ Exclude appropriate members"""
