@@ -47,16 +47,20 @@ class AWV(QualityMeasure):  # pragma: no cover
 
     def _create_extra_reference_files(self, _core_references):
         """Combines core reference files and AWV specific reference files"""
-        refs_well_care = (
+        refs_well_care_core = (
             _core_references["reference"]
             .filter(spark_funcs.col("value_set_name") == "Well-Care")
             .select(
                 "value_set_name", "code", "definition", "code_system", "code_system_oid"
             )
-            .union(_core_references["reference_awv"])
         )
-
-        dict_extra_refs = {"refs_well_care": refs_well_care}
+        refs_well_care_whole = refs_well_care_core.union(
+            _core_references["reference_awv"]
+        )
+        dict_extra_refs = {
+            "refs_well_care_core": refs_well_care_core,
+            "refs_well_care_combined": refs_well_care_combined,
+        }
 
         return dict_extra_refs
 
