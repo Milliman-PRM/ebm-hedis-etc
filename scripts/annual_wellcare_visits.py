@@ -8,6 +8,7 @@
 ### DEVELOPER NOTES:
   <none>
 """
+import datetime
 import logging
 import os
 from pathlib import Path
@@ -35,10 +36,51 @@ def main() -> int:
 
     measure = AWV(sparkapp)
 
-    results_df = measure.calc_measure(dfs_input, PRM_META["date_performanceyearstart"])
+    results_df_whole = measure.calc_measure(
+        dfs_input,
+        PRM_META["date_performanceyearstart"],
+        datetime_end=datetime.date(PRM_META["date_performanceyearstart"].year, 12, 31),
+        filter_reference="refs_well_care_whole",
+    )
+
+    results_df_core = measure.calc_measure(
+        dfs_input,
+        PRM_META["date_performanceyearstart"],
+        datetime_end=datetime.date(PRM_META["date_performanceyearstart"].year, 12, 31),
+        filter_reference="refs_well_care_core",
+    )
+
+    results_df_medicare = measure.calc_measure(
+        dfs_input,
+        PRM_META["date_performanceyearstart"],
+        datetime_end=datetime.date(PRM_META["date_performanceyearstart"].year, 12, 31),
+        filter_reference="reference_awv",
+    )
+
+    date_of_run = datetime.date.today()
+
+    results_df_rolling_twelve = measure.calc_measure(
+        dfs_input,
+        datetime.date(date_of_run.year - 1, date_of_run.month, date_of_run.day),
+        datetime_end=date_of_run,
+        filter_reference="refs_well_care_whole",
+    )
 
     sparkapp.save_df(
-        results_df, PRM_META[150, "out"] / "results_annual_wellcare_visits.parquet"
+        results_df_whole,
+        PRM_META[150, "out"] / "results_annual_wellcare_visits_whole.parquet",
+    )
+    sparkapp.save_df(
+        results_df_core,
+        PRM_META[150, "out"] / "results_annual_wellcare_visits_core.parquet",
+    )
+    sparkapp.save_df(
+        results_df_medicare,
+        PRM_META[150, "out"] / "results_annual_wellcare_visits_medicare.parquet",
+    )
+    sparkapp.save_df(
+        results_df_rolling_twelve,
+        PRM_META[150, "out"] / "results_annual_wellcare_visits_rolling.parquet",
     )
 
     return 0
