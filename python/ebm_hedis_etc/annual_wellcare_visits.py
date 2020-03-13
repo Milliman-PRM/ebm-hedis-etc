@@ -59,7 +59,7 @@ class AWV(QualityMeasure):  # pragma: no cover
         )
         dict_extra_refs = {
             "refs_well_care_core": refs_well_care_core,
-            "refs_well_care_combined": refs_well_care_combined,
+            "refs_well_care_whole": refs_well_care_whole,
         }
 
         return dict_extra_refs
@@ -107,20 +107,12 @@ class AWV(QualityMeasure):  # pragma: no cover
 
         return dict_split_wellcare
 
-    @property
-    def refs_well_care(self):
-        """creates get_reference_files for refs_well_care as a property"""
-        return self.get_reference_files()["refs_well_care"]
-
     def _filter_df_by_date(
-        self,
-        df_in: DataFrame,
-        performance_yearstart: datetime.date,
-        str_date_col="fromdate",
+        self, df_in: DataFrame, datetime_start: datetime.date, str_date_col="fromdate"
     ) -> DataFrame:
         """ filter claims to only include in elig year"""
         filtered_med_claims = df_in.where(
-            spark_funcs.col(str_date_col) >= performance_yearstart
+            spark_funcs.col(str_date_col) >= datetime_start
         )
 
         return filtered_med_claims
@@ -230,16 +222,20 @@ class AWV(QualityMeasure):  # pragma: no cover
     def _calc_measure(
         self,
         dfs_input: typing.Mapping[str, DataFrame],
-        performance_yearstart: datetime.date,
-        **kwargs
+        datetime_start: datetime.date,
+        *,
+        datetime_end: datetime.date,
+        filter_reference: typing.Optional[str],
+        allowable_gaps: int = 1,
+        allowable_gap_length: int = 45,
     ) -> DataFrame:
 
         df_member_time_start = self._filter_df_by_date(
-            dfs_input["member_time"], performance_yearstart, "date_start"
+            dfs_input["member_time"], datetime_start, "date_start"
         )
 
         df_member_time_end = self._filter_df_by_date(
-            dfs_input["member_time"], performance_yearstart, "date_end"
+            dfs_input["member_time"], datetime_end, "date_end"
         )
 
         df_member_time_py = df_member_time_start.union(df_member_time_end).distinct()
@@ -249,7 +245,9 @@ class AWV(QualityMeasure):  # pragma: no cover
         ).distinct()
 
         df_excluded_members = self._exclude_elig_gaps(
-            df_member_eligible, allowable_gaps=1, allowable_gap_length=45
+            df_member_eligible,
+            allowable_gaps=allowable_gaps,
+            allowable_gap_length=allowable_gap_length,
         )
         df_member_months_w_excl = self._identify_excluded_members(
             df_member_eligible, df_excluded_members
@@ -262,14 +260,15 @@ class AWV(QualityMeasure):  # pragma: no cover
         )
 
         df_med_claims_py = self._filter_df_by_date(
-            dfs_input["med_claims"], performance_yearstart
+            dfs_input["med_claims"], datetime_start
         )
 
         df_member_claims_py = df_member_denom_final.join(
             df_med_claims_py, on="member_id", how="inner"
         )
         df_eligible_claims = self._identify_eligible_events(
-            df_member_claims_py, self._split_refs_wellcare(self.refs_well_care)
+            df_member_claims_py,
+            self._split_refs_wellcare(self.get_reference_files()[filter_reference]),
         )
 
         df_numerator = (
@@ -291,8 +290,7 @@ class AWV(QualityMeasure):  # pragma: no cover
             .withColumn(
                 "comp_quality_date_actionable",
                 spark_funcs.when(
-                    spark_funcs.col("comp_quality_numerator").isNull(),
-                    datetime.date(performance_yearstart.year, 12, 31),
+                    spark_funcs.col("comp_quality_numerator").isNull(), datetime_end
                 ).otherwise(None),
             )
             .withColumn(
@@ -306,7 +304,7 @@ class AWV(QualityMeasure):  # pragma: no cover
                 ).otherwise(
                     spark_funcs.concat(
                         spark_funcs.lit("No related services observed since: "),
-                        spark_funcs.lit(performance_yearstart),
+                        spark_funcs.lit(datetime_start),
                     )
                 ),
             )
