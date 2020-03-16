@@ -143,7 +143,9 @@ class AWV(QualityMeasure):  # pragma: no cover
             how="inner",
         )
 
-        eligible_claims = df_eligible_claims_hcpcs.union(df_eligible_claims_procs)
+        eligible_claims = df_eligible_claims_hcpcs.union(
+            df_eligible_claims_procs.select(df_eligible_claims_hcpcs.columns)
+        )
 
         return eligible_claims
 
