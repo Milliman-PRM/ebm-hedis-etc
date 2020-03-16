@@ -4,5 +4,5 @@ has_core_visit_hcpcs,hcpcs_core_wellcare,2019-01-31,XXXX,99394,10,XXXX,XXXX,XXXX
 has_medicare_visit,medicare_awv,2019-01-31,XXXX,G0402,10,XXXX,XXXX,XXXX
 has_both_measure_types,earlier_core_visit,2019-01-31,XXXX,99394,10,XXXX,XXXX,XXXX
 has_both_measure_types,later_awv_visit,2019-02-15,XXXX,G0402,10,XXXX,XXXX,XXXX
-rolling_12_only,prior_year_medicare_awv,2018-12-01,XXXX,G0402,10,XXXX,XXXX,XXXX
+rolling_12_only,prior_year_medicare_awv,2018-12-01,XXXX,99392,10,XXXX,XXXX,XXXX
 has_elig_gap,elig_gap_wellcare,2019-03-20,XXXX,99392,10,XXXX,XXXX,XXXX
