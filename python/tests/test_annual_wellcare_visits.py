@@ -57,12 +57,20 @@ def mock_dataframes(spark_app):
 def compare_actual_expected(result_actual, result_expected):
     """Helper function to compare results"""
     unexpected = result_actual.subtract(result_expected).collect()
-    assert not unexpected, "Row(s) '{}' found in actual but not expected".format(
-        unexpected
-    )
+    message = ""
+    if unexpected:
+        message += "Row(s) '{}' found in actual but not expected\n\n".format(
+            "\n".join(str(row) for row in sorted(unexpected))
+        )
 
     missing = result_expected.subtract(result_actual).collect()
-    assert not missing, "Row(s) '{}' found in expected but not actual".format(missing)
+    if missing:
+        message += "Row(s) '{}' found in expected but not actual\n\n".format(
+            "\n".join(str(row) for row in sorted(missing))
+        )
+
+    if message:
+        raise AssertionError(message)
 
 
 class TestAWV:
