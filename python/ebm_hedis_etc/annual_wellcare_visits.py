@@ -2,7 +2,7 @@
 ### CODE OWNERS: Chas Busenburg
 
 ### OBJECTIVE:
-    Calculate the percentage of patients who have 
+    Calculate the percentage of patients who have
     had their Annual Wellness visit in the current plan year.
 
 ### DEVELOPER NOTES:
@@ -225,10 +225,13 @@ class AWV(QualityMeasure):  # pragma: no cover
         datetime_start: datetime.date,
         *,
         datetime_end: datetime.date,
-        filter_reference: typing.Optional[str],
+        filter_reference: typing.Optional[str] = None,
         allowable_gaps: int = 1,
         allowable_gap_length: int = 45,
     ) -> DataFrame:
+
+        if filter_reference is None:
+            filter_reference = "refs_well_care_whole"
 
         df_member_time_start = self._filter_df_by_date(
             dfs_input["member_time"], datetime_start, "date_start"
