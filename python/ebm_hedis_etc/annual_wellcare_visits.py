@@ -200,15 +200,13 @@ class AWV(QualityMeasure):  # pragma: no cover
 
     def _identify_excluded_members(self, med_claims, df_excluded_members):
         """ Exclude appropriate members"""
-        filtered_med_claims = (
-            med_claims.join(
-                df_excluded_members.withColumn("flag", spark_funcs.lit(1)),
-                med_claims.member_id == df_excluded_members.exclude_member_id,
-                how="left_outer",
-            )
-            .where(spark_funcs.col("flag").isNull())
-            .select(*med_claims.columns)
+        excluded_member_flags = df_excluded_members.select(
+            spark_funcs.col("exclude_member_id").alias("member_id"),
+            spark_funcs.lit(True).alias("elig_gap_excluded"),
         )
+        filtered_med_claims = (
+            med_claims.join(excluded_member_flags, "member_id", how="left_outer")
+        ).fillna({"elig_gap_excluded": False})
         return filtered_med_claims
 
     def _calc_measure(
@@ -263,9 +261,14 @@ class AWV(QualityMeasure):  # pragma: no cover
         )
 
         df_member_denom_final = (
-            df_member_months_w_excl.select("member_id")
+            df_member_months_w_excl.select("member_id", "elig_gap_excluded")
             .distinct()
             .join(dfs_input["member"], on="member_id", how="inner")
+        ).withColumn(
+            "comp_quality_denominator",
+            spark_funcs.when(
+                spark_funcs.col("elig_gap_excluded"), spark_funcs.lit(0)
+            ).otherwise(spark_funcs.lit(1)),
         )
 
         df_med_claims_py = dfs_input["med_claims"].where(
@@ -275,7 +278,7 @@ class AWV(QualityMeasure):  # pragma: no cover
 
         df_member_claims_py = df_member_denom_final.join(
             df_med_claims_py, on="member_id", how="inner"
-        )
+        ).where(~spark_funcs.col("elig_gap_excluded"))
         df_eligible_claims = self._identify_eligible_events(
             df_member_claims_py,
             self._split_refs_wellcare(self.get_reference_files()[filter_reference]),
@@ -296,22 +299,30 @@ class AWV(QualityMeasure):  # pragma: no cover
                 "comp_quality_numerator",
                 spark_funcs.col("comp_quality_numerator").cast("integer"),
             )
-            .withColumn("comp_quality_denominator", spark_funcs.lit(1))
             .withColumn(
                 "comp_quality_date_actionable",
                 spark_funcs.when(
-                    spark_funcs.col("comp_quality_numerator").isNull(), datetime_end
+                    (
+                        spark_funcs.col("comp_quality_numerator").isNull()
+                        & (spark_funcs.col("comp_quality_denominator") > 0)
+                    ),
+                    datetime_end,
                 ).otherwise(None),
             )
             .withColumn(
                 "comp_quality_comments",
                 spark_funcs.when(
+                    spark_funcs.col("elig_gap_excluded"),
+                    spark_funcs.lit("Member is excluded due to gaps in eligibility"),
+                )
+                .when(
                     spark_funcs.col("comp_quality_date_last").isNotNull(),
                     spark_funcs.concat(
                         spark_funcs.lit("Most Recent Service: "),
                         spark_funcs.col("comp_quality_date_last").cast("string"),
                     ),
-                ).otherwise(
+                )
+                .otherwise(
                     spark_funcs.concat(
                         spark_funcs.lit("No related services observed since: "),
                         spark_funcs.lit(performance_yearstart),
