@@ -222,7 +222,7 @@ class AWV(QualityMeasure):  # pragma: no cover
     def _calc_measure(
         self,
         dfs_input: typing.Mapping[str, DataFrame],
-        datetime_start: datetime.date,
+        performance_yearstart: datetime.date,
         *,
         datetime_end: datetime.date,
         filter_reference: typing.Optional[str] = None,
@@ -234,7 +234,7 @@ class AWV(QualityMeasure):  # pragma: no cover
             filter_reference = "refs_well_care_whole"
 
         df_member_time_start = self._filter_df_by_date(
-            dfs_input["member_time"], datetime_start, "date_start"
+            dfs_input["member_time"], performance_yearstart, "date_start"
         )
 
         df_member_time_end = self._filter_df_by_date(
@@ -263,7 +263,7 @@ class AWV(QualityMeasure):  # pragma: no cover
         )
 
         df_med_claims_py = self._filter_df_by_date(
-            dfs_input["med_claims"], datetime_start
+            dfs_input["med_claims"], performance_yearstart
         )
 
         df_member_claims_py = df_member_denom_final.join(
@@ -307,7 +307,7 @@ class AWV(QualityMeasure):  # pragma: no cover
                 ).otherwise(
                     spark_funcs.concat(
                         spark_funcs.lit("No related services observed since: "),
-                        spark_funcs.lit(datetime_start),
+                        spark_funcs.lit(performance_yearstart),
                     )
                 ),
             )
