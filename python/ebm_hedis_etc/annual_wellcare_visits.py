@@ -198,14 +198,14 @@ class AWV(QualityMeasure):  # pragma: no cover
             .distinct()
         )
 
-    def _identify_excluded_members(self, med_claims, df_excluded_members):
+    def _identify_excluded_members(self, dataframe, df_excluded_members):
         """ Exclude appropriate members"""
         excluded_member_flags = df_excluded_members.select(
             spark_funcs.col("exclude_member_id").alias("member_id"),
             spark_funcs.lit(True).alias("elig_gap_excluded"),
         )
         filtered_med_claims = (
-            med_claims.join(excluded_member_flags, "member_id", how="left_outer")
+            dataframe.join(excluded_member_flags, "member_id", how="left_outer")
         ).fillna({"elig_gap_excluded": False})
         return filtered_med_claims
 
