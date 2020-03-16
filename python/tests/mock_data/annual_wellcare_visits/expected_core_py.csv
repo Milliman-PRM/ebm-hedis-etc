@@ -1,8 +1,8 @@
-member_id,comp_quality_short,comp_quality_numerator,comp_quality_denominator,comp_quality_date_last,comp_quality_date_actionable,comp_quality_comments
-has_core_visit_icd,core_py,1,1,2019-01-31,,
-has_core_visit_hcpcs,core_py,1,1,2019-01-31,,
-has_medicare_visit,core_py,0,1,,2019-12-31,No related services observed since: 2019-01-01
-has_no_claims,core_py,0,1,,2019-12-31,No related services observed since: 2019-01-01
-has_both_measure_types,core_py,1,1,2019-02-15,,
-rolling_12_only,core_py,0,1,,2019-12-31,No related services observed since: 2019-01-01
-has_elig_gap,core_py,0,0,,,
+member_id,comp_quality_numerator,comp_quality_denominator,comp_quality_date_last,comp_quality_date_actionable,comp_quality_comments
+has_core_visit_icd,1,1,2019-01-31,,
+has_core_visit_hcpcs,1,1,2019-01-31,,
+has_medicare_visit,0,1,,2019-12-31,No related services observed since: 2019-01-01
+has_no_claims,0,1,,2019-12-31,No related services observed since: 2019-01-01
+has_both_measure_types,1,1,2019-02-15,,
+rolling_12_only,0,1,,2019-12-31,No related services observed since: 2019-01-01
+has_elig_gap,0,0,,,

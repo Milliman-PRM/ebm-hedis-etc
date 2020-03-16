@@ -1,6 +1,5 @@
 name,datatype,nullable
 member_id,string,FALSE
-expected_comp_quality_short,string,FALSE
 expected_comp_quality_numerator,double,FALSE
 expected_comp_quality_denominator,double,FALSE
 expected_comp_quality_date_last,date,TRUE
