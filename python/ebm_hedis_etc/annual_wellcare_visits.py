@@ -214,7 +214,7 @@ class AWV(QualityMeasure):  # pragma: no cover
         dfs_input: typing.Mapping[str, DataFrame],
         performance_yearstart: datetime.date,
         *,
-        datetime_end: datetime.date,
+        datetime_end: typing.Optional[datetime.date] = None,
         filter_reference: typing.Optional[str] = None,
         allowable_gaps: int = 1,
         allowable_gap_length: int = 45,
@@ -222,6 +222,9 @@ class AWV(QualityMeasure):  # pragma: no cover
 
         if filter_reference is None:
             filter_reference = "refs_well_care_whole"
+
+        if datetime_end is None:
+            datetime_end = datetime.date(performance_yearstart.year, 12, 31)
 
         df_member_time_py = (
             dfs_input["member_time"]
