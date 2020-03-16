@@ -107,16 +107,6 @@ class AWV(QualityMeasure):  # pragma: no cover
 
         return dict_split_wellcare
 
-    def _filter_df_by_date(
-        self, df_in: DataFrame, datetime_start: datetime.date, str_date_col="fromdate"
-    ) -> DataFrame:
-        """ filter claims to only include in elig year"""
-        filtered_med_claims = df_in.where(
-            spark_funcs.col(str_date_col) >= datetime_start
-        )
-
-        return filtered_med_claims
-
     def _identify_eligible_events(
         self, med_claims: DataFrame, dict_refs_wellcare: typing.Mapping[str, DataFrame]
     ) -> DataFrame:
@@ -233,15 +223,26 @@ class AWV(QualityMeasure):  # pragma: no cover
         if filter_reference is None:
             filter_reference = "refs_well_care_whole"
 
-        df_member_time_start = self._filter_df_by_date(
-            dfs_input["member_time"], performance_yearstart, "date_start"
+        df_member_time_py = (
+            dfs_input["member_time"]
+            .where(
+                (spark_funcs.col("date_start") <= datetime_end)
+                & (spark_funcs.col("date_end") >= performance_yearstart)
+            )
+            .withColumn(
+                "date_start",
+                spark_funcs.greatest(
+                    spark_funcs.col("date_start"),
+                    spark_funcs.lit(performance_yearstart),
+                ),
+            )
+            .withColumn(
+                "date_end",
+                spark_funcs.least(
+                    spark_funcs.col("date_end"), spark_funcs.lit(datetime_end)
+                ),
+            )
         )
-
-        df_member_time_end = self._filter_df_by_date(
-            dfs_input["member_time"], datetime_end, "date_end"
-        )
-
-        df_member_time_py = df_member_time_start.union(df_member_time_end).distinct()
 
         df_member_eligible = df_member_time_py.where(
             df_member_time_py.cover_medical == "Y"
@@ -262,8 +263,9 @@ class AWV(QualityMeasure):  # pragma: no cover
             .join(dfs_input["member"], on="member_id", how="inner")
         )
 
-        df_med_claims_py = self._filter_df_by_date(
-            dfs_input["med_claims"], performance_yearstart
+        df_med_claims_py = dfs_input["med_claims"].where(
+            (spark_funcs.col("fromdate") >= spark_funcs.lit(performance_yearstart))
+            & (spark_funcs.col("fromdate") <= spark_funcs.lit(datetime_end))
         )
 
         df_member_claims_py = df_member_denom_final.join(
