@@ -1,8 +1,9 @@
 member_id,date_start,date_end,cover_medical,memmos
-has_core_visit,2018-01-01,2019-03-31,Y,15
+has_core_visit_icd,2018-01-01,2019-03-31,Y,15
+has_core_visit_hcpcs,2018-01-01,2019-03-31,Y,15
 has_medicare_visit,2018-01-01,2019-03-31,Y,15
-both_visit_types,2018-01-01,2019-03-31,Y,15
-no_claims,2018-01-01,2019-03-31,Y,15
+has_both_measure_types,2018-01-01,2019-03-31,Y,15
+has_no_claims,2018-01-01,2019-03-31,Y,15
 rolling_12_only,2018-01-01,2019-03-31,Y,15
 has_elig_gap,2018-01-01,2019-01-31,Y,13
 has_elig_gap,2019-03-20,2019-03-31,Y,0.387096774

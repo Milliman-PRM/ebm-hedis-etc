@@ -1,5 +1,8 @@
 member_id
-has_core_visit
+has_core_visit_icd
+has_core_visit_hcpcs
 has_medicare_visit
+has_both_measure_types
+has_no_claims
 rolling_12_only
 has_elig_gap
