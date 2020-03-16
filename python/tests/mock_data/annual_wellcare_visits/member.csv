@@ -1,0 +1,5 @@
+member_id
+has_core_visit
+has_medicare_visit
+rolling_12_only
+has_elig_gap

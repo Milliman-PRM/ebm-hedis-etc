@@ -1,0 +1,10 @@
+name,datatype,nullable
+member_id,string,FALSE
+claimid,string,FALSE
+fromdate,date,FALSE
+revcode,string,TRUE
+hcpcs,string,TRUE
+icdversion,string,TRUE
+icddiag1,string,TRUE
+icddiag2,string,TRUE
+icddiag3,string,TRUE

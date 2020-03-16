@@ -1,0 +1,6 @@
+name,datatype,nullable
+member_id,string,FALSE
+date_start,date,FALSE
+date_end,date,FALSE
+cover_medical,string,FALSE
+memmos,float,FALSE
