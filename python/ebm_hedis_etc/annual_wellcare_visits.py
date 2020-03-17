@@ -28,6 +28,150 @@ DICT_REFERENCES = {
 }
 
 
+def _create_extra_reference_files(_core_references):
+    """Combines core reference files and AWV specific reference files"""
+    refs_well_care_core = (
+        _core_references["reference"]
+        .filter(spark_funcs.col("value_set_name") == "Well-Care")
+        .select(
+            "value_set_name", "code", "definition", "code_system", "code_system_oid"
+        )
+    )
+    refs_well_care_whole = refs_well_care_core.union(_core_references["reference_awv"])
+    dict_extra_refs = {
+        "refs_well_care_core": refs_well_care_core,
+        "refs_well_care_whole": refs_well_care_whole,
+    }
+
+    return dict_extra_refs
+
+
+def _split_refs_wellcare(refs_well_care) -> typing.Mapping[str, DataFrame]:
+    dict_split_wellcare = dict()
+    dict_split_wellcare["hcpcs"] = refs_well_care.where(
+        spark_funcs.col("code_system").isin("CPT", "HCPCS")
+    ).select(spark_funcs.col("value_set_name"), spark_funcs.col("code").alias("hcpcs"))
+
+    dict_split_wellcare["icd"] = refs_well_care.where(
+        spark_funcs.col("code_system").isin("ICD9CM", "ICD10CM")
+    ).select(
+        spark_funcs.col("value_set_name"),
+        spark_funcs.regexp_replace(spark_funcs.col("code"), r"\.", "").alias("icddiag"),
+        spark_funcs.when(
+            spark_funcs.col("code_system") == spark_funcs.lit("ICD9CM"),
+            spark_funcs.lit("09"),
+        )
+        .otherwise(spark_funcs.lit("10"))
+        .alias("icdversion"),
+    )
+
+    return dict_split_wellcare
+
+
+def _identify_eligible_events(
+    med_claims: DataFrame, dict_refs_wellcare: typing.Mapping[str, DataFrame]
+) -> DataFrame:
+    """ Should identify all eligible claims that are part of the desired value-set defn"""
+    exploded_claims = (
+        med_claims.select(
+            "member_id",
+            "claimid",
+            "fromdate",
+            "revcode",
+            "hcpcs",
+            "icdversion",
+            spark_funcs.array(
+                [
+                    spark_funcs.col(col)
+                    for col in med_claims.columns
+                    if col.find("icddiag") > -1
+                ]
+            ).alias("diag_explode"),
+        )
+        .distinct()
+        .withColumn("icddiag", spark_funcs.explode(spark_funcs.col("diag_explode")))
+        .drop("diag_explode")
+        .distinct()
+    )
+
+    df_eligible_claims_hcpcs = exploded_claims.join(
+        spark_funcs.broadcast(dict_refs_wellcare["hcpcs"]), on="hcpcs", how="inner"
+    )
+
+    df_eligible_claims_procs = exploded_claims.join(
+        spark_funcs.broadcast(dict_refs_wellcare["icd"]),
+        on=["icddiag", "icdversion"],
+        how="inner",
+    )
+
+    eligible_claims = df_eligible_claims_hcpcs.union(
+        df_eligible_claims_procs.select(df_eligible_claims_hcpcs.columns)
+    )
+
+    return eligible_claims
+
+
+def _exclude_elig_gaps(
+    eligible_member_time: DataFrame,
+    allowable_gaps: int = 0,
+    allowable_gap_length: int = 0,
+) -> DataFrame:  # pragma: no cover
+    """Find eligibility gaps and exclude members """
+    decoupled_windows = decouple_common_windows(
+        eligible_member_time,
+        "member_id",
+        "date_start",
+        "date_end",
+        create_windows_for_gaps=True,
+    )
+
+    gaps_df = (
+        decoupled_windows.join(
+            eligible_member_time,
+            ["member_id", "date_start", "date_end"],
+            how="left_outer",
+        )
+        .where(spark_funcs.col("cover_medical").isNull())
+        .select(
+            "member_id",
+            "date_start",
+            "date_end",
+            spark_funcs.datediff(
+                spark_funcs.col("date_end"), spark_funcs.col("date_start")
+            ).alias("date_diff"),
+        )
+    )
+
+    long_gaps_df = gaps_df.where(
+        spark_funcs.col("date_diff") > allowable_gap_length
+    ).select("member_id")
+
+    gap_count_df = (
+        gaps_df.groupBy("member_id")
+        .agg(spark_funcs.count("*").alias("num_of_gaps"))
+        .where(spark_funcs.col("num_of_gaps") > allowable_gaps)
+        .select("member_id")
+    )
+
+    return (
+        long_gaps_df.union(gap_count_df)
+        .select(spark_funcs.col("member_id").alias("exclude_member_id"))
+        .distinct()
+    )
+
+
+def _identify_excluded_members(dataframe, df_excluded_members):
+    """ Exclude appropriate members"""
+    excluded_member_flags = df_excluded_members.select(
+        spark_funcs.col("exclude_member_id").alias("member_id"),
+        spark_funcs.lit(True).alias("elig_gap_excluded"),
+    )
+    filtered_med_claims = (
+        dataframe.join(excluded_member_flags, "member_id", how="left_outer")
+    ).fillna({"elig_gap_excluded": False})
+    return filtered_med_claims
+
+
 class AWV(QualityMeasure):  # pragma: no cover
     """ Object to house the logic to calculate AAB measure """
 
@@ -45,25 +189,6 @@ class AWV(QualityMeasure):  # pragma: no cover
 
         return df_loaded
 
-    def _create_extra_reference_files(self, _core_references):
-        """Combines core reference files and AWV specific reference files"""
-        refs_well_care_core = (
-            _core_references["reference"]
-            .filter(spark_funcs.col("value_set_name") == "Well-Care")
-            .select(
-                "value_set_name", "code", "definition", "code_system", "code_system_oid"
-            )
-        )
-        refs_well_care_whole = refs_well_care_core.union(
-            _core_references["reference_awv"]
-        )
-        dict_extra_refs = {
-            "refs_well_care_core": refs_well_care_core,
-            "refs_well_care_whole": refs_well_care_whole,
-        }
-
-        return dict_extra_refs
-
     def get_reference_files(self):
         """get and cache appropriate reference files for AWV"""
         try:
@@ -74,140 +199,11 @@ class AWV(QualityMeasure):  # pragma: no cover
                 for name, file_name in DICT_REFERENCES.items()
             }
 
-            _extra_reference_files = self._create_extra_reference_files(
-                _core_references
-            )
+            _extra_reference_files = _create_extra_reference_files(_core_references)
 
             self._references = {**_core_references, **_extra_reference_files}
 
             return self._references
-
-    def _split_refs_wellcare(self, refs_well_care) -> typing.Mapping[str, DataFrame]:
-        dict_split_wellcare = dict()
-        dict_split_wellcare["hcpcs"] = refs_well_care.where(
-            spark_funcs.col("code_system").isin("CPT", "HCPCS")
-        ).select(
-            spark_funcs.col("value_set_name"), spark_funcs.col("code").alias("hcpcs")
-        )
-
-        dict_split_wellcare["icd"] = refs_well_care.where(
-            spark_funcs.col("code_system").isin("ICD9CM", "ICD10CM")
-        ).select(
-            spark_funcs.col("value_set_name"),
-            spark_funcs.regexp_replace(spark_funcs.col("code"), r"\.", "").alias(
-                "icddiag"
-            ),
-            spark_funcs.when(
-                spark_funcs.col("code_system") == spark_funcs.lit("ICD9CM"),
-                spark_funcs.lit("09"),
-            )
-            .otherwise(spark_funcs.lit("10"))
-            .alias("icdversion"),
-        )
-
-        return dict_split_wellcare
-
-    def _identify_eligible_events(
-        self, med_claims: DataFrame, dict_refs_wellcare: typing.Mapping[str, DataFrame]
-    ) -> DataFrame:
-        """ Should identify all eligible claims that are part of the desired value-set defn"""
-        exploded_claims = (
-            med_claims.select(
-                "member_id",
-                "claimid",
-                "fromdate",
-                "revcode",
-                "hcpcs",
-                "icdversion",
-                spark_funcs.array(
-                    [
-                        spark_funcs.col(col)
-                        for col in med_claims.columns
-                        if col.find("icddiag") > -1
-                    ]
-                ).alias("diag_explode"),
-            )
-            .distinct()
-            .withColumn("icddiag", spark_funcs.explode(spark_funcs.col("diag_explode")))
-            .drop("diag_explode")
-            .distinct()
-        )
-
-        df_eligible_claims_hcpcs = exploded_claims.join(
-            spark_funcs.broadcast(dict_refs_wellcare["hcpcs"]), on="hcpcs", how="inner"
-        )
-
-        df_eligible_claims_procs = exploded_claims.join(
-            spark_funcs.broadcast(dict_refs_wellcare["icd"]),
-            on=["icddiag", "icdversion"],
-            how="inner",
-        )
-
-        eligible_claims = df_eligible_claims_hcpcs.union(
-            df_eligible_claims_procs.select(df_eligible_claims_hcpcs.columns)
-        )
-
-        return eligible_claims
-
-    def _exclude_elig_gaps(
-        self,
-        eligible_member_time: DataFrame,
-        allowable_gaps: int = 0,
-        allowable_gap_length: int = 0,
-    ) -> DataFrame:  # pragma: no cover
-        """Find eligibility gaps and exclude members """
-        decoupled_windows = decouple_common_windows(
-            eligible_member_time,
-            "member_id",
-            "date_start",
-            "date_end",
-            create_windows_for_gaps=True,
-        )
-
-        gaps_df = (
-            decoupled_windows.join(
-                eligible_member_time,
-                ["member_id", "date_start", "date_end"],
-                how="left_outer",
-            )
-            .where(spark_funcs.col("cover_medical").isNull())
-            .select(
-                "member_id",
-                "date_start",
-                "date_end",
-                spark_funcs.datediff(
-                    spark_funcs.col("date_end"), spark_funcs.col("date_start")
-                ).alias("date_diff"),
-            )
-        )
-
-        long_gaps_df = gaps_df.where(
-            spark_funcs.col("date_diff") > allowable_gap_length
-        ).select("member_id")
-
-        gap_count_df = (
-            gaps_df.groupBy("member_id")
-            .agg(spark_funcs.count("*").alias("num_of_gaps"))
-            .where(spark_funcs.col("num_of_gaps") > allowable_gaps)
-            .select("member_id")
-        )
-
-        return (
-            long_gaps_df.union(gap_count_df)
-            .select(spark_funcs.col("member_id").alias("exclude_member_id"))
-            .distinct()
-        )
-
-    def _identify_excluded_members(self, dataframe, df_excluded_members):
-        """ Exclude appropriate members"""
-        excluded_member_flags = df_excluded_members.select(
-            spark_funcs.col("exclude_member_id").alias("member_id"),
-            spark_funcs.lit(True).alias("elig_gap_excluded"),
-        )
-        filtered_med_claims = (
-            dataframe.join(excluded_member_flags, "member_id", how="left_outer")
-        ).fillna({"elig_gap_excluded": False})
-        return filtered_med_claims
 
     def _calc_measure(
         self,
@@ -251,12 +247,12 @@ class AWV(QualityMeasure):  # pragma: no cover
             df_member_time_py.cover_medical == "Y"
         ).distinct()
 
-        df_excluded_members = self._exclude_elig_gaps(
+        df_excluded_members = _exclude_elig_gaps(
             df_member_eligible,
             allowable_gaps=allowable_gaps,
             allowable_gap_length=allowable_gap_length,
         )
-        df_member_months_w_excl = self._identify_excluded_members(
+        df_member_months_w_excl = _identify_excluded_members(
             df_member_eligible, df_excluded_members
         )
 
@@ -279,9 +275,9 @@ class AWV(QualityMeasure):  # pragma: no cover
         df_member_claims_py = df_member_denom_final.join(
             df_med_claims_py, on="member_id", how="inner"
         ).where(~spark_funcs.col("elig_gap_excluded"))
-        df_eligible_claims = self._identify_eligible_events(
+        df_eligible_claims = _identify_eligible_events(
             df_member_claims_py,
-            self._split_refs_wellcare(self.get_reference_files()[filter_reference]),
+            _split_refs_wellcare(self.get_reference_files()[filter_reference]),
         )
 
         df_numerator = (
