@@ -37,7 +37,10 @@ def _create_extra_reference_files(_core_references):
             "value_set_name", "code", "definition", "code_system", "code_system_oid"
         )
     )
-    refs_well_care_whole = refs_well_care_core.union(_core_references["reference_awv"])
+    refs_well_care_whole = refs_well_care_core.union(
+        _core_references["reference_awv"].select(*refs_well_care_core.columns)
+    )
+
     dict_extra_refs = {
         "refs_well_care_core": refs_well_care_core,
         "refs_well_care_whole": refs_well_care_whole,
@@ -154,7 +157,7 @@ def _exclude_elig_gaps(
     )
 
     return (
-        long_gaps_df.union(gap_count_df)
+        long_gaps_df.union(gap_count_df.select(*long_gaps_df.columns))
         .select(spark_funcs.col("member_id").alias("exclude_member_id"))
         .distinct()
     )
