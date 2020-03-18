@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Ben Copeland
+### CODE OWNERS: Ben Copeland, Chas Busenburg
 
 ### OBJECTIVE:
     Test the methods that calculate the Annual Wellcare Visits measure
