@@ -57,7 +57,7 @@ def main() -> int:
         filter_reference="reference_awv",
     )
 
-    date_of_run = datetime.date.today()
+    date_of_run = PRM_META["date_latestpaid"]
 
     results_df_rolling_twelve = measure.calc_measure(
         dfs_input,
