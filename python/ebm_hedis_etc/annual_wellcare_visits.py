@@ -318,13 +318,17 @@ class AWV(QualityMeasure):  # pragma: no cover
                     spark_funcs.col("comp_quality_date_last").isNotNull(),
                     spark_funcs.concat(
                         spark_funcs.lit("Most Recent Service: "),
-                        spark_funcs.col("comp_quality_date_last").cast("string"),
+                        spark_funcs.date_format(
+                            spark_funcs.col("comp_quality_date_last"), "MM/dd/yyyy"
+                        ).cast("string"),
                     ),
                 )
                 .otherwise(
                     spark_funcs.concat(
                         spark_funcs.lit("No related services observed since: "),
-                        spark_funcs.lit(performance_yearstart),
+                        spark_funcs.date_format(
+                            spark_funcs.lit(performance_yearstart), "MM/dd/yyyy"
+                        ).cast("string"),
                     )
                 ),
             )
