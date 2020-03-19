@@ -13,6 +13,7 @@ import logging
 import os
 from pathlib import Path
 
+import pyspark.sql.functions as spark_funcs
 from ebm_hedis_etc.annual_wellcare_visits import AWV
 from prm.meta.project import parse_project_metadata
 from prm.spark.app import SparkApp
@@ -36,36 +37,87 @@ def main() -> int:
 
     measure = AWV(sparkapp)
 
-    results_df_whole = measure.calc_measure(
-        dfs_input,
-        PRM_META["date_performanceyearstart"],
-        datetime_end=datetime.date(PRM_META["date_performanceyearstart"].year, 12, 31),
-        filter_reference="refs_well_care_whole",
+    results_df_whole = (
+        measure.calc_measure(
+            dfs_input,
+            PRM_META["date_performanceyearstart"],
+            datetime_end=datetime.date(
+                PRM_META["date_performanceyearstart"].year, 12, 31
+            ),
+            filter_reference="refs_well_care_whole",
+        )
+        .withColumn("comp_quality_short", spark_funcs.lit("AWV: Combined"))
+        .select(
+            "member_id",
+            "comp_quality_short",
+            "comp_quality_numerator",
+            "comp_quality_denominator",
+            "comp_quality_date_last",
+            "comp_quality_date_actionable",
+            "comp_quality_comments",
+        )
     )
 
-    results_df_core = measure.calc_measure(
-        dfs_input,
-        PRM_META["date_performanceyearstart"],
-        datetime_end=datetime.date(PRM_META["date_performanceyearstart"].year, 12, 31),
-        filter_reference="refs_well_care_core",
+    results_df_core = (
+        measure.calc_measure(
+            dfs_input,
+            PRM_META["date_performanceyearstart"],
+            datetime_end=datetime.date(
+                PRM_META["date_performanceyearstart"].year, 12, 31
+            ),
+            filter_reference="refs_well_care_core",
+        )
+        .withColumn("comp_quality_short", spark_funcs.lit("AWV: Core"))
+        .select(
+            "member_id",
+            "comp_quality_short",
+            "comp_quality_numerator",
+            "comp_quality_denominator",
+            "comp_quality_date_last",
+            "comp_quality_date_actionable",
+            "comp_quality_comments",
+        )
     )
-
-    results_df_medicare = measure.calc_measure(
-        dfs_input,
-        PRM_META["date_performanceyearstart"],
-        datetime_end=datetime.date(PRM_META["date_performanceyearstart"].year, 12, 31),
-        filter_reference="reference_awv",
+    results_df_medicare = (
+        measure.calc_measure(
+            dfs_input,
+            PRM_META["date_performanceyearstart"],
+            datetime_end=datetime.date(
+                PRM_META["date_performanceyearstart"].year, 12, 31
+            ),
+            filter_reference="reference_awv",
+        )
+        .withColumn("comp_quality_short", spark_funcs.lit("AWV: Medicare"))
+        .select(
+            "member_id",
+            "comp_quality_short",
+            "comp_quality_numerator",
+            "comp_quality_denominator",
+            "comp_quality_date_last",
+            "comp_quality_date_actionable",
+            "comp_quality_comments",
+        )
     )
-
     date_of_run = PRM_META["date_latestpaid"]
 
-    results_df_rolling_twelve = measure.calc_measure(
-        dfs_input,
-        datetime.date(date_of_run.year - 1, date_of_run.month, date_of_run.day),
-        datetime_end=date_of_run,
-        filter_reference="refs_well_care_whole",
+    results_df_rolling_twelve = (
+        measure.calc_measure(
+            dfs_input,
+            datetime.date(date_of_run.year - 1, date_of_run.month, date_of_run.day),
+            datetime_end=date_of_run,
+            filter_reference="refs_well_care_whole",
+        )
+        .withColumn("comp_quality_short", spark_funcs.lit("AWV: Rolling"))
+        .select(
+            "member_id",
+            "comp_quality_short",
+            "comp_quality_numerator",
+            "comp_quality_denominator",
+            "comp_quality_date_last",
+            "comp_quality_date_actionable",
+            "comp_quality_comments",
+        )
     )
-
     sparkapp.save_df(
         results_df_whole,
         PRM_META[150, "out"] / "results_annual_wellcare_visits_whole.parquet",
