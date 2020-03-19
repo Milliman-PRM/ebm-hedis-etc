@@ -4,4 +4,3 @@ code,string,false
 definition,string,true
 code_system,string,false
 code_system_oid,string,true
-
