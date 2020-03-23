@@ -27,3 +27,7 @@ comp_quality_dual,comp_quality_short,comp_quality,comp_quality_category,comp_qua
 26,AAB,Avoidance of Antibiotic Treatment in Adults With Acute Bronchitis,Overuse/Appropriateness,Higher_Better,0.9,"#,##0.0%",Binary
 27,PCP Followup: 7-Day, PCP Follow-Up within 7 Days of Inpatient Hospital Discharge, Transitions of Care, Higher_Better, .5, "#,##0.0%",Rate
 28,PCP Followup: 14-Day, PCP Follow-Up within 14 Days of Inpatient Hospital Discharge, Transitions of Care, Higher_Better, .5, "#,##0.0%",Rate
+29,AWV: Combined,Medicare Annual Wellness Visits or Preventative Service Visits,Preventive Health, Higher_Better, .3, "#,##0.0%", Binary
+30,AWV: Core,Medicare Annual Wellness Visits, Preventive Health, Higher_Better, .3, "#,##0.0%", Binary
+31,AWV: Medicare,Preventative Service Visits, Preventive Health, Higher_Better, .3, "#,##0.0%", Binary
+32,AWV: Rolling, Medicare Annual Wellness Visits past 12 months, Preventive Health, Higher_Better, .3, "#,##0.0%", Binary
