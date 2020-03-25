@@ -331,7 +331,7 @@ class AnnualWellnessVisits(PRMPythonTask):  # pragma: no cover
 
     def run(self):  # pylint: disable=arguments-differ
         """Run the Luigi job"""
-        program = PATH_SCRIPTS / "annual_wellness_visits.py"
+        program = PATH_SCRIPTS / "annual_wellcare_visits.py"
         super().run(
             program,
             path_log=build_logfile_name(
