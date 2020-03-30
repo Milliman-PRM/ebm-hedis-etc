@@ -322,10 +322,10 @@ class AnnualWellnessVisits(PRMPythonTask):  # pragma: no cover
 
     def output(self):
         names_output = {
-            "results_annual_wellcare_visits_core.parquet",
-            "results_annual_wellcare_visits_whole.parquet",
+            "results_annual_wellcare_visits_combined.parquet",
+            "results_annual_wellcare_visits_combined_rolling.parquet",
             "results_annual_wellcare_visits_medicare.parquet",
-            "results_annual_wellcare_visits_rolling.parquet",
+            "results_annual_wellcare_visits_medicare_rolling.parquet",
         }
         return [IndyPyLocalTarget(PRM_META[150, "out"] / name) for name in names_output]
 

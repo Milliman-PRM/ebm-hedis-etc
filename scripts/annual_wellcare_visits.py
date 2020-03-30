@@ -37,7 +37,7 @@ def main() -> int:
 
     measure = AWV(sparkapp)
 
-    results_df_whole = (
+    results_df_combined = (
         measure.calc_measure(
             dfs_input,
             PRM_META["date_performanceyearstart"],
@@ -58,16 +58,16 @@ def main() -> int:
         )
     )
 
-    results_df_core = (
+    results_df_combined_rolling = (
         measure.calc_measure(
             dfs_input,
             PRM_META["date_performanceyearstart"],
             datetime_end=datetime.date(
                 PRM_META["date_performanceyearstart"].year, 12, 31
             ),
-            filter_reference="refs_well_care_core",
+            filter_reference="refs_well_care_whole",
         )
-        .withColumn("comp_quality_short", spark_funcs.lit("AWV: Core"))
+        .withColumn("comp_quality_short", spark_funcs.lit("AWV: Combined Rolling"))
         .select(
             "member_id",
             "comp_quality_short",
@@ -78,6 +78,7 @@ def main() -> int:
             "comp_quality_comments",
         )
     )
+
     results_df_medicare = (
         measure.calc_measure(
             dfs_input,
@@ -100,14 +101,14 @@ def main() -> int:
     )
     date_of_run = PRM_META["date_latestpaid"]
 
-    results_df_rolling_twelve = (
+    results_df_medicare_rolling = (
         measure.calc_measure(
             dfs_input,
             datetime.date(date_of_run.year - 1, date_of_run.month, date_of_run.day),
             datetime_end=date_of_run,
-            filter_reference="refs_well_care_whole",
+            filter_reference="reference_awv",
         )
-        .withColumn("comp_quality_short", spark_funcs.lit("AWV: Rolling"))
+        .withColumn("comp_quality_short", spark_funcs.lit("AWV: Medicare Rolling"))
         .select(
             "member_id",
             "comp_quality_short",
@@ -119,20 +120,22 @@ def main() -> int:
         )
     )
     sparkapp.save_df(
-        results_df_whole,
-        PRM_META[150, "out"] / "results_annual_wellcare_visits_whole.parquet",
+        results_df_combined,
+        PRM_META[150, "out"] / "results_annual_wellcare_visits_combined.parquet",
     )
     sparkapp.save_df(
-        results_df_core,
-        PRM_META[150, "out"] / "results_annual_wellcare_visits_core.parquet",
+        results_df_combined_rolling,
+        PRM_META[150, "out"]
+        / "results_annual_wellcare_visits_combined_rolling.parquet",
     )
     sparkapp.save_df(
         results_df_medicare,
         PRM_META[150, "out"] / "results_annual_wellcare_visits_medicare.parquet",
     )
     sparkapp.save_df(
-        results_df_rolling_twelve,
-        PRM_META[150, "out"] / "results_annual_wellcare_visits_rolling.parquet",
+        results_df_medicare_rolling,
+        PRM_META[150, "out"]
+        / "results_annual_wellcare_visits_medicare_rolling.parquet",
     )
 
     return 0
