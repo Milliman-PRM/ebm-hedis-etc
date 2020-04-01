@@ -2,8 +2,9 @@
 
 A non-exhaustive list of what has changed in a more readable form than a commit history.
 
-### v#.#.#
+### v1.2.0
  - Enact and enforce automated formatting via `black`
+ - Added calculation of `Annual Wellness Visits` measures, which contains a calculation for Medicare-specific Annual Wellness Visits as well as general purpose annual preventive service visits
 
 ### v1.1.2
  - Correct typo in output definition for `CombineAll` for successful luigi pipeline
