@@ -1,5 +1,5 @@
 """
-### CODE OWNERS: Chas Busenburg
+### CODE OWNERS: Chas Busenburg, Ben Copeland
 
 ### OBJECTIVE:
     Calculate the percentage of patients who have
