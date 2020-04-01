@@ -14,6 +14,7 @@ from pathlib import Path
 
 from prm.spark.app import SparkApp
 from prm.spark.io_txt import build_structtype_from_csv
+from pyspark.sql import DataFrame
 
 LOGGER = logging.getLogger(__name__)
 try:
@@ -28,6 +29,29 @@ except KeyError:  # pragma: no cover
 # =============================================================================
 
 
+def import_single_file(sparkapp: SparkApp, file_name: str) -> DataFrame:
+    """ Imports a singular file to a dataframe"""
+
+    path_data = PATH_INPUT / "_data" / (file_name + ".csv")
+    path_schema = PATH_INPUT / "_schema" / (file_name + "csv")
+
+    LOGGER.info("Loading %s and saving as '%s'", path_data, file_name)
+
+    schema_temp = build_structtype_from_csv(
+        PATH_INPUT / "_schemas" / (file_name + ".csv")
+    )
+
+    return sparkapp.session.read.csv(
+        str(path_data),
+        schema=schema_temp,
+        sep=",",
+        mode="FAILFAST",
+        header=True,
+        ignoreLeadingWhiteSpace=True,
+        ignoreTrailingWhiteSpace=True,
+    )
+
+
 def import_flatfile_references(
     sparkapp: SparkApp
 ) -> "typing.Mapping[str, DataFrame]":  # pragma: no cover
@@ -35,19 +59,7 @@ def import_flatfile_references(
     refs = dict()
     for _file in (PATH_INPUT / "_data").iterdir():
         name = _file.stem.lower()
-        LOGGER.info("Loading %s and saving as '%s'", _file, name)
-        schema_temp = build_structtype_from_csv(
-            PATH_INPUT / "_schemas" / (_file.stem + ".csv")
-        )
-        refs[name] = sparkapp.session.read.csv(
-            str(_file),
-            schema=schema_temp,
-            sep=",",
-            mode="FAILFAST",
-            header=True,
-            ignoreLeadingWhiteSpace=True,
-            ignoreTrailingWhiteSpace=True,
-        )
+        refs[name] = import_single_file(sparkapp, name)
 
     return refs
 
