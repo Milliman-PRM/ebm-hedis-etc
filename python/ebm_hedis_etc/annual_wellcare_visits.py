@@ -17,7 +17,6 @@ import pyspark.sql.functions as spark_funcs
 from ebm_hedis_etc.base_classes import QualityMeasure
 from ebm_hedis_etc.reference import import_single_file
 from ebm_hedis_etc.utils import find_elig_gaps
-from prm.dates.windows import decouple_common_windows
 from pyspark.sql import Column
 from pyspark.sql import DataFrame
 
@@ -127,7 +126,7 @@ def _exclude_elig_gaps(
 
     gaps_df = find_elig_gaps(eligible_member_time, ce_start_date, ce_end_date).where(
         (spark_funcs.col("largest_gap") > allowable_gap_length)
-        & (spark_funcs.col("gap_count") > allowable_gaps)
+        | (spark_funcs.col("gap_count") > allowable_gaps)
     )
 
     return gaps_df.select(
@@ -211,7 +210,7 @@ class AWV(QualityMeasure):  # pragma: no cover
             df_member_eligible,
             performance_yearstart,
             spark_funcs.least(
-                spark_funcs.col("date_end"), spark_funcs.lit(date_latestpaid)
+                spark_funcs.lit(datetime_end), spark_funcs.lit(date_latestpaid)
             ),
             allowable_gaps=allowable_gaps,
             allowable_gap_length=allowable_gap_length,

@@ -281,14 +281,12 @@ def _initial_filtering(dfs_input, measurement_date_end):  # pragma: no cover
 
 
 def _exclusionary_filtering(
-    dfs_input, filtered_data_dict, measurement_date_end
+    dfs_input, filtered_data_dict, performance_yearstart, measurement_date_end
 ):  # pragma: no cover
     # find members with more than one 45 day gap in
     # eligibility during meas. year
     gaps_df = find_elig_gaps(
-        filtered_data_dict["members"],
-        filtered_data_dict["members"].date_start,
-        filtered_data_dict["members"].date_end,
+        filtered_data_dict["members"], performance_yearstart, measurement_date_end
     )
 
     gap_exclusions_df = gaps_df.where(
@@ -668,7 +666,7 @@ def calculate_denominator(
     filtered_data_dict = _initial_filtering(dfs_input, measurement_date_end)
 
     exc_filtered_data_dict = _exclusionary_filtering(
-        dfs_input, filtered_data_dict, measurement_date_end
+        dfs_input, filtered_data_dict, performance_yearstart, measurement_date_end
     )
 
     event_filtered_data_dict = _event_filtering(
