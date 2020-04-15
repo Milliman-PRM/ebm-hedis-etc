@@ -10,7 +10,7 @@
 import logging
 
 import pyspark.sql.functions as spark_funcs
-from prm.dates.windows import decouple_common_windows
+from prm.dates.windows import massage_windows
 from pyspark.sql import Column
 from pyspark.sql import DataFrame
 
@@ -34,52 +34,57 @@ def find_elig_gaps(
     """
     member_time_to_edges_df = (
         member_time.where(
-            (spark_funcs.col("date_start") >= ce_start_date)
-            & (spark_funcs.col("date_end") <= ce_end_date)
+            (spark_funcs.col("date_end") >= ce_start_date)
+            & (spark_funcs.col("date_start") <= ce_end_date)
         )
-        .select("member_id", "date_start", "date_end")
-        .union(
-            member_time.select(
-                "member_id",
-                spark_funcs.lit(ce_start_date).alias("date_start"),
-                spark_funcs.lit(ce_end_date).alias("date_end"),
-            )
-        )
-    )
-
-    decoupled_windows_df = decouple_common_windows(
-        member_time_to_edges_df,
-        "member_id",
-        "date_start",
-        "date_end",
-        create_windows_for_gaps=True,
-    )
-
-    gaps_df = (
-        decoupled_windows_df.join(
-            member_time, ["member_id", "date_start", "date_end"], how="full_outer"
-        )
-        .fillna({"cover_medical": "N"})
         .select(
             "member_id",
             "date_start",
             "date_end",
             "cover_medical",
-            spark_funcs.when(
-                spark_funcs.col("cover_medical").isin("N"),
-                (
-                    spark_funcs.datediff(
-                        spark_funcs.col("date_end"), spark_funcs.col("date_start")
-                    )
-                    + 1
-                ),
-            ).alias("elig_gap_date_diff"),
-            spark_funcs.when(
-                spark_funcs.col("cover_medical").isin("N"), spark_funcs.lit(1)
-            )
-            .otherwise(spark_funcs.lit(0))
-            .alias("elig_gap_flag"),
+            spark_funcs.lit(0).alias("tiebreak_order"),
         )
+        .union(
+            member_time.select(
+                "member_id",
+                spark_funcs.lit(ce_start_date).alias("date_start"),
+                spark_funcs.lit(ce_end_date).alias("date_end"),
+                spark_funcs.lit("N").alias("cover_medical"),
+                spark_funcs.lit(1).alias("tiebreak_order"),
+            )
+        )
+    )
+
+    decoupled_windows_df = massage_windows(
+        member_time_to_edges_df,
+        "member_id",
+        column_window_start="date_start",
+        column_window_end="date_end",
+        tiebreaks="tiebreak_order",
+    )
+
+    gaps_df = decoupled_windows_df.where(
+        (spark_funcs.col("date_start") >= spark_funcs.lit(ce_start_date))
+        & (spark_funcs.col("date_end") <= spark_funcs.lit(ce_end_date))
+    ).select(
+        "member_id",
+        "date_start",
+        "date_end",
+        "cover_medical",
+        spark_funcs.when(
+            spark_funcs.col("cover_medical").isin("N"),
+            (
+                spark_funcs.datediff(
+                    spark_funcs.col("date_end"), spark_funcs.col("date_start")
+                )
+                + 1
+            ),
+        )
+        .otherwise(spark_funcs.lit(0))
+        .alias("elig_gap_date_diff"),
+        spark_funcs.when(spark_funcs.col("cover_medical").isin("N"), spark_funcs.lit(1))
+        .otherwise(spark_funcs.lit(0))
+        .alias("elig_gap_flag"),
     )
 
     return gaps_df.groupBy("member_id").agg(
