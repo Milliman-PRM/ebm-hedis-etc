@@ -211,7 +211,7 @@ class AWV(QualityMeasure):  # pragma: no cover
             df_member_eligible,
             performance_yearstart,
             spark_funcs.least(
-                spark_funcs.col("date_end"), spark_funcs.lit(date_latestpaid)
+                spark_funcs.lit(datetime_end), spark_funcs.lit(date_latestpaid)
             ),
             allowable_gaps=allowable_gaps,
             allowable_gap_length=allowable_gap_length,
