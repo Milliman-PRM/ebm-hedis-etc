@@ -707,9 +707,14 @@ class MMA(QualityMeasure):
             dfs_input, performance_yearstart, measurement_date_end
         )
 
+        for key, df in denom_df.items():
+            df.persist()
+
         numer_df = calculate_numerator(
             dfs_input, denom_df["rx"], performance_yearstart, measurement_date_end
         )
+
+        numer_df.persist()
 
         denom_final_df = (
             denom_df["members"]
@@ -750,5 +755,10 @@ class MMA(QualityMeasure):
             F.lit("MMA").alias("comp_quality_short"),
             F.lit(None).cast("string").alias("comp_quality_comments"),
         )
+
+        for key, df in denom_df.items():
+            df.unpersist()
+
+        numer_df.unpersist()
 
         return result_df
