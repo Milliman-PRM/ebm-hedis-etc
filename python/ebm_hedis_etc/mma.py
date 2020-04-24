@@ -573,6 +573,7 @@ def _calculate_rates(
     collect_date_windows = controller_claims_df.groupby("member_id", "drug_id").agg(
         F.collect_list(F.col("map_coverage_window")).alias("array_coverage_windows")
     )
+    collect_date_windows.persist().count()
 
     def adjust_date_windows(
         array_coverage_windows: "typing.Iterable[typing.Mapping[str, datetime.date]]",
@@ -616,6 +617,7 @@ def _calculate_rates(
         F.col("map_adj_coverage_windows")["date_start"].alias("date_start"),
         F.col("map_adj_coverage_windows")["date_end"].alias("date_end"),
     )
+    adjusted_date_windows.persist().count()
 
     decouple_overlapping_coverage = (
         decouple_common_windows(
@@ -653,6 +655,9 @@ def _calculate_rates(
             "pdc", F.round((F.col("days_covered") / F.col("treatment_period")), 2)
         )
     )
+    member_coverage_summ.persist().count()
+    collect_date_windows.unpersist()
+    adjusted_date_windows.unpersist()
 
     return member_coverage_summ
 
@@ -713,8 +718,6 @@ class MMA(QualityMeasure):
         numer_df = calculate_numerator(
             dfs_input, denom_df["rx"], performance_yearstart, measurement_date_end
         )
-
-        numer_df.persist()
 
         denom_final_df = (
             denom_df["members"]
