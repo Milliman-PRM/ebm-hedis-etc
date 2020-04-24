@@ -758,6 +758,7 @@ class MMA(QualityMeasure):
             F.lit("MMA").alias("comp_quality_short"),
             F.lit(None).cast("string").alias("comp_quality_comments"),
         )
+        result_df.persist().count()
 
         for key, df in denom_df.items():
             df.unpersist()
