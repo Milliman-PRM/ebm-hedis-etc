@@ -61,11 +61,14 @@ def main() -> int:
     results_df_combined_rolling = (
         measure.calc_measure(
             dfs_input,
-            PRM_META["date_performanceyearstart"],
-            datetime_end=datetime.date(
-                PRM_META["date_performanceyearstart"].year, 12, 31
+            datetime.date(
+                PRM_META["date_latestpaid"].year - 1,
+                PRM_META["date_latestpaid"].month,
+                PRM_META["date_latestpaid"].day,
             ),
+            datetime_end=PRM_META["date_latestpaid"],
             filter_reference="refs_well_care_whole",
+            date_latestpaid=PRM_META["date_latestpaid"],
         )
         .withColumn("comp_quality_short", spark_funcs.lit("AWV: Combined Rolling"))
         .select(
@@ -87,6 +90,7 @@ def main() -> int:
                 PRM_META["date_performanceyearstart"].year, 12, 31
             ),
             filter_reference="reference_awv",
+            date_latestpaid=PRM_META["date_latestpaid"],
         )
         .withColumn("comp_quality_short", spark_funcs.lit("AWV: Medicare"))
         .select(
@@ -99,14 +103,18 @@ def main() -> int:
             "comp_quality_comments",
         )
     )
-    date_of_run = PRM_META["date_latestpaid"]
 
     results_df_medicare_rolling = (
         measure.calc_measure(
             dfs_input,
-            datetime.date(date_of_run.year - 1, date_of_run.month, date_of_run.day),
-            datetime_end=date_of_run,
+            datetime.date(
+                PRM_META["date_latestpaid"].year - 1,
+                PRM_META["date_latestpaid"].month,
+                PRM_META["date_latestpaid"].day,
+            ),
+            datetime_end=PRM_META["date_latestpaid"],
             filter_reference="reference_awv",
+            date_latestpaid=PRM_META["date_latestpaid"],
         )
         .withColumn("comp_quality_short", spark_funcs.lit("AWV: Medicare Rolling"))
         .select(

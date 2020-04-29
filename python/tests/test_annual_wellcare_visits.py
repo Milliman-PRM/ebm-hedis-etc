@@ -28,6 +28,7 @@ DATE_PY_START = datetime.date(2019, 1, 1)
 DATE_PY_END = datetime.date(2019, 12, 31)
 DATE_ROLLING_12_START = datetime.date(2018, 4, 1)
 DATE_ROLLING_12_END = datetime.date(2019, 3, 31)
+DATE_LATEST_PAID = datetime.date(2019, 3, 31)
 
 # pylint: disable=no-self-use, redefined-outer-name
 
@@ -84,6 +85,7 @@ class TestAWV:
             performance_yearstart=DATE_PY_START,
             datetime_end=DATE_PY_END,
             filter_reference="refs_well_care_core",
+            date_latestpaid=DATE_LATEST_PAID,
         )
         compare_actual_expected(results, mock_dataframes["expected_core_py"])
 
@@ -95,6 +97,7 @@ class TestAWV:
             performance_yearstart=DATE_PY_START,
             datetime_end=DATE_PY_END,
             filter_reference="reference_awv",
+            date_latestpaid=DATE_LATEST_PAID,
         )
         compare_actual_expected(results, mock_dataframes["expected_awv_py"])
 
@@ -105,6 +108,7 @@ class TestAWV:
             mock_dataframes,
             performance_yearstart=DATE_PY_START,
             datetime_end=DATE_PY_END,
+            date_latestpaid=DATE_LATEST_PAID,
         )
         compare_actual_expected(results, mock_dataframes["expected_combined_py"])
 
@@ -116,6 +120,7 @@ class TestAWV:
             performance_yearstart=DATE_ROLLING_12_START,
             datetime_end=DATE_ROLLING_12_END,
             filter_reference="refs_well_care_core",
+            date_latestpaid=DATE_LATEST_PAID,
         )
         compare_actual_expected(results, mock_dataframes["expected_core_rolling_12"])
 

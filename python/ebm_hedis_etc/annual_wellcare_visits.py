@@ -16,7 +16,8 @@ from pathlib import Path
 import pyspark.sql.functions as spark_funcs
 from ebm_hedis_etc.base_classes import QualityMeasure
 from ebm_hedis_etc.reference import import_single_file
-from prm.dates.windows import decouple_common_windows
+from ebm_hedis_etc.utils import find_elig_gaps
+from pyspark.sql import Column
 from pyspark.sql import DataFrame
 
 PATH_REF = Path(os.environ["EBM_HEDIS_ETC_PATHREF"])
@@ -116,51 +117,21 @@ def _identify_eligible_events(
 
 def _exclude_elig_gaps(
     eligible_member_time: DataFrame,
+    ce_start_date: Column,
+    ce_end_date: Column,
     allowable_gaps: int = 0,
     allowable_gap_length: int = 0,
 ) -> DataFrame:  # pragma: no cover
     """Find eligibility gaps and exclude members """
-    decoupled_windows = decouple_common_windows(
-        eligible_member_time,
-        "member_id",
-        "date_start",
-        "date_end",
-        create_windows_for_gaps=True,
+
+    gaps_df = find_elig_gaps(eligible_member_time, ce_start_date, ce_end_date).where(
+        (spark_funcs.col("largest_gap") > allowable_gap_length)
+        | (spark_funcs.col("gap_count") > allowable_gaps)
     )
 
-    gaps_df = (
-        decoupled_windows.join(
-            eligible_member_time,
-            ["member_id", "date_start", "date_end"],
-            how="left_outer",
-        )
-        .where(spark_funcs.col("cover_medical").isNull())
-        .select(
-            "member_id",
-            "date_start",
-            "date_end",
-            spark_funcs.datediff(
-                spark_funcs.col("date_end"), spark_funcs.col("date_start")
-            ).alias("date_diff"),
-        )
-    )
-
-    long_gaps_df = gaps_df.where(
-        spark_funcs.col("date_diff") > allowable_gap_length
-    ).select("member_id")
-
-    gap_count_df = (
-        gaps_df.groupBy("member_id")
-        .agg(spark_funcs.count("*").alias("num_of_gaps"))
-        .where(spark_funcs.col("num_of_gaps") > allowable_gaps)
-        .select("member_id")
-    )
-
-    return (
-        long_gaps_df.union(gap_count_df.select(*long_gaps_df.columns))
-        .select(spark_funcs.col("member_id").alias("exclude_member_id"))
-        .distinct()
-    )
+    return gaps_df.select(
+        spark_funcs.col("member_id").alias("exclude_member_id")
+    ).distinct()
 
 
 def _identify_excluded_members(dataframe, df_excluded_members):
@@ -217,6 +188,7 @@ class AWV(QualityMeasure):  # pragma: no cover
         filter_reference: typing.Optional[str] = None,
         allowable_gaps: int = 1,
         allowable_gap_length: int = 45,
+        date_latestpaid: typing.Optional[datetime.date] = None,
     ) -> DataFrame:
 
         if filter_reference is None:
@@ -225,33 +197,21 @@ class AWV(QualityMeasure):  # pragma: no cover
         if datetime_end is None:
             datetime_end = datetime.date(performance_yearstart.year, 12, 31)
 
-        df_member_time_py = (
-            dfs_input["member_time"]
-            .where(
-                (spark_funcs.col("date_start") <= datetime_end)
-                & (spark_funcs.col("date_end") >= performance_yearstart)
-            )
-            .withColumn(
-                "date_start",
-                spark_funcs.greatest(
-                    spark_funcs.col("date_start"),
-                    spark_funcs.lit(performance_yearstart),
-                ),
-            )
-            .withColumn(
-                "date_end",
-                spark_funcs.least(
-                    spark_funcs.col("date_end"), spark_funcs.lit(datetime_end)
-                ),
-            )
-        )
+        if date_latestpaid is None:
+            date_latestpaid = datetime.date(performance_yearstart.year, 12, 31)
 
-        df_member_eligible = df_member_time_py.where(
-            df_member_time_py.cover_medical == "Y"
-        ).distinct()
+        df_member_eligible = (
+            dfs_input["member_time"]
+            .where(dfs_input["member_time"].cover_medical == "Y")
+            .distinct()
+        )
 
         df_excluded_members = _exclude_elig_gaps(
             df_member_eligible,
+            performance_yearstart,
+            spark_funcs.least(
+                spark_funcs.lit(datetime_end), spark_funcs.lit(date_latestpaid)
+            ),
             allowable_gaps=allowable_gaps,
             allowable_gap_length=allowable_gap_length,
         )
