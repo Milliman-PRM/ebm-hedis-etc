@@ -38,6 +38,7 @@ class ImportReferences(PRMPythonTask):  # pragma: no cover
             "hedis_codes.parquet",
             "hedis_ndc_codes.parquet",
             "hedis_ref_quality_measures.parquet",
+            "reference_awv.parquet",
         }
         return [IndyPyLocalTarget(PATH_REFDATA / name) for name in names_output]
 
@@ -310,6 +311,36 @@ class AvoidanceAntibioticBronchitis(PRMPythonTask):  # pragma: no cover
         )
 
 
+class AnnualWellnessVisits(PRMPythonTask):  # pragma: no cover
+    """ Run annual_wellness_visits.py """
+
+    requirements = RequirementsContainer(
+        ImportReferences,
+        staging_membership.DeriveParamsFromMembership,
+        hcg_grouper_validation.Validations,
+    )
+
+    def output(self):
+        names_output = {
+            "results_annual_wellcare_visits_combined.parquet",
+            "results_annual_wellcare_visits_combined_rolling.parquet",
+            "results_annual_wellcare_visits_medicare.parquet",
+            "results_annual_wellcare_visits_medicare_rolling.parquet",
+        }
+        return [IndyPyLocalTarget(PRM_META[150, "out"] / name) for name in names_output]
+
+    def run(self):  # pylint: disable=arguments-differ
+        """Run the Luigi job"""
+        program = PATH_SCRIPTS / "annual_wellcare_visits.py"
+        super().run(
+            program,
+            path_log=build_logfile_name(
+                program, PRM_META[150, "log"] / "EBM_HEDIS_ETC"
+            ),
+            create_folder=True,
+        )
+
+
 class CombineAll(PRMPythonTask):  # pragma: no cover
     """Run combine_all.py"""
 
@@ -324,6 +355,7 @@ class CombineAll(PRMPythonTask):  # pragma: no cover
         PersistentAsthmaAdherence,
         AvoidanceAntibioticBronchitis,
         PCPFollowup,
+        AnnualWellnessVisits,
     )
 
     def output(self):
