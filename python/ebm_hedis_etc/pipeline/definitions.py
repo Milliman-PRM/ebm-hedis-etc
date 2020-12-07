@@ -339,6 +339,31 @@ class AnnualWellnessVisits(PRMPythonTask):  # pragma: no cover
             ),
             create_folder=True,
         )
+            
+class MedicationAdherence(PRMPythonTask):  # pragma: no cover
+    """ Run annual_wellness_visits.py """
+
+    requirements = RequirementsContainer(
+        ImportReferences,
+        staging_membership.DeriveParamsFromMembership,
+        hcg_grouper_validation.Validations,
+    )
+
+    def output(self):
+        names_output = {"results_mad.parquet"}
+        return [IndyPyLocalTarget(PRM_META[150, "out"] / name) for name in names_output]
+
+
+    def run(self):  # pylint: disable=arguments-differ
+        """Run the Luigi job"""
+        program = PATH_SCRIPTS / "medication_adherence.py"
+        super().run(
+            program,
+            path_log=build_logfile_name(
+                program, PRM_META[150, "log"] / "EBM_HEDIS_ETC"
+            ),
+            create_folder=True,
+        )            
 
 
 class CombineAll(PRMPythonTask):  # pragma: no cover
@@ -356,6 +381,7 @@ class CombineAll(PRMPythonTask):  # pragma: no cover
         AvoidanceAntibioticBronchitis,
         PCPFollowup,
         AnnualWellnessVisits,
+        MedicationAdherence,
     )
 
     def output(self):
