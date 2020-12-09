@@ -152,15 +152,15 @@ class MAD(QualityMeasure):  # pragma: no cover
                 "member_id",
                 spark_funcs.when(
                     spark_funcs.col("prm_quality_category") == "Diabetes",
-                    spark_funcs.lit("MAD_Diabetes"),
+                    spark_funcs.lit("MAD: Diabetes"),
                 )
                 .when(
                     spark_funcs.col("prm_quality_category") == "Cardiovascular",
-                    spark_funcs.lit("MAD_Cardiovascular"),
+                    spark_funcs.lit("MAD: Cardiovascular"),
                 )
                 .when(
                     spark_funcs.col("prm_quality_category") == "Statin",
-                    spark_funcs.lit("MAD_Statin"),
+                    spark_funcs.lit("MAD: Statin"),
                 )
                 .otherwise(spark_funcs.lit(None))
                 .alias("comp_quality_short"),

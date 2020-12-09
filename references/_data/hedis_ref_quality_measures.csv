@@ -31,3 +31,6 @@ comp_quality_dual,comp_quality_short,comp_quality,comp_quality_category,comp_qua
 30,AWV: Combined Rolling,Medicare Annual Wellness Visits or Preventative Service Visits past 12 months, Preventive Health, Higher_Better, .3, "#,##0.0%", Binary
 31,AWV: Medicare,Medicare Annual Wellness Visits, Preventive Health, Higher_Better, .3, "#,##0.0%", Binary
 32,AWV: Medicare Rolling, Medicare Annual Wellness Visits past 12 months, Preventive Health, Higher_Better, .3, "#,##0.0%", Binary
+33,MAD: Diabetes,Medication Adherence non-Insulin Diabetes,Medication Adherence,Higher_Better,.8,"#,##0.0%",Binary
+34,MAD: Cardiovascular,Medication Adherence Cardiovascular,Medication Adherence,Higher_Better,.8,"#,##0.0%",Binary
+35,MAD: Statin,Medication Adherence Statin,Medication Adherence,Higher_Better,.8,"#,##0.0%",Binary
