@@ -15,6 +15,7 @@ import prm.meta.project
 from indypy.nonstandard.ext_luigi import build_logfile_name
 from indypy.nonstandard.ext_luigi import IndyPyLocalTarget
 from prm.execute.definitions import hcg_grouper_validation
+from prm.execute.definitions import poweruser_detail_datamart
 from prm.execute.definitions import staging_membership
 from prm.ext_luigi.base_tasks import PRMPythonTask
 from prm.ext_luigi.base_tasks import RequirementsContainer
@@ -264,6 +265,7 @@ class PCPFollowup(PRMPythonTask):  # pragma: no cover
         ImportReferences,
         staging_membership.DeriveParamsFromMembership,
         hcg_grouper_validation.Validations,
+        poweruser_detail_datamart.Validation,
     )
 
     def output(self):
