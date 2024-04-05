@@ -103,11 +103,7 @@ def main() -> int:
     results_df_medicare_rolling = (
         measure.calc_measure(
             dfs_input,
-            datetime.date(
-                PRM_META["date_latestpaid"].year - 1,
-                PRM_META["date_latestpaid"].month,
-                PRM_META["date_latestpaid"].day,
-            ),
+            PRM_META["date_latestpaid"] - relativedelta(years = 1),
             datetime_end=PRM_META["date_latestpaid"],
             filter_reference="reference_awv",
             date_latestpaid=PRM_META["date_latestpaid"],
