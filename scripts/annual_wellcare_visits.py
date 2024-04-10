@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 
 import pyspark.sql.functions as spark_funcs
+from dateutil.relativedelta import relativedelta
 from ebm_hedis_etc.annual_wellcare_visits import AWV
 from prm.meta.project import parse_project_metadata
 from prm.spark.app import SparkApp
@@ -61,11 +62,7 @@ def main() -> int:
     results_df_combined_rolling = (
         measure.calc_measure(
             dfs_input,
-            datetime.date(
-                PRM_META["date_latestpaid"].year - 1,
-                PRM_META["date_latestpaid"].month,
-                PRM_META["date_latestpaid"].day,
-            ),
+            PRM_META["date_latestpaid"] - relativedelta(years = 1),
             datetime_end=PRM_META["date_latestpaid"],
             filter_reference="refs_well_care_whole",
             date_latestpaid=PRM_META["date_latestpaid"],
@@ -107,11 +104,7 @@ def main() -> int:
     results_df_medicare_rolling = (
         measure.calc_measure(
             dfs_input,
-            datetime.date(
-                PRM_META["date_latestpaid"].year - 1,
-                PRM_META["date_latestpaid"].month,
-                PRM_META["date_latestpaid"].day,
-            ),
+            PRM_META["date_latestpaid"] - relativedelta(years = 1),
             datetime_end=PRM_META["date_latestpaid"],
             filter_reference="reference_awv",
             date_latestpaid=PRM_META["date_latestpaid"],
