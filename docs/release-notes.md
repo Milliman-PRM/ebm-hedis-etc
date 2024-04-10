@@ -2,9 +2,12 @@
 
 A non-exhaustive list of what has changed in a more readable form than a commit history.
 
+### v1.2.2
+ - Update logic to create "time_periods" table for Annual Wellness visit to account for leap years.
+
 ### v1.2.1
  - Added `073 PUDD Validation` as a dependency for `PCPFollowup` task.
-  - The `PCPFollowup` task requires `outclaims` from `073 PUDD`. Not having this dependency resulted in continuous failure of the `PCPFollowup` task.
+ - The `PCPFollowup` task requires `outclaims` from `073 PUDD`. Not having this dependency resulted in continuous failure of the `PCPFollowup` task.
 
 ### v1.2.0
  - Enact and enforce automated formatting via `black`
